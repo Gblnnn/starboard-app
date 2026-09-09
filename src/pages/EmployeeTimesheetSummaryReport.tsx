@@ -15,16 +15,18 @@ type SummaryRow = {
   emp_id: string | number | null;
   name: string | null;
   nationality: string | null;
+  emp_type: string | null;  
   employee_status: string | null;
   date: string | null;
   punch_in: string | null;
   punch_out: string | null;
-  overtime: string | null;
+  overtime: number | string | null;
   project_code: string | null;
   timesheet_status: string | null;
   timecard_status: string | null;
   remarks: string | null;
   total_working_hours: number | string | null;
+  weekend_ot_minutes: number | string | null;  
 };
 
 type DisplayRow = SummaryRow & {
