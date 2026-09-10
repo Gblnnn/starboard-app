@@ -51,6 +51,11 @@ function buildTimestamp(date: string, time: string): string | null {
   return time ? `${date}T${time}:00+04:00` : null;
 }
 
+function isValidTime(value: string): boolean {
+  const match = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+  return match;
+}
+
 function calculateTotalHours(punchIn: string, punchOut: string): string {
   if (!punchIn || !punchOut) return '';
   const [inHours, inMinutes] = punchIn.split(':').map(Number);
@@ -176,6 +181,10 @@ export default function TimesheetEdit() {
       toast.error('Punch In and Punch Out are required unless status is absent, weekend, or holiday.');
       return;
     }
+    if ((punchIn && !isValidTime(punchIn)) || (punchOut && !isValidTime(punchOut))) {
+      toast.error('Punch In and Punch Out must use HH:MM format.');
+      return;
+    }
     if (canEditOvertime && (!overtime.trim() || !Number.isFinite(Number(overtime)) || Number(overtime) < 0)) {
       toast.error('Overtime must be a non-negative decimal number.');
       return;
@@ -240,8 +249,9 @@ export default function TimesheetEdit() {
           <fieldset disabled={!rowExists || loadingRow} className="mt-5 grid gap-4 border-t border-slate-100 pt-5 md:grid-cols-2">
             <label className="text-sm font-medium text-slate-700">Project Code<select value={projectCode} onChange={(event) => setProjectCode(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Select project</option>{projects.map((project) => <option key={project.project_code} value={project.project_code}>{project.project_code}{project.project_name ? ` - ${project.project_name}` : ''}</option>)}</select></label>
             <label className="text-sm font-medium text-slate-700">Status<select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Select status</option>{statuses.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-            <label className="text-sm font-medium text-slate-700">Punch In<select value={punchIn} onChange={(event) => setPunchIn(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Clear punch in</option>{timeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-            <label className="text-sm font-medium text-slate-700">Punch Out<select value={punchOut} onChange={(event) => setPunchOut(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Clear punch out</option>{timeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+            <label className="text-sm font-medium text-slate-700">Punch In<input type="text" inputMode="numeric" list="timesheet-time-options" placeholder="HH:MM" value={punchIn} onChange={(event) => setPunchIn(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500" /></label>
+            <label className="text-sm font-medium text-slate-700">Punch Out<input type="text" inputMode="numeric" list="timesheet-time-options" placeholder="HH:MM" value={punchOut} onChange={(event) => setPunchOut(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500" /></label>
+            <datalist id="timesheet-time-options">{timeOptions.map((option) => <option key={option} value={option} />)}</datalist>
             <label className="text-sm font-medium text-slate-700">Overtime (hours)<input type="number" min="0" step="0.01" value={overtime} disabled={!canEditOvertime} onChange={(event) => setOvertime(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-teal-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500" />{selectedEmployee?.emp_type?.toLowerCase() === 'staff' && <span className="mt-1 block text-xs font-normal text-slate-500">Overtime editing is disabled for staff employees.</span>}</label>
             <label className="text-sm font-medium text-slate-700">Total Working Hours<input readOnly value={calculateTotalHours(punchIn, punchOut)} placeholder="Enter Punch In and Punch Out" className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none" /></label>
             <label className="text-sm font-medium text-slate-700 md:col-span-2">Remarks<textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500" /></label>
