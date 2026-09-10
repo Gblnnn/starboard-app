@@ -46,6 +46,11 @@ type FilterOptions = {
   statuses: string[];
 };
 
+type EmployeeOption = {
+  name: string;
+  empId: string;
+};
+
 const PAGE_SIZE = 100;
 const columns = [
   { key: 'serialNumber', label: 'S.No.' },
@@ -185,7 +190,7 @@ export default function EmployeeTimesheetSummaryReport() {
   const [sortColumn, setSortColumn] = useState<SortableColumnKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ companies: [], projects: [], statuses: [] });  
-  const [employeeOptions, setEmployeeOptions] = useState<string[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
 
@@ -263,10 +268,10 @@ export default function EmployeeTimesheetSummaryReport() {
         .order('name');
       if (employeeError) throw employeeError;
       const employees = (employeeData || [])
-        .map((employee) => employee.name)
-        .filter(Boolean) as string[];
+        .filter((employee) => employee.name)
+        .map((employee) => ({ name: employee.name as string, empId: String(employee.emp_id || '') }));
 //      options.employees = employees;
-      setEmployeeOptions(Array.from(new Set(employees)).sort());
+      setEmployeeOptions(employees.filter((employee, index, allEmployees) => allEmployees.findIndex((item) => item.name === employee.name) === index).sort((left, right) => left.name.localeCompare(right.name)));
 
       do {
         const { data, error } = await supabase
@@ -389,12 +394,13 @@ export default function EmployeeTimesheetSummaryReport() {
 
   const selectedEmployee = useMemo(() => {
     if (!employeeFilter) return null;
+    const employeeOption = employeeOptions.find((employee) => employee.name === employeeFilter);
     const employeeRow = rows.find((row) => row.name === employeeFilter && row.emp_id);
     return {
       name: employeeFilter,
-      empId: employeeRow?.emp_id ? String(employeeRow.emp_id) : '',
+      empId: employeeOption?.empId || (employeeRow?.emp_id ? String(employeeRow.emp_id) : ''),
     };
-  }, [employeeFilter, rows]);
+  }, [employeeFilter, employeeOptions, rows]);
   const selectedEmployeeLabel = selectedEmployee
     ? `${selectedEmployee.name}${selectedEmployee.empId ? ` [${selectedEmployee.empId}]` : ''}`
     : '';
@@ -559,7 +565,7 @@ export default function EmployeeTimesheetSummaryReport() {
         <div className="relative min-w-[220px] flex-1 sm:flex-none"><Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employee, company, project..." className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs outline-none focus:border-teal-500" /></div>
         <SearchableSelect label="Company" value={companyFilter} options={filterOptions.companies} onChange={setCompanyFilter} />
         <SearchableSelect label="Project" value={projectFilter} options={filterOptions.projects} onChange={setProjectFilter} />
-        <SearchableSelect label="Employee" value={employeeFilter} options={employeeOptions} onChange={setEmployeeFilter} />
+        <SearchableSelect label="Employee" value={employeeFilter} options={employeeOptions.map((employee) => employee.name)} onChange={setEmployeeFilter} />
         <div className="flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
           <button type="button" onClick={() => setCalendarMode('day')} className={`h-7 rounded-md px-2 text-[11px] ${calendarMode === 'day' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>Day</button>
           <button type="button" onClick={() => setCalendarMode('month')} className={`h-7 rounded-md px-2 text-[11px] ${calendarMode === 'month' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>Month</button>
