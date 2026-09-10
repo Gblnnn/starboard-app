@@ -22,6 +22,7 @@ type SummaryRow = {
   punch_out: string | null;
   overtime: number | string | null;
   break_hours: number | string | null;
+  break_hour?: number | string | null;
   project_code: string | null;
   timesheet_status: string | null;
   timecard_status: string | null;
@@ -125,8 +126,13 @@ function decimalHoursToTime(value: number | string | null): string {
 }
 
 function breakHoursToTime(value: number | string | null): string {
+  if (value === null || value === undefined || value === '') return '';
   if (typeof value === 'string' && value.includes(':')) return formatTime(value);
-  return decimalHoursToTime(value);
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return String(value);
+  if (numericValue > 24) return minutesToTime(numericValue);
+  return decimalHoursToTime(numericValue);
 }
 
 function toDisplayRow(row: SummaryRow): DisplayRow {
@@ -138,7 +144,7 @@ function toDisplayRow(row: SummaryRow): DisplayRow {
     displayPunchOut: formatTime(row.punch_out),
     displayOvertime: minutesToTime(row.overtime),
     displayHolidayOvertime: minutesToTime(row.weekend_ot_minutes),
-    displayBreakHours: breakHoursToTime(row.break_hours),
+    displayBreakHours: breakHoursToTime(row.break_hours ?? row.break_hour ?? null),
     displayHours: decimalHoursToTime(row.total_working_hours),
   };
 }
