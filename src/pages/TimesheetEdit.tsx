@@ -10,6 +10,7 @@ type Employee = {
   device_user_id: string;
   emp_id: string | null;
   name: string;
+  emp_type: string | null;
 };
 
 type Project = {
@@ -36,9 +37,14 @@ const timeOptions = Array.from({ length: 96 }, (_, index) => {
 
 function extractTime(value: string | null): string {
   if (!value) return '';
-  const match = value.match(/(?:T|\s)(\d{2}:\d{2})/);
-  if (match) return match[1];
-  return value.slice(0, 5);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'Asia/Dubai',
+  }).format(parsed);
 }
 
 function buildTimestamp(date: string, time: string): string | null {
@@ -78,6 +84,12 @@ export default function TimesheetEdit() {
   const [saving, setSaving] = useState(false);
   const [rowExists, setRowExists] = useState(false);
 
+  const selectedEmployee = useMemo(
+    () => employees.find((employee) => employee.device_user_id === employeeCode),
+    [employeeCode, employees],
+  );
+  const canEditOvertime = selectedEmployee?.emp_type?.toLowerCase() !== 'staff';
+
   const filteredEmployees = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return employees;
@@ -89,7 +101,7 @@ export default function TimesheetEdit() {
       setLoadingLookups(true);
       try {
         const [{ data: employeeData, error: employeeError }, { data: projectData, error: projectError }, { data: statusData, error: statusError }] = await Promise.all([
-          supabase.from('employees').select('device_user_id, emp_id, name').not('name', 'is', null).order('name'),
+          supabase.from('employees').select('device_user_id, emp_id, name, emp_type').not('name', 'is', null).order('name'),
           supabase.from('projects').select('project_code, project_name').order('project_code'),
           supabase.from('timesheet').select('status').not('status', 'is', null),
         ]);
@@ -164,7 +176,7 @@ export default function TimesheetEdit() {
       toast.error('Punch In and Punch Out are required unless status is absent, weekend, or holiday.');
       return;
     }
-    if (!overtime.trim() || !Number.isFinite(Number(overtime)) || Number(overtime) < 0) {
+    if (canEditOvertime && (!overtime.trim() || !Number.isFinite(Number(overtime)) || Number(overtime) < 0)) {
       toast.error('Overtime must be a non-negative decimal number.');
       return;
     }
@@ -177,7 +189,7 @@ export default function TimesheetEdit() {
           project_code: projectCode || null,
           punch_in: buildTimestamp(date, punchIn),
           punch_out: buildTimestamp(date, punchOut),
-          overtime: Number(overtime),
+          ...(canEditOvertime ? { overtime: Number(overtime) } : {}),
           remarks: remarks.trim() || null,
           status: status || null,
           last_updated: new Date().toISOString(),
@@ -230,7 +242,7 @@ export default function TimesheetEdit() {
             <label className="text-sm font-medium text-slate-700">Status<select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Select status</option>{statuses.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
             <label className="text-sm font-medium text-slate-700">Punch In<select value={punchIn} onChange={(event) => setPunchIn(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Clear punch in</option>{timeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
             <label className="text-sm font-medium text-slate-700">Punch Out<select value={punchOut} onChange={(event) => setPunchOut(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Clear punch out</option>{timeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-            <label className="text-sm font-medium text-slate-700">Overtime (hours)<input type="number" min="0" step="0.01" value={overtime} onChange={(event) => setOvertime(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-teal-500" /></label>
+            <label className="text-sm font-medium text-slate-700">Overtime (hours)<input type="number" min="0" step="0.01" value={overtime} disabled={!canEditOvertime} onChange={(event) => setOvertime(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-teal-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500" />{selectedEmployee?.emp_type?.toLowerCase() === 'staff' && <span className="mt-1 block text-xs font-normal text-slate-500">Overtime editing is disabled for staff employees.</span>}</label>
             <label className="text-sm font-medium text-slate-700">Total Working Hours<input readOnly value={calculateTotalHours(punchIn, punchOut)} placeholder="Enter Punch In and Punch Out" className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none" /></label>
             <label className="text-sm font-medium text-slate-700 md:col-span-2">Remarks<textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500" /></label>
           </fieldset>
