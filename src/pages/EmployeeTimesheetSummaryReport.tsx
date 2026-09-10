@@ -71,8 +71,9 @@ const rightAlignedColumns = new Set<ColumnKey>(['company_name', 'name', 'timeshe
 
 function formatDate(value: string | null): string {
   if (!value) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split('-');
+  const datePart = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (datePart) {
+    const [year, month, day] = datePart.split('-');
     return `${day}-${month}-${year}`;
   }
   const parsed = new Date(value);
@@ -84,7 +85,8 @@ function formatDate(value: string | null): string {
 
 function dateKey(value: string | null): string {
   if (!value) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const datePart = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (datePart) return datePart;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' }).format(parsed);
@@ -221,7 +223,7 @@ export default function EmployeeTimesheetSummaryReport() {
       const pageOffset = reset ? 0 : offset;
       let query = supabase.from('v_employee_timesheet_summary').select('*').order('date', { ascending: false }).range(pageOffset, pageOffset + PAGE_SIZE - 1);
       if (startDate && endDate) {
-        query = query.gte('date', `${startDate}T00:00:00+04:00`).lt('date', `${endDate}T00:00:00+04:00`);
+        query = query.gte('date', `${startDate}T00:00:00Z`).lt('date', `${endDate}T00:00:00Z`);
       }
       if (companyFilter) query = query.eq('company_name', companyFilter);
       if (projectFilter) query = query.eq('project_code', projectFilter);
@@ -313,7 +315,7 @@ export default function EmployeeTimesheetSummaryReport() {
         }
 
         let query = supabase.from('v_employee_timesheet_summary').select('*').order('date', { ascending: false }).range(offset, offset + PAGE_SIZE - 1);
-        if (startDate && endDate) query = query.gte('date', `${startDate}T00:00:00+04:00`).lt('date', `${endDate}T00:00:00+04:00`);
+        if (startDate && endDate) query = query.gte('date', `${startDate}T00:00:00Z`).lt('date', `${endDate}T00:00:00Z`);
         if (companyFilter) query = query.eq('company_name', companyFilter);
         if (projectFilter) query = query.eq('project_code', projectFilter);
         if (employeeFilter) query = query.eq('name', employeeFilter);
