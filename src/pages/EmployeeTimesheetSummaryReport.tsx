@@ -483,7 +483,7 @@ export default function EmployeeTimesheetSummaryReport() {
         pdf.rect(margin, tableTop, tableWidth, headerHeight, 'F');
         pdf.setFontSize(headerFontSize);
         visibleColumnDefs.forEach(({ label }, index) => {
-          pdf.text(label, x + columnWidths[index] / 2, tableTop + headerHeight / 2, { align: 'center', angle: 90 });
+          pdf.text(label, x + columnWidths[index] / 2, tableTop + headerHeight / 2, { align: 'center', angle: -90 });
           x += columnWidths[index];
         });
         if (selectedEmployeeLabel) {
