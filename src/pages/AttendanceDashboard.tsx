@@ -37,7 +37,7 @@ const formatSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'summary-report';
+type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'summary-report' | 'timesheet-edit';
 
 export default function AttendanceDashboard() {
   const navigate = useNavigate();
@@ -203,7 +203,8 @@ export default function AttendanceDashboard() {
       { value: 'projects', label: 'Projects', icon: <FolderKanban color="darkblue" className="w-4 h-4" /> },
       { value: 'finalize', label: finalizeLabel, icon: <FileCheck color="darkblue" className="w-4 h-4" /> },
       { value: 'timesheets', label: 'Timesheets', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
-      { value: 'summary-report', label: 'Summary Report', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },      
+      { value: 'summary-report', label: 'Summary Report', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
+      { value: 'timesheet-edit', label: 'Edit Timesheet', icon: <PenLine color="darkblue" className="w-4 h-4" /> },
       { value: 'leave-log', label: 'Leave Log', icon: <Calendar color="darkblue" className="w-4 h-4" /> },
       { value: 'terminal', label: 'Terminal', icon: <TerminalIcon color="darkblue" className="w-4 h-4" /> },
       { value: 'data-management', label: 'Data Management', icon: <Database color="darkblue" className="w-4 h-4" /> },
@@ -222,6 +223,7 @@ export default function AttendanceDashboard() {
         if (opt.value === 'leave-log') return permissions.attendance_leave_log === true;
         if (opt.value === 'timesheets') return permissions.timesheet_viewer === true || permissions.timesheet_finalizer === true || permissions.attendance === true || isTimesheetApprover || isFocalPoint;
         if (opt.value === 'summary-report') return permissions.timesheet_summary_report === true;        
+        if (opt.value === 'timesheet-edit') return canEditAttendance;        
         return true;
       });
     }
@@ -393,7 +395,10 @@ export default function AttendanceDashboard() {
                   
                   {isAllowed('summary-report') && (
                     <Directive bg="rgba(100 100 100/ 0)" width="100%" height='3rem' titleSize="0.9rem" onClick={() => navigate('/employee-timesheet-summary')} title="Summary Report" icon={<FileSpreadsheet size={16} />} />
-                  )}                  
+                  )}
+                  {isAllowed('timesheet-edit') && (
+                    <Directive bg="rgba(100 100 100/ 0)" width="100%" height='3rem' titleSize="0.9rem" onClick={() => navigate('/timesheet-edit')} title="Edit Timesheet" icon={<PenLine size={16} />} />
+                  )}
                 </div>
 
                 <div style={{ width: "100%", paddingTop: "0.2rem", flexShrink: 0 }}>
