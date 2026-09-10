@@ -417,10 +417,11 @@ export default function EmployeeTimesheetSummaryReport() {
     return {
       name: employeeFilter,
       empId: employeeOption?.empId || (employeeRow?.emp_id ? String(employeeRow.emp_id) : ''),
+      companyName: employeeRow?.company_name || '',
     };
   }, [employeeFilter, employeeOptions, rows]);
   const selectedEmployeeLabel = selectedEmployee
-    ? `${selectedEmployee.name}${selectedEmployee.empId ? ` [${selectedEmployee.empId}]` : ''}`
+    ? `${selectedEmployee.name}${selectedEmployee.empId ? ` [${selectedEmployee.empId}]` : ''}${selectedEmployee.companyName ? ` [${selectedEmployee.companyName}]` : ''}`
     : '';
 
   const toggleSort = (key: ColumnKey) => {
@@ -558,7 +559,9 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report, #timesheet-summary-report * { visibility: visible; }
         #timesheet-summary-report { position: absolute; inset: 0; width: 100%; overflow: visible; padding: 0; }
         #timesheet-summary-report > div:first-child { margin-bottom: 4mm; }
-        #timesheet-summary-report h1 { font-size: 12pt; }
+        #timesheet-summary-report > div:first-child svg { display: none; }
+        #timesheet-summary-report h1 { font-size: 14pt; line-height: 1; }
+        #timesheet-summary-report h1 span { display: block; margin-left: 0; font-size: 9pt; }
         #timesheet-summary-report table { width: 100%; min-width: 0; table-layout: fixed; font-size: 7pt; }
         #timesheet-summary-report th { font-size: 5.8pt; line-height: 1; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; vertical-align: bottom; }
         #timesheet-summary-report th.print-rotated-header { height: 16mm; padding: 0; vertical-align: bottom; }
@@ -566,6 +569,14 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report th.print-rotated-header button svg { display: none; }
         #timesheet-summary-report td { padding: 1mm; white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
         #timesheet-summary-report th.print-col-emp_id, #timesheet-summary-report td.print-col-emp_id { width: 8ch; max-width: 8ch; }
+        #timesheet-summary-report th.print-col-serialNumber, #timesheet-summary-report td.print-col-serialNumber { width: 12mm; max-width: 12mm; }
+        #timesheet-summary-report th.print-col-company_name, #timesheet-summary-report td.print-col-company_name { width: 32mm; max-width: 32mm; }
+        #timesheet-summary-report th.print-col-name, #timesheet-summary-report td.print-col-name { width: 38mm; max-width: 38mm; }
+        #timesheet-summary-report th.print-col-nationality, #timesheet-summary-report td.print-col-nationality { width: 24mm; max-width: 24mm; }
+        #timesheet-summary-report th.print-col-project_code, #timesheet-summary-report td.print-col-project_code { width: 28mm; max-width: 28mm; }
+        #timesheet-summary-report th.print-col-timesheet_status, #timesheet-summary-report td.print-col-timesheet_status,
+        #timesheet-summary-report th.print-col-timecard_status, #timesheet-summary-report td.print-col-timecard_status { width: 29mm; max-width: 29mm; }
+        #timesheet-summary-report th.print-col-remarks, #timesheet-summary-report td.print-col-remarks { width: 50mm; max-width: 50mm; }
         #timesheet-summary-report th.print-col-displayDate, #timesheet-summary-report td.print-col-displayDate { width: 12ch; max-width: 12ch; }
         #timesheet-summary-report th.print-col-displayPunchIn, #timesheet-summary-report td.print-col-displayPunchIn,
         #timesheet-summary-report th.print-col-displayPunchOut, #timesheet-summary-report td.print-col-displayPunchOut,
