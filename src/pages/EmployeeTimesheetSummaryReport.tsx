@@ -484,9 +484,7 @@ export default function EmployeeTimesheetSummaryReport() {
         pdf.setFontSize(5.8);
         visibleColumnDefs.forEach(({ key, label }, index) => {
           if (rotatedHeaderColumns.has(key)) {
-            pdf.setFontSize(10);
-            pdf.text(label, x + columnWidths[index] / 2, tableTop + headerHeight / 2, { align: 'center', angle: -90 });
-            pdf.setFontSize(5.8);
+            pdf.text(label, x + columnWidths[index] / 2, tableTop + headerHeight / 2, { align: 'center', angle: 90 });
           } else {
             pdf.text(pdf.splitTextToSize(label, columnWidths[index] - 3), x + 1.5, tableTop + 4.5);
           }
@@ -506,7 +504,9 @@ export default function EmployeeTimesheetSummaryReport() {
         pdf.setFontSize(5.8);
         const values = visibleColumnDefs.map(({ key }) => columnValue(row, key, rowIndex + 1));
         const wrappedValues = values.map((value, index) => pdf.splitTextToSize(String(value || ''), columnWidths[index] - 3));
-        const rowHeight = Math.max(4.8, ...wrappedValues.map((value) => value.length * 3.1 + 1.4));
+        const lineHeight = 3.1;
+        const cellPadding = 1.4;
+        const rowHeight = Math.max(4.8, ...wrappedValues.map((value) => value.length * lineHeight + cellPadding));
         if (y + rowHeight > pageHeight - margin - reservedFooterHeight) {
           pdf.addPage();
           drawHeader();
@@ -519,11 +519,12 @@ export default function EmployeeTimesheetSummaryReport() {
         let x = margin;
         pdf.setFontSize(5.8);
         wrappedValues.forEach((text, index) => {
-          pdf.text(text, x + 1.5, y + 3.8, { baseline: 'top' });
+          const textHeight = text.length * lineHeight;
+          const textY = y + Math.max(cellPadding / 2, (rowHeight - textHeight) / 2);
+          pdf.text(text, x + 1.5, textY, { baseline: 'top' });
+          pdf.rect(x, y, columnWidths[index], rowHeight, 'S');
           x += columnWidths[index];
         });
-        pdf.setDrawColor(226, 232, 240);
-        pdf.line(margin, y + rowHeight, margin + tableWidth, y + rowHeight);
         y += rowHeight;
       });
       pdf.save(`employee_timesheet_summary_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
@@ -546,7 +547,7 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report table { width: 100%; min-width: 0; table-layout: fixed; font-size: 7pt; }
         #timesheet-summary-report th { font-size: 6pt; line-height: 1.05; padding: 1.5mm 1mm; white-space: normal; overflow-wrap: anywhere; }
         #timesheet-summary-report th.print-rotated-header { height: 22mm; padding: 1mm; vertical-align: middle; }
-        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; align-items: center; justify-content: center; height: 18mm; transform: rotate(-90deg); transform-origin: center; white-space: nowrap; font-size: 10px; }
+        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; align-items: center; justify-content: center; height: 18mm; transform: rotate(90deg); transform-origin: center; white-space: nowrap; font-size: 6pt; }
         #timesheet-summary-report td { padding: 1mm; white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
         #timesheet-summary-report th.print-col-emp_id, #timesheet-summary-report td.print-col-emp_id { width: 8ch; max-width: 8ch; }
         #timesheet-summary-report th.print-col-displayDate, #timesheet-summary-report td.print-col-displayDate { width: 12ch; max-width: 12ch; }
