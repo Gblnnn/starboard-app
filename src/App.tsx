@@ -72,6 +72,7 @@ const ManpowerRequirements = lazy(() => import("./pages/manpower-requirements"))
 const Offboarding = lazy(() => import("./pages/offboarding"));
 const DocumentEditor = lazy(() => import("./pages/document-editor"));
 const EmployeeTimesheetSummaryReport = lazy(() => import("./pages/EmployeeTimesheetSummaryReport"));
+const TimesheetEdit = lazy(() => import("./pages/TimesheetEdit"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -199,6 +200,7 @@ export default function App() {
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/attendance" element={<AttendanceDashboard />} />
           <Route path="/employee-timesheet-summary" element={<EmployeeTimesheetSummaryReport />} />
+          <Route path="/timesheet-edit" element={<TimesheetEdit />} />                 
           <Route path="/mobile-punch" element={<MobilePunch />} />
           <Route path="/manpower-requirements" element={<ManpowerRequirements />} />
           <Route path="/offboarding" element={<Offboarding />} />
