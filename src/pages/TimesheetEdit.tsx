@@ -23,6 +23,7 @@ type TimesheetRow = {
   project_code: string | null;
   punch_in: string | null;
   punch_out: string | null;
+  overtime: number | string | null;
   remarks: string | null;
   status: string | null;
 };
@@ -35,13 +36,23 @@ const timeOptions = Array.from({ length: 96 }, (_, index) => {
 
 function extractTime(value: string | null): string {
   if (!value) return '';
-  const match = value.match(/T(\d{2}:\d{2})/);
+  const match = value.match(/(?:T|\s)(\d{2}:\d{2})/);
   if (match) return match[1];
   return value.slice(0, 5);
 }
 
 function buildTimestamp(date: string, time: string): string | null {
   return time ? `${date}T${time}:00+04:00` : null;
+}
+
+function calculateTotalHours(punchIn: string, punchOut: string): string {
+  if (!punchIn || !punchOut) return '';
+  const [inHours, inMinutes] = punchIn.split(':').map(Number);
+  const [outHours, outMinutes] = punchOut.split(':').map(Number);
+  if (![inHours, inMinutes, outHours, outMinutes].every(Number.isFinite)) return '';
+  let totalMinutes = (outHours * 60 + outMinutes) - (inHours * 60 + inMinutes);
+  if (totalMinutes < 0) totalMinutes += 24 * 60;
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
 
 function formatEmployee(employee: Employee): string {
@@ -58,6 +69,7 @@ export default function TimesheetEdit() {
   const [projectCode, setProjectCode] = useState('');
   const [punchIn, setPunchIn] = useState('');
   const [punchOut, setPunchOut] = useState('');
+  const [overtime, setOvertime] = useState('0');
   const [remarks, setRemarks] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
@@ -102,6 +114,7 @@ export default function TimesheetEdit() {
       setProjectCode('');
       setPunchIn('');
       setPunchOut('');
+      setOvertime('0');
       setRemarks('');
       setStatus('');
       setRowExists(false);
@@ -113,7 +126,7 @@ export default function TimesheetEdit() {
       try {
         const { data, error } = await supabase
           .from('timesheet')
-          .select('employee_code, date, project_code, punch_in, punch_out, remarks, status')
+          .select('employee_code, date, project_code, punch_in, punch_out, overtime, remarks, status')
           .eq('employee_code', employeeCode)
           .eq('date', date)
           .maybeSingle();
@@ -123,6 +136,7 @@ export default function TimesheetEdit() {
         setProjectCode(row?.project_code || '');
         setPunchIn(extractTime(row?.punch_in || null));
         setPunchOut(extractTime(row?.punch_out || null));
+        setOvertime(row?.overtime === null || row?.overtime === undefined ? '0' : String(row.overtime));
         setRemarks(row?.remarks || '');
         setStatus(row?.status || '');
         setRowExists(Boolean(row));
@@ -144,6 +158,16 @@ export default function TimesheetEdit() {
       toast.error('No timesheet transaction exists for this employee and date.');
       return;
     }
+    const normalizedStatus = status.trim().toLowerCase();
+    const allowsEmptyPunches = ['absent', 'weekend', 'holiday'].includes(normalizedStatus);
+    if (!allowsEmptyPunches && (!punchIn || !punchOut)) {
+      toast.error('Punch In and Punch Out are required unless status is absent, weekend, or holiday.');
+      return;
+    }
+    if (!overtime.trim() || !Number.isFinite(Number(overtime)) || Number(overtime) < 0) {
+      toast.error('Overtime must be a non-negative decimal number.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -153,6 +177,7 @@ export default function TimesheetEdit() {
           project_code: projectCode || null,
           punch_in: buildTimestamp(date, punchIn),
           punch_out: buildTimestamp(date, punchOut),
+          overtime: Number(overtime),
           remarks: remarks.trim() || null,
           status: status || null,
           last_updated: new Date().toISOString(),
@@ -205,6 +230,8 @@ export default function TimesheetEdit() {
             <label className="text-sm font-medium text-slate-700">Status<select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Select status</option>{statuses.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
             <label className="text-sm font-medium text-slate-700">Punch In<select value={punchIn} onChange={(event) => setPunchIn(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Clear punch in</option>{timeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
             <label className="text-sm font-medium text-slate-700">Punch Out<select value={punchOut} onChange={(event) => setPunchOut(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-500"><option value="">Clear punch out</option>{timeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+            <label className="text-sm font-medium text-slate-700">Overtime (hours)<input type="number" min="0" step="0.01" value={overtime} onChange={(event) => setOvertime(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-teal-500" /></label>
+            <label className="text-sm font-medium text-slate-700">Total Working Hours<input readOnly value={calculateTotalHours(punchIn, punchOut)} placeholder="Enter Punch In and Punch Out" className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none" /></label>
             <label className="text-sm font-medium text-slate-700 md:col-span-2">Remarks<textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500" /></label>
           </fieldset>
         </div>
