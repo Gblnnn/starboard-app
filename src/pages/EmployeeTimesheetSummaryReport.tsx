@@ -21,6 +21,7 @@ type SummaryRow = {
   punch_in: string | null;
   punch_out: string | null;
   overtime: number | string | null;
+  break_hours: number | string | null;
   project_code: string | null;
   timesheet_status: string | null;
   timecard_status: string | null;
@@ -36,6 +37,7 @@ type DisplayRow = SummaryRow & {
   displayPunchOut: string;
   displayOvertime: string;
   displayHolidayOvertime: string;
+  displayBreakHours: string;
   displayHours: string;
 };
 
@@ -63,6 +65,7 @@ const columns = [
   { key: 'displayPunchOut', label: 'Punch Out' },
   { key: 'displayOvertime', label: 'OT' },
   { key: 'displayHolidayOvertime', label: 'Holiday OT' },
+  { key: 'displayBreakHours', label: 'Break Hours' },
   { key: 'displayHours', label: 'Total Hours' },
   { key: 'project_code', label: 'Project' },
   { key: 'timesheet_status', label: 'Timesheet Status' },
@@ -71,7 +74,10 @@ const columns = [
 ] as const;
 type ColumnKey = typeof columns[number]['key'];
 type SortableColumnKey = Exclude<ColumnKey, 'serialNumber'>;
-const defaultVisibleColumns: Record<ColumnKey, boolean> = Object.fromEntries(columns.map(({ key }) => [key, true])) as Record<ColumnKey, boolean>;
+const defaultVisibleColumns: Record<ColumnKey, boolean> = Object.fromEntries(columns.map(({ key }) => [key, [
+  'serialNumber', 'emp_id', 'name', 'displayDate', 'displayPunchIn', 'displayPunchOut',
+  'displayOvertime', 'displayHolidayOvertime', 'displayBreakHours', 'displayHours', 'project_code', 'remarks',
+].includes(key)])) as Record<ColumnKey, boolean>;
 const leftAlignedColumns = new Set<ColumnKey>(['company_name', 'name', 'timesheet_status', 'timecard_status', 'remarks']);
 
 function formatDate(value: string | null): string {
@@ -118,6 +124,11 @@ function decimalHoursToTime(value: number | string | null): string {
   return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
 
+function breakHoursToTime(value: number | string | null): string {
+  if (typeof value === 'string' && value.includes(':')) return formatTime(value);
+  return decimalHoursToTime(value);
+}
+
 function toDisplayRow(row: SummaryRow): DisplayRow {
   return {
     ...row,
@@ -127,6 +138,7 @@ function toDisplayRow(row: SummaryRow): DisplayRow {
     displayPunchOut: formatTime(row.punch_out),
     displayOvertime: minutesToTime(row.overtime),
     displayHolidayOvertime: minutesToTime(row.weekend_ot_minutes),
+    displayBreakHours: breakHoursToTime(row.break_hours),
     displayHours: decimalHoursToTime(row.total_working_hours),
   };
 }
@@ -446,6 +458,7 @@ export default function EmployeeTimesheetSummaryReport() {
         displayPunchOut: 16,
         displayOvertime: 16,
         displayHolidayOvertime: 16,
+        displayBreakHours: 16,
         displayHours: 16,
       };
       const flexibleColumnWidths: Partial<Record<ColumnKey, number>> = {
@@ -483,7 +496,7 @@ export default function EmployeeTimesheetSummaryReport() {
         pdf.rect(margin, tableTop, tableWidth, headerHeight, 'F');
         pdf.setFontSize(headerFontSize);
         visibleColumnDefs.forEach(({ label }, index) => {
-          pdf.text(label, x + columnWidths[index] / 2, tableTop + headerHeight / 2, { align: 'center', angle: -90 });
+          pdf.text(label, x + columnWidths[index] / 2, tableTop + headerHeight - 1, { align: 'center', angle: 90 });
           x += columnWidths[index];
         });
         if (selectedEmployeeLabel) {
@@ -541,9 +554,10 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report > div:first-child { margin-bottom: 4mm; }
         #timesheet-summary-report h1 { font-size: 12pt; }
         #timesheet-summary-report table { width: 100%; min-width: 0; table-layout: fixed; font-size: 7pt; }
-        #timesheet-summary-report th { font-size: 5.8pt; line-height: 1; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; vertical-align: middle; }
-        #timesheet-summary-report th.print-rotated-header { height: 16mm; padding: 0; vertical-align: middle; }
-        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 14mm; align-items: center; justify-content: center; transform: rotate(90deg); transform-origin: center; white-space: nowrap; font-size: 5.8pt; }
+        #timesheet-summary-report th { font-size: 5.8pt; line-height: 1; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; vertical-align: bottom; }
+        #timesheet-summary-report th.print-rotated-header { height: 16mm; padding: 0; vertical-align: bottom; }
+        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 16mm; align-items: flex-end; justify-content: center; padding-bottom: 1mm; transform: rotate(90deg); transform-origin: center bottom; white-space: nowrap; font-size: 5.8pt; }
+        #timesheet-summary-report th.print-rotated-header button svg { display: none; }
         #timesheet-summary-report td { padding: 1mm; white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
         #timesheet-summary-report th.print-col-emp_id, #timesheet-summary-report td.print-col-emp_id { width: 8ch; max-width: 8ch; }
         #timesheet-summary-report th.print-col-displayDate, #timesheet-summary-report td.print-col-displayDate { width: 12ch; max-width: 12ch; }
@@ -551,6 +565,7 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report th.print-col-displayPunchOut, #timesheet-summary-report td.print-col-displayPunchOut,
         #timesheet-summary-report th.print-col-displayOvertime, #timesheet-summary-report td.print-col-displayOvertime,
         #timesheet-summary-report th.print-col-displayHolidayOvertime, #timesheet-summary-report td.print-col-displayHolidayOvertime,
+        #timesheet-summary-report th.print-col-displayBreakHours, #timesheet-summary-report td.print-col-displayBreakHours,
         #timesheet-summary-report th.print-col-displayHours, #timesheet-summary-report td.print-col-displayHours { width: 7ch; max-width: 7ch; }
         #timesheet-summary-report th.print-align-left, #timesheet-summary-report td.print-align-left { text-align: left; }
         #timesheet-summary-report .overflow-auto { overflow: visible; }
