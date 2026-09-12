@@ -410,7 +410,7 @@ const TimesheetRowComponent = memo(({
   resolvedMode: 'verify' | 'approve' | 'finalize' | 'view';
   saving: boolean;
   onRowSelect: (userId: string) => void;
-  onUpdateRow: (userId: string, key: keyof TimesheetRow | 'swap_punches', value?: any) => void;
+  onUpdateRow: (userId: string, key: keyof TimesheetRow | 'swap_punches', value?: any, persist?: boolean) => void;
   onUndoRow: (userId: string) => void;
   onApproveRow: (userId: string) => void;
   onRevokeApproveRow: (userId: string) => void;
@@ -651,7 +651,7 @@ const TimesheetRowComponent = memo(({
             <Input
               type="time"
               value={row.punch_in}
-//              onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_in', e.target.value)}
+              onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_in', e.target.value)}
               style={((row.status === 'present' || row.status === 'present with OT') && !row.punch_in) ? {
                 borderWidth: '1px',
                 borderStyle: 'solid',
@@ -706,7 +706,7 @@ const TimesheetRowComponent = memo(({
           <Input
             type="time"
             value={row.punch_out}
-//            onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_out', e.target.value)}
+            onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_out', e.target.value)}
             style={((row.status === 'present' || row.status === 'present with OT') && !row.punch_out) ? {
               borderWidth: '1px',
               borderStyle: 'solid',
@@ -736,7 +736,7 @@ const TimesheetRowComponent = memo(({
             min="0"
             max="24"
             value={row.overtime}
-//            onChange={(e) => onUpdateRow(emp.device_user_id, 'overtime', parseFloat(e.target.value) || 0)}
+            onChange={(e) => onUpdateRow(emp.device_user_id, 'overtime', parseFloat(e.target.value) || 0)}
             className="table-input"
             style={{ width: '70px' }}
           />
@@ -836,7 +836,7 @@ const TimesheetRowComponent = memo(({
                 <Input
                   type="text"
                   value={localRemarks}
-//                  onChange={(e) => setLocalRemarks(e.target.value)}
+                  onChange={(e) => setLocalRemarks(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       onUpdateRow(emp.device_user_id, 'remarks', 'Custom: ' + localRemarks);
@@ -2082,11 +2082,14 @@ export default function TimesheetFinalizer({
       if (!emp) return prev;
       const empPunches = punchGroups[userId] || [];
       const guessed = guessRow(emp, empPunches, punchMode, projects, deviceProjectMap, employeeAssignedProjects);
-
+      const originalSavedRow = initialRowsRef.current[userId];
+      
       return {
         ...prev,
         [userId]: {
           ...guessed,
+          overtime: originalSavedRow?.overtime ?? currentVal.overtime,
+          status: originalSavedRow?.status ?? guessed.status,          
           isApproved: false,
           approval: false,
           inDatabase: false
@@ -2387,7 +2390,7 @@ export default function TimesheetFinalizer({
     }
   }, [date, resolvedMode, isFocalFiltered, canUserEdit, userData?.email, projects, employeeAssignedProjects, focalProjectCodes, isApproverFiltered, approverProjectCodes, projectsWithDevices, employeesMap]);
 
-  const updateRow = useCallback((userId: string, key: keyof TimesheetRow | 'swap_punches', value?: any) => {
+  const updateRow = useCallback((userId: string, key: keyof TimesheetRow | 'swap_punches', value?: any, persist = false) => {
     pushHistory(rows);
     const current = rows[userId];
     if (!current) return;
@@ -2550,12 +2553,14 @@ export default function TimesheetFinalizer({
     }
 
     setRows(prev => ({ ...prev, [userId]: updated }));
-    autoPostRowsBatch([updated]);
+    if (persist) {
+      autoPostRowsBatch([updated]);
+    }
   }, [rows, employeesMap, employeeAssignedProjects, userData?.email, projects, autoPostRowsBatch, pushHistory, deviceProjectMap, resolvedMode]);
 
   const handleVerifyBiometricRow = useCallback((userId: string) => {
     setVerifyingRowIds(prev => new Set(prev).add(userId));
-    updateRow(userId, 'isEdited', true);
+    updateRow(userId, 'isEdited', true, true);
   }, [updateRow]);
 
   const handleRowSelect = useCallback((userId: string) => {
@@ -2927,9 +2932,12 @@ export default function TimesheetFinalizer({
           if (!emp) return;
           const empPunches = punchGroups[userId] || [];
           const guessed = guessRow(emp, empPunches, punchMode, projects, deviceProjectMap, employeeAssignedProjects);
-
+          const originalSavedRow = initialRowsRef.current[userId];
+          
           next[userId] = {
             ...guessed,
+            overtime: originalSavedRow?.overtime ?? current.overtime,
+            status: originalSavedRow?.status ?? guessed.status,            
             isApproved: false,
             approval: false,
             inDatabase: false
