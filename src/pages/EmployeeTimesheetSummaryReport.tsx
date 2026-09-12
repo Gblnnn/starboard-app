@@ -478,7 +478,7 @@ export default function EmployeeTimesheetSummaryReport() {
       const visibleColumnDefs = columns.filter(({ key }) => visibleColumns[key]);
       const fixedColumnWidths: Partial<Record<ColumnKey, number>> = {
         emp_id: 18,
-        displayDate: 27,
+        displayDate: 12,
         displayPunchIn: 16,
         displayPunchOut: 16,
         displayOvertime: 16,
@@ -489,7 +489,7 @@ export default function EmployeeTimesheetSummaryReport() {
       const flexibleColumnWidths: Partial<Record<ColumnKey, number>> = {
         serialNumber: 12,
         company_name: 32,
-        name: 38,
+        name: 53,
         nationality: 24,
         project_code: 28,
         timesheet_status: 29,
@@ -581,6 +581,7 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report h1 { font-size: 14pt; line-height: 1; }
         #timesheet-summary-report h1 span { display: block; margin-left: 0; font-size: 9pt; }
         #timesheet-summary-report table { width: 100%; min-width: 0; table-layout: fixed; font-size: 7pt; }
+        #timesheet-summary-report thead { position: static !important; z-index: auto !important; }        
         #timesheet-summary-report th { font-size: 5.8pt; line-height: 1; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; vertical-align: bottom; }
         #timesheet-summary-report th.print-rotated-header { height: 16mm; padding: 0; vertical-align: bottom; }
         #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 16mm; align-items: flex-end; justify-content: center; padding-bottom: 1mm; transform: rotate(90deg); transform-origin: center bottom; white-space: nowrap; font-size: 5.8pt; }
@@ -604,7 +605,7 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report th.print-col-displayHours, #timesheet-summary-report td.print-col-displayHours { width: 7ch; max-width: 7ch; }
         #timesheet-summary-report th.print-align-left, #timesheet-summary-report td.print-align-left { text-align: left; }
         #timesheet-summary-report .overflow-auto { overflow: visible; }
-        #timesheet-summary-report .report-print-footer { display: block !important; position: fixed; bottom: 0; right: 0; text-align: right; }
+        #timesheet-summary-report .report-print-footer { display: none !important; }
         .report-no-print { display: none !important; }
       }`}</style>
       <div className="report-no-print flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
