@@ -651,7 +651,7 @@ const TimesheetRowComponent = memo(({
             <Input
               type="time"
               value={row.punch_in}
-              onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_in', e.target.value)}
+//              onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_in', e.target.value)}
               style={((row.status === 'present' || row.status === 'present with OT') && !row.punch_in) ? {
                 borderWidth: '1px',
                 borderStyle: 'solid',
@@ -706,7 +706,7 @@ const TimesheetRowComponent = memo(({
           <Input
             type="time"
             value={row.punch_out}
-            onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_out', e.target.value)}
+//            onChange={(e) => onUpdateRow(emp.device_user_id, 'punch_out', e.target.value)}
             style={((row.status === 'present' || row.status === 'present with OT') && !row.punch_out) ? {
               borderWidth: '1px',
               borderStyle: 'solid',
@@ -736,7 +736,7 @@ const TimesheetRowComponent = memo(({
             min="0"
             max="24"
             value={row.overtime}
-            onChange={(e) => onUpdateRow(emp.device_user_id, 'overtime', parseFloat(e.target.value) || 0)}
+//            onChange={(e) => onUpdateRow(emp.device_user_id, 'overtime', parseFloat(e.target.value) || 0)}
             className="table-input"
             style={{ width: '70px' }}
           />
@@ -836,7 +836,7 @@ const TimesheetRowComponent = memo(({
                 <Input
                   type="text"
                   value={localRemarks}
-                  onChange={(e) => setLocalRemarks(e.target.value)}
+//                  onChange={(e) => setLocalRemarks(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       onUpdateRow(emp.device_user_id, 'remarks', 'Custom: ' + localRemarks);
