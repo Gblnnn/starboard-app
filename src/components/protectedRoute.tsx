@@ -37,7 +37,7 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
   manpower_requirements: ["/manpower-requirements"],
   tickets: ["/tickets"],
   attendance: ["/attendance"],
-  attendance_edit: ["/timesheet-edit"],
+  attendance_edit: ["/timesheet-edit", "/project-timing-break"],
   document_editor: ["/document-editor"],
   mobile_punch: ["/mobile-punch"]
 };
