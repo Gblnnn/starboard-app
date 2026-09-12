@@ -507,7 +507,7 @@ export default function EmployeeTimesheetSummaryReport() {
       const visibleColumnDefs = columns.filter(({ key }) => visibleColumns[key]);
       const fixedColumnWidths: Partial<Record<ColumnKey, number>> = {
         emp_id: 18,
-        displayDate: 12,
+        displayDate: 15,
         displayPunchIn: 16,
         displayPunchOut: 16,
         displayOvertime: 16,
@@ -527,7 +527,7 @@ export default function EmployeeTimesheetSummaryReport() {
       };
       const columnWidths = visibleColumnDefs.map(({ key }) => fixedColumnWidths[key] ?? flexibleColumnWidths[key] ?? 22);
       const headerFontSize = 5.8;
-      const headerHeight = 12;
+      const headerHeight = 15;
       const firstRowY = (selectedEmployeeLabel ? 18 : 14) + headerHeight;
       const reservedFooterHeight = selectedEmployeeLabel ? 6 : 0;
       const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
@@ -624,19 +624,20 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report > div:first-child svg { display: none; }
         #timesheet-summary-report h1 { font-size: 14pt; line-height: 1; }
         #timesheet-summary-report h1 span { display: block; margin-left: 0; font-size: 9pt; }
+        #timesheet-summary-report h1 + p { display: none; }
         #timesheet-summary-report table { width: 100%; min-width: 0; table-layout: fixed; font-size: 7pt; }
         #timesheet-summary-report thead { position: static !important; z-index: auto !important; background: #fff !important; color: #000 !important; }
         #timesheet-summary-report th { background: #fff !important; color: #000 !important; }
         #timesheet-summary-report th { font-size: 5.8pt; line-height: 1; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; vertical-align: bottom; }
-        #timesheet-summary-report th.print-rotated-header { height: 12mm; padding: 0; vertical-align: bottom; }
-        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 12mm; align-items: flex-end; justify-content: center; padding-bottom: 1mm; transform: rotate(90deg); transform-origin: center bottom; white-space: nowrap; font-size: 5.8pt; color: #000; }
+        #timesheet-summary-report th.print-rotated-header { height: 15mm; padding: 0; vertical-align: bottom; }
+        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 15mm; align-items: flex-end; justify-content: center; padding-bottom: 1mm; transform: rotate(90deg); transform-origin: center bottom; white-space: nowrap; font-size: 5.8pt; color: #000; }
         #timesheet-summary-report th.print-rotated-header button svg { display: none; }
         #timesheet-summary-report tbody tr { height: 5.5mm; break-inside: avoid; page-break-inside: avoid; }
         #timesheet-summary-report tbody tr:nth-child(32n) { break-after: page; page-break-after: always; }
         #timesheet-summary-report td { height: 5.5mm; max-height: 5.5mm; padding: 1mm; white-space: normal; overflow: hidden; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
         #timesheet-summary-report .print-only-row { display: table-row !important; }
         #timesheet-summary-report .report-total-row { font-weight: 700; background: #fff !important; }
-        #timesheet-summary-report th.print-col-emp_id, #timesheet-summary-report td.print-col-emp_id { width: 8ch; max-width: 8ch; }
+        #timesheet-summary-report th.print-col-emp_id, #timesheet-summary-report td.print-col-emp_id { width: 10ch; max-width: 10ch; }
         #timesheet-summary-report th.print-col-serialNumber, #timesheet-summary-report td.print-col-serialNumber { width: 12mm; max-width: 12mm; }
         #timesheet-summary-report th.print-col-company_name, #timesheet-summary-report td.print-col-company_name { width: 32mm; max-width: 32mm; }
         #timesheet-summary-report th.print-col-name, #timesheet-summary-report td.print-col-name { width: 38mm; max-width: 38mm; }
@@ -645,7 +646,7 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report th.print-col-timesheet_status, #timesheet-summary-report td.print-col-timesheet_status,
         #timesheet-summary-report th.print-col-timecard_status, #timesheet-summary-report td.print-col-timecard_status { width: 29mm; max-width: 29mm; }
         #timesheet-summary-report th.print-col-remarks, #timesheet-summary-report td.print-col-remarks { width: 50mm; max-width: 50mm; }
-        #timesheet-summary-report th.print-col-displayDate, #timesheet-summary-report td.print-col-displayDate { width: 12ch; max-width: 12ch; }
+        #timesheet-summary-report th.print-col-displayDate, #timesheet-summary-report td.print-col-displayDate { width: 15mm; max-width: 15mm; }
         #timesheet-summary-report th.print-col-displayPunchIn, #timesheet-summary-report td.print-col-displayPunchIn,
         #timesheet-summary-report th.print-col-displayPunchOut, #timesheet-summary-report td.print-col-displayPunchOut,
         #timesheet-summary-report th.print-col-displayOvertime, #timesheet-summary-report td.print-col-displayOvertime,
