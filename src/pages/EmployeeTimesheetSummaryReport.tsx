@@ -629,8 +629,9 @@ export default function EmployeeTimesheetSummaryReport() {
         #timesheet-summary-report thead { position: static !important; z-index: auto !important; background: #fff !important; color: #000 !important; }
         #timesheet-summary-report th { background: #fff !important; color: #000 !important; }
         #timesheet-summary-report th { font-size: 5.8pt; line-height: 1; padding: 0; white-space: normal; overflow-wrap: anywhere; text-align: center; vertical-align: bottom; }
-        #timesheet-summary-report th.print-rotated-header { height: 15mm; padding: 0; vertical-align: bottom; }
-        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 15mm; align-items: flex-end; justify-content: center; padding-bottom: 1mm; transform: rotate(90deg); transform-origin: center bottom; white-space: nowrap; font-size: 5.8pt; color: #000; }
+        #timesheet-summary-report thead tr, #timesheet-summary-report th.print-rotated-header { height: 15mm; max-height: 15mm; }
+        #timesheet-summary-report th.print-rotated-header { padding: 0; vertical-align: middle; overflow: hidden; }
+        #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 15mm; max-height: 15mm; align-items: center; justify-content: center; padding: 0; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-size: 5.8pt; color: #000; overflow: hidden; }
         #timesheet-summary-report th.print-rotated-header button svg { display: none; }
         #timesheet-summary-report tbody tr { height: 5.5mm; break-inside: avoid; page-break-inside: avoid; }
         #timesheet-summary-report tbody tr:nth-child(32n) { break-after: page; page-break-after: always; }
