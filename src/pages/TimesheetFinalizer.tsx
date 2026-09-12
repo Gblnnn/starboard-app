@@ -1833,11 +1833,13 @@ export default function TimesheetFinalizer({
             hasChanges = true;
           } else {
             // Keep local changes if the user is actively focusing an input in this row,
-            // or if it was recently edited (within the last 10 seconds) to prevent overwriting active user typing
+            // or if it was recently edited (within the last 10 seconds) to prevent overwriting active user typing this function is removed
+            // Keep local changes until the row is explicitly saved by verification/approval/finalization.
             const activeEl = document.activeElement;
             const isCurrentlyEditing = activeEl && activeEl.closest(`[data-row-id="${userId}"]`);
 
-            if (isCurrentlyEditing || (prevRow.lastLocalEdit && (Date.now() - prevRow.lastLocalEdit < 10000))) {
+//            if (isCurrentlyEditing || (prevRow.lastLocalEdit && (Date.now() - prevRow.lastLocalEdit < 10000))) {
+              if (isCurrentlyEditing || prevRow.lastLocalEdit) {
               next[userId] = prevRow;
             } else {
               const isDifferent =
@@ -2164,6 +2166,7 @@ export default function TimesheetFinalizer({
           isApproved: true,
           approved_by: userData?.email || null,
           inDatabase: true,
+          lastLocalEdit: undefined,          
           created_at: prev[userId]?.created_at || new Date().toISOString()
         }
       }));
@@ -2369,6 +2372,7 @@ export default function TimesheetFinalizer({
                 approved_by: payload.approved_by,
                 attested_by: payload.attested_by,
                 isEdited: payload.verify_type === 'Manual Input' || !!payload.verified_by,
+                lastLocalEdit: undefined,                
                 created_at: curr.created_at || new Date().toISOString()
               };
             }
