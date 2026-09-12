@@ -3,7 +3,7 @@ import { DatePicker } from '@/components/date-picker';
 import Directive from '@/components/directive';
 import RefreshButton from '@/components/refresh-button';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRightLeft, BarChart3, Calendar, ChartLine, Check, Database, FileCheck, FolderKanban, Laptop2, LayoutGrid, List, Loader2, PenLine, Sidebar, Table, Terminal as TerminalIcon, TrendingUp, UserCog, UserPlus, Zap, FileSpreadsheet, Pointer, PlaneTakeoff } from 'lucide-react';
+import { ArrowRightLeft, BarChart3, Calendar, ChartLine, Check, Database, FileCheck, FolderKanban, Laptop2, LayoutGrid, List, Loader2, PenLine, Sidebar, Table, Terminal as TerminalIcon, TrendingUp, UserCog, UserPlus, Zap, FileSpreadsheet, Pointer, PlaneTakeoff, Clock3 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmployeeTable } from '../components/EmployeeTable';
@@ -37,7 +37,7 @@ const formatSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'summary-report' | 'timesheet-edit';
+type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'summary-report' | 'timesheet-edit' | 'project-timing-break';
 
 export default function AttendanceDashboard() {
   const navigate = useNavigate();
@@ -205,6 +205,7 @@ export default function AttendanceDashboard() {
       { value: 'timesheets', label: 'Timesheets', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
       { value: 'summary-report', label: 'Summary Report', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
       { value: 'timesheet-edit', label: 'Edit Timesheet', icon: <PenLine color="darkblue" className="w-4 h-4" /> },
+      { value: 'project-timing-break', label: 'Project Break Timings', icon: <Clock3 color="darkblue" className="w-4 h-4" /> },      
       { value: 'leave-log', label: 'Leave Log', icon: <Calendar color="darkblue" className="w-4 h-4" /> },
       { value: 'terminal', label: 'Terminal', icon: <TerminalIcon color="darkblue" className="w-4 h-4" /> },
       { value: 'data-management', label: 'Data Management', icon: <Database color="darkblue" className="w-4 h-4" /> },
@@ -224,6 +225,7 @@ export default function AttendanceDashboard() {
         if (opt.value === 'timesheets') return permissions.timesheet_viewer === true || permissions.timesheet_finalizer === true || permissions.attendance === true || isTimesheetApprover || isFocalPoint;
         if (opt.value === 'summary-report') return permissions.timesheet_summary_report === true;        
         if (opt.value === 'timesheet-edit') return canEditAttendance;        
+        if (opt.value === 'project-timing-break') return canEditAttendance;        
         return true;
       });
     }
@@ -399,6 +401,9 @@ export default function AttendanceDashboard() {
                   {isAllowed('timesheet-edit') && (
                     <Directive bg="rgba(100 100 100/ 0)" width="100%" height='3rem' titleSize="0.9rem" onClick={() => navigate('/timesheet-edit')} title="Edit Timesheet" icon={<PenLine size={16} />} />
                   )}
+                  {isAllowed('project-timing-break') && (
+                    <Directive bg="rgba(100 100 100/ 0)" width="100%" height='3rem' titleSize="0.9rem" onClick={() => navigate('/project-timing-break')} title="Project Break Timings" icon={<Clock3 size={16} />} />
+                  )}                 
                 </div>
 
                 <div style={{ width: "100%", paddingTop: "0.2rem", flexShrink: 0 }}>
