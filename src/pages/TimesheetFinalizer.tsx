@@ -1065,8 +1065,8 @@ const TimesheetRowComponent = memo(({
               const { machineCode } = parseAttestedBy(row.attested_by, !!row.isApproved);
               const hasDevice = machineCode && machineCode !== 'Un-Mapped' && machineCode !== 'Timekeeper';
               const isBiometricFullyPopulated = (!!row.original_in_punch && !!row.original_out_punch) || (hasDevice && !!row.punch_in && !!row.punch_out);
-
-              if (isBiometricFullyPopulated && !isLocked && canUserEdit && (!isSavedOrVerified || hasPendingChanges) && resolvedMode !== 'approve') {
+              const canVerifyPendingRow = hasPendingChanges && hasNoRedBorders;
+              if (!isLocked && canUserEdit && (!isSavedOrVerified || canVerifyPendingRow) && resolvedMode !== 'approve' && (isBiometricFullyPopulated || canVerifyPendingRow)) {
                 return (
                   <button
                     type="button"
@@ -2227,7 +2227,7 @@ export default function TimesheetFinalizer({
     if (!canUserEdit || updatedRows.length === 0) return;
 
     const validPayloads: any[] = [];
-    const invalidEmployeeCodesToDelete: string[] = [];
+    const invalidEmployeeCodes: string[] = [];
 
     // Helper validation check
     const checkRowValidity = (r: TimesheetRow): boolean => {
@@ -2302,46 +2302,24 @@ export default function TimesheetFinalizer({
           last_updated: new Date().toISOString(),
         });
       } else {
-        if (r.inDatabase) {
-          invalidEmployeeCodesToDelete.push(r.employee_code);
-        }
+                invalidEmployeeCodes.push(r.employee_code);
       }
     });
 
-    if (validPayloads.length === 0 && invalidEmployeeCodesToDelete.length === 0) return;
+    if (validPayloads.length === 0) {
+      if (invalidEmployeeCodes.length > 0) {
+        toast.error('Cannot save changes. Please complete the required status, project, punch times, and remarks.');
+      }
+      setVerifyingRowIds(prev => {
+        const next = new Set(prev);
+        updatedRows.forEach(r => next.delete(r.employee_code));
+        return next;
+      });
+      return;
+    }
 
     try {
-      // 1. Handle Deletions for Invalid Rows
-      if (invalidEmployeeCodesToDelete.length > 0) {
-        const { error: delErr } = await supabase
-          .from('timesheet')
-          .delete()
-          .eq('date', date)
-          .in('employee_code', invalidEmployeeCodesToDelete);
-        if (delErr) throw delErr;
-
-        setRows(prev => {
-          const next = { ...prev };
-          invalidEmployeeCodesToDelete.forEach(userId => {
-            const curr = next[userId];
-            if (curr) {
-              next[userId] = {
-                ...curr,
-                inDatabase: false,
-                isVerified: false,
-                isApproved: false,
-                approval: false,
-                verified_by: null,
-                approved_by: null,
-                isEdited: false
-              };
-            }
-          });
-          return next;
-        });
-      }
-
-      // 2. Handle Upsert/Insert for Valid Rows
+      // Replace the valid rows atomically through delete + insert.
       if (validPayloads.length > 0) {
         const employeeCodes = validPayloads.map(p => p.employee_code);
         const { error: delErr } = await supabase
@@ -2382,7 +2360,11 @@ export default function TimesheetFinalizer({
         });
       }
 
-      toast.success('Changes saved to timesheet.', { id: 'autosave' });
+      if (invalidEmployeeCodes.length > 0) {
+        toast.warning('Some changes were not saved because required fields are incomplete.', { id: 'autosave' });
+      } else {
+        toast.success('Changes saved to timesheet.', { id: 'autosave' });
+      }
     } catch (err: any) {
       console.error('Batch auto-post failed:', err);
       toast.error('Failed to auto-save changes.', { id: 'autosave' });
@@ -2599,7 +2581,7 @@ export default function TimesheetFinalizer({
         const current = next[userId];
         if (!current) return;
 
-        let updated = { ...current, [field]: value };
+        let updated = { ...current, [field]: value, lastLocalEdit: Date.now() };
 
         // Set isEdited flag if user modifies main fields
         if (field === 'punch_in' || field === 'punch_out' || field === 'overtime' || field === 'project_code' || field === 'status' || field === 'remarks') {
@@ -2774,7 +2756,7 @@ export default function TimesheetFinalizer({
         const current = next[userId];
         if (!current) return;
 
-        let updated = { ...current };
+        let updated = { ...current, lastLocalEdit: Date.now() };
 
         const updateIn = inTime !== '';
         const updateOut = outTime !== '';
