@@ -70,7 +70,7 @@ function formatEmployee(employee: Employee): string {
   return `${employee.name}${employee.emp_id ? ` [${employee.emp_id}]` : ''}`;
 }
 
-export default function TimesheetEdit() {
+export default function TimesheetEdit({ embedMode = false }: { embedMode?: boolean } = {}) {
   const { userData } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -219,7 +219,7 @@ export default function TimesheetEdit() {
   return (
     <div className="flex min-h-full w-full flex-col bg-slate-50">
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <Back title="Edit Timesheet" />
+        <Back title="Edit Timesheet" noback={embedMode} />
         <button type="button" onClick={() => void saveChanges()} disabled={saving || loadingRow || loadingLookups || !rowExists} className="inline-flex h-9 items-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Save Changes
