@@ -216,7 +216,7 @@ function SearchableSelect({ label, value, options, onChange }: {
   );
 }
 
-export default function EmployeeTimesheetSummaryReport() {
+export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { embedMode?: boolean } = {}) {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const [rows, setRows] = useState<DisplayRow[]>([]);
@@ -660,7 +660,7 @@ export default function EmployeeTimesheetSummaryReport() {
         .report-no-print { display: none !important; }
       }`}</style>
       <div className="report-no-print flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
-        <Back title="Employee Timesheet Summary" />
+        <Back title="Employee Timesheet Summary" noback={embedMode} />
         <div className="flex items-center gap-2">
           <button onClick={() => void fetchRows()} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50" title="Refresh report"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
           <button onClick={() => window.print()} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><Printer className="h-3.5 w-3.5" />Print</button>
