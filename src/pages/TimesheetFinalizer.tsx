@@ -1044,9 +1044,10 @@ const TimesheetRowComponent = memo(({
               }
 
               const isSavedOrVerified = row.inDatabase || row.isVerified || row.isApproved || !!row.verified_by || !!row.approved_by;
+              const hasPendingChanges = !!row.lastLocalEdit;      
               const canRevoke = !(isUserFocalOnly && isRecordApproved);
 
-              if (isSavedOrVerified && !isLocked && canUserEdit && canRevoke) {
+              if (isSavedOrVerified && !hasPendingChanges && !isLocked && canUserEdit && canRevoke) {
                 return (
                   <button
                     type="button"
@@ -1065,7 +1066,7 @@ const TimesheetRowComponent = memo(({
               const hasDevice = machineCode && machineCode !== 'Un-Mapped' && machineCode !== 'Timekeeper';
               const isBiometricFullyPopulated = (!!row.original_in_punch && !!row.original_out_punch) || (hasDevice && !!row.punch_in && !!row.punch_out);
 
-              if (isBiometricFullyPopulated && !isLocked && canUserEdit && !isSavedOrVerified && resolvedMode !== 'approve') {
+              if (isBiometricFullyPopulated && !isLocked && canUserEdit && (!isSavedOrVerified || hasPendingChanges) && resolvedMode !== 'approve') {
                 return (
                   <button
                     type="button"
