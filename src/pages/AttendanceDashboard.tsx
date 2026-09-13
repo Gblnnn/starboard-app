@@ -234,7 +234,7 @@ export default function AttendanceDashboard() {
     }
 
     if (!canEditAttendance && !isFocalPoint && !isTimesheetApprover) {
-      return options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'leave-log' && opt.value !== 'timesheets');
+      return options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'leave-log' && opt.value !== 'timesheets' && opt.value !== 'attendance-book');
     }
     return options;
   }, [canEditAttendance, userData?.clearance, isFocalPoint, isTimesheetApprover]);
@@ -396,6 +396,10 @@ export default function AttendanceDashboard() {
 
                   {isAllowed('timesheets') && (
                     <Directive bg={tab === 'timesheets' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('timesheets')} title="Timesheets" icon={<FileSpreadsheet size={16} />} />
+                  )}
+
+                  {isAllowed('attendance-book') && (
+                    <Directive bg={tab === 'attendance-book' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('attendance-book')} title="Attendance Book" icon={<FileSpreadsheet size={16} />} />
                   )}
                   
                   {isAllowed('summary-report') && (
