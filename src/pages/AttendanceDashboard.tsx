@@ -12,6 +12,7 @@ import DetailedBreakdown from '../components/DetailedBreakdown';
 import { useAttendance } from '../lib/useAttendance';
 import { todayISO } from '../lib/utilis';
 import AddEmployee from './AddEmployee';
+import AttendanceBook from './AttendanceBook';
 import DataManagement from './DataManagement';
 import DevicesMaster from './DevicesMaster';
 import EmployeeManage from './employee-manage';
@@ -37,7 +38,7 @@ const formatSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'summary-report' | 'timesheet-edit' | 'project-timing-break';
+type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'attendance-book' | 'summary-report' | 'timesheet-edit' | 'project-timing-break';
 
 export default function AttendanceDashboard() {
   const navigate = useNavigate();
@@ -203,6 +204,7 @@ export default function AttendanceDashboard() {
       { value: 'projects', label: 'Projects', icon: <FolderKanban color="darkblue" className="w-4 h-4" /> },
       { value: 'finalize', label: finalizeLabel, icon: <FileCheck color="darkblue" className="w-4 h-4" /> },
       { value: 'timesheets', label: 'Timesheets', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
+      { value: 'attendance-book', label: 'Attendance Book', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },      
       { value: 'summary-report', label: 'Summary Report', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
       { value: 'timesheet-edit', label: 'Edit Timesheet', icon: <PenLine color="darkblue" className="w-4 h-4" /> },
       { value: 'project-timing-break', label: 'Project Break Timings', icon: <Clock3 color="darkblue" className="w-4 h-4" /> },      
@@ -223,6 +225,7 @@ export default function AttendanceDashboard() {
         if (opt.value === 'finalize') return permissions.timesheet_finalizer === true || isTimesheetApprover || permissions.timesheet_viewer === true || isFocalPoint;
         if (opt.value === 'leave-log') return permissions.attendance_leave_log === true;
         if (opt.value === 'timesheets') return permissions.timesheet_viewer === true || permissions.timesheet_finalizer === true || permissions.attendance === true || isTimesheetApprover || isFocalPoint;
+        if (opt.value === 'attendance-book') return permissions.timesheet_viewer === true || permissions.timesheet_finalizer === true || permissions.attendance === true || isTimesheetApprover || isFocalPoint;        
         if (opt.value === 'summary-report') return permissions.timesheet_summary_report === true;        
         if (opt.value === 'timesheet-edit') return canEditAttendance;        
         if (opt.value === 'project-timing-break') return canEditAttendance;        
@@ -645,6 +648,8 @@ export default function AttendanceDashboard() {
               <EmployeeManage refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} />
             ) : tab === 'timesheets' ? (
               <TimesheetViewer />
+             ) : tab === 'attendance-book' ? (
+              <AttendanceBook refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} />            
             ) : (
               <ReportsPage refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} />
             )}
