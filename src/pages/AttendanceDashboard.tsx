@@ -23,6 +23,10 @@ import TimesheetFinalizer from './TimesheetFinalizer';
 import TransferRequests from './transfer-requests';
 import LeaveLog from './LeaveLog';
 import TimesheetViewer from '../components/TimesheetViewer';
+import EmployeeTimesheetSummaryReport from './EmployeeTimesheetSummaryReport';
+import TimesheetEdit from './TimesheetEdit';
+import ProjectTimingBreak from './ProjectTimingBreak';
+
 
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '../lib/supabase';
