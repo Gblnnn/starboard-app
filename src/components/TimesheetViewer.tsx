@@ -56,6 +56,8 @@ interface TimesheetRow {
   approved_by: string | null;
   approval: boolean;
   last_updated: string;
+  total_working_hours?: number | null;
+  overtime_minutes?: number | null;  
 }
 
 interface DaySummary {
@@ -74,6 +76,8 @@ interface DaySummary {
   approval?: boolean;
   approved_by?: string | null;
   verified_by?: string | null;
+  totalWorkingHours?: number | null;
+  overtimeMinutes?: number | null;  
 }
 
 type AttendanceMatrix = Record<string, Record<string, DaySummary>>;
@@ -117,6 +121,9 @@ function monthLabel(month: number, year: number): string {
 }
 
 function getDayHours(summary: DaySummary | undefined): string {
+    if (summary?.totalWorkingHours !== undefined && summary.totalWorkingHours !== null) {
+    return summary.totalWorkingHours > 0 ? summary.totalWorkingHours.toFixed(1) : '—';
+  }
   if (!summary || !summary.firstPunch || !summary.lastPunch) return '—';
   //if (summary.status === 'off' || summary.status === 'leave' || summary.status === 'absent') return '—';
   if (summary.status === 'leave' || summary.status === 'absent') return '—';
@@ -142,6 +149,9 @@ function getDayHours(summary: DaySummary | undefined): string {
 }
 
 function getOvertime(summary: DaySummary | undefined, _empType?: string | null): string {
+  if (summary?.overtimeMinutes !== undefined && summary.overtimeMinutes !== null) {
+    return summary.overtimeMinutes > 0 ? (summary.overtimeMinutes / 60).toFixed(1) : '—';
+  }  
 //  if (summary && summary.overtime !== undefined) {
 //  const otVal = typeof summary.overtime === 'string' ? parseFloat(summary.overtime) : summary.overtime;
 //  if (otVal && !isNaN(otVal) && otVal > 0) {
@@ -635,9 +645,10 @@ ScrollableRow.displayName = 'ScrollableRow';
 interface TimesheetViewerProps {
   refreshTrigger?: number;
   onLoadingChange?: (loading: boolean) => void;
+  source?: 'timesheet' | 'summary_view';  
 }
 
-export default function TimesheetViewer({ refreshTrigger, onLoadingChange }: TimesheetViewerProps = {}) {
+export default function TimesheetViewer({ refreshTrigger, onLoadingChange, source = 'timesheet' }: TimesheetViewerProps = {}) {
   const { userData } = useAuth();
 
 
@@ -786,6 +797,7 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange }: Tim
       setProjectNameMap(nameMap);
 
       // 1. Fetch timesheet records from Supabase first
+      // 1. Fetch report records from Supabase first      
       let allTimesheets: TimesheetRow[] = [];
       let fromRange = 0;
       let toRange = 999;
@@ -793,7 +805,7 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange }: Tim
 
       while (!finished) {
         const { data: timesheetResult, error: tsErr } = await supabase
-          .from('timesheet')
+          .from(source === 'summary_view' ? 'v_employee_timesheet_summary' : 'timesheet')
           .select('*')
           .gte('date', start)
           .lte('date', end)
@@ -830,6 +842,40 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange }: Tim
 
       empData = (empWithLocation.data as Employee[] | null) || [];
       eErr = empWithLocation.error;
+
+      if (source === 'summary_view') {
+        const employeesByEmpId = new Map(
+          (empData || [])
+            .filter(employee => employee.emp_id)
+            .map(employee => [employee.emp_id!.trim().toLowerCase(), employee])
+        );
+
+        allTimesheets = allTimesheets.map((row: any) => {
+          const employee = row.emp_id
+            ? employeesByEmpId.get(String(row.emp_id).trim().toLowerCase())
+            : undefined;
+          const overtimeMinutes = Number(row.overtime || 0) + Number(row.weekend_ot_minutes || 0);
+
+          return {
+            id: `${row.emp_id || 'employee'}-${row.date}`,
+            date: row.date,
+            employee_code: employee?.device_user_id || String(row.emp_id || ''),
+            employee_name: row.name || employee?.name || '',
+            project_code: row.project_code || '',
+            punch_in: row.punch_in || '',
+            punch_out: row.punch_out || '',
+            status: row.timecard_status || row.timesheet_status || 'absent',
+            overtime: row.overtime || 0,
+            remarks: row.remarks || '',
+            verified_by: null,
+            approved_by: null,
+            approval: false,
+            last_updated: '',
+            total_working_hours: row.total_working_hours,
+            overtime_minutes: overtimeMinutes,
+          };
+        });
+      }      
 
       // 3. Fetch details for any missing employees who have timesheet records in the period
       const existingUserIds = new Set((empData || []).map(e => e.device_user_id).filter(Boolean));
@@ -1007,7 +1053,7 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange }: Tim
     } finally {
       setLoading(false);
     }
-  }, [year, month, days, reportView, selectedDailyDate, userData?.email, userData?.role]);
+  }, [year, month, days, reportView, selectedDailyDate, userData?.email, userData?.role, source]);
 
 
   useEffect(() => {
@@ -1063,7 +1109,9 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange }: Tim
         remarks: row.remarks || '',
         approval: row.approval || false,
         approved_by: row.approved_by || null,
-        verified_by: row.verified_by || null
+        verified_by: row.verified_by || null,
+        totalWorkingHours: row.total_working_hours,
+        overtimeMinutes: row.overtime_minutes
       };
     });
 
