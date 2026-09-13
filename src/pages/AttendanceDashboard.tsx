@@ -45,7 +45,7 @@ const formatSize = (bytes: number): string => {
 type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'attendance-book' | 'summary-report' | 'timesheet-edit' | 'project-timing-break';
 
 export default function AttendanceDashboard() {
-  const navigate = useNavigate();
+//  const navigate = useNavigate();
   const [date, setDate] = useState<string>(todayISO());
   const [tab, setTab] = useState<Tab>('summary');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -407,14 +407,14 @@ export default function AttendanceDashboard() {
                   )}
                   
                   {isAllowed('summary-report') && (
-                    <Directive bg="rgba(100 100 100/ 0)" width="100%" height='3rem' titleSize="0.9rem" onClick={() => navigate('/employee-timesheet-summary')} title="Summary Report" icon={<FileSpreadsheet size={16} />} />
+                    <Directive bg={tab === 'summary-report' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('summary-report')} title="Summary Report" icon={<FileSpreadsheet size={16} />} />
                   )}
                   {isAllowed('timesheet-edit') && (
-                    <Directive bg="rgba(100 100 100/ 0)" width="100%" height='3rem' titleSize="0.9rem" onClick={() => navigate('/timesheet-edit')} title="Edit Timesheet" icon={<PenLine size={16} />} />
+                    <Directive bg={tab === 'timesheet-edit' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('timesheet-edit')} title="Edit Timesheet" icon={<PenLine size={16} />} />
                   )}
                   {isAllowed('project-timing-break') && (
-                    <Directive bg="rgba(100 100 100/ 0)" width="100%" height='3rem' titleSize="0.9rem" onClick={() => navigate('/project-timing-break')} title="Project Break Timings" icon={<Clock3 size={16} />} />
-                  )}                 
+                    <Directive bg={tab === 'project-timing-break' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('project-timing-break')} title="Project Break Timings" icon={<Clock3 size={16} />} />
+                  )}         
                 </div>
 
                 <div style={{ width: "100%", paddingTop: "0.2rem", flexShrink: 0 }}>
@@ -658,6 +658,12 @@ export default function AttendanceDashboard() {
               <TimesheetViewer />
              ) : tab === 'attendance-book' ? (
               <AttendanceBook refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} />            
+            ) : tab === 'summary-report' ? (
+              <EmployeeTimesheetSummaryReport embedMode={true} />
+            ) : tab === 'timesheet-edit' ? (
+              <TimesheetEdit embedMode={true} />
+            ) : tab === 'project-timing-break' ? (
+              <ProjectTimingBreak embedMode={true} />            
             ) : (
               <ReportsPage refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} />
             )}
