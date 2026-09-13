@@ -30,7 +30,7 @@ const currentMonth = () => {
 const firstOfMonth = (month: string) => `${month}-01`;
 const displayTime = (value: string | null) => value ? value.slice(0, 5) : '';
 
-export default function ProjectTimingBreak() {
+export default function ProjectTimingBreak({ embedMode = false }: { embedMode?: boolean } = {}) {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [rows, setRows] = useState<TimingBreakRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +131,7 @@ export default function ProjectTimingBreak() {
   return (
     <div className="flex min-h-full w-full flex-col bg-slate-50">
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <Back title="Project Break Timings" />
+        <Back title="Project Break Timings" noback={embedMode} />
         <button type="button" onClick={() => void saveChanges()} disabled={saving || loading} className="inline-flex h-9 items-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Save Changes
