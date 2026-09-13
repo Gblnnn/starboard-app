@@ -10,6 +10,7 @@ export default function AttendanceBook({ refreshTrigger, onLoadingChange }: Atte
     <TimesheetViewer
       refreshTrigger={refreshTrigger}
       onLoadingChange={onLoadingChange}
+      source="summary_view"      
     />
   );
 }
