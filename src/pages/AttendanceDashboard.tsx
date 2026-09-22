@@ -219,7 +219,8 @@ export default function AttendanceDashboard() {
 
     const hasStructuredClearance = Object.keys(permissions).length > 0;
     if (hasStructuredClearance) {
-      return options.filter(opt => {
+//      return options.filter(opt => {
+      const filteredOptions = options.filter(opt => {        
         if (opt.value === 'transfers') return permissions.attendance_transfers === true;
         if (opt.value === 'breakdown') return permissions.attendance_breakdown === true;
         if (opt.value === 'manage') return permissions.attendance_manage === true;
@@ -235,13 +236,22 @@ export default function AttendanceDashboard() {
         if (opt.value === 'project-timing-break') return canEditAttendance;        
         return true;
       });
+      return userData?.role !== 'admin' ? filteredOptions.filter(opt => opt.value !== 'timesheets') : filteredOptions;      
     }
-
+    let finalOptions = options;
     if (!canEditAttendance && !isFocalPoint && !isTimesheetApprover) {
-      return options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'leave-log' && opt.value !== 'timesheets' && opt.value !== 'attendance-book');
+//      return options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'leave-log' && opt.value !== 'timesheets' && opt.value !== 'attendance-book');
+      finalOptions = options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'leave-log' && opt.value !== 'timesheets' && opt.value !== 'attendance-book');      
     }
-    return options;
-  }, [canEditAttendance, userData?.clearance, isFocalPoint, isTimesheetApprover]);
+//    return options;
+//  }, [canEditAttendance, userData?.clearance, isFocalPoint, isTimesheetApprover]);    
+    if (userData?.role !== 'admin') {
+      finalOptions = finalOptions.filter(opt => opt.value !== 'timesheets');
+    }
+    
+    return finalOptions;
+  }, [canEditAttendance, userData?.clearance, isFocalPoint, isTimesheetApprover, userData?.role]);
+    
 
   const isAllowed = (tabValue: Tab) => {
     return viewOptions.some(opt => opt.value === tabValue);
