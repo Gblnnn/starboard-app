@@ -129,15 +129,16 @@ export default function ProjectTimingBreak({ embedMode = false }: { embedMode?: 
   }, [selectedMonth]);
 
   return (
-    <div className="flex min-h-full w-full flex-col bg-slate-50">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+    <div className="flex h-full w-full flex-col bg-slate-50">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
         <Back title="Project Break Timings" noback={embedMode} />
         <button type="button" onClick={() => void saveChanges()} disabled={saving || loading} className="inline-flex h-9 items-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Save Changes
         </button>
       </div>
-
+      
+      <div className="flex-1 overflow-y-auto">
       <main className="mx-auto w-full max-w-6xl p-4">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-start gap-3">
@@ -165,6 +166,7 @@ export default function ProjectTimingBreak({ embedMode = false }: { embedMode?: 
           )}
         </section>
       </main>
+      </div>        
     </div>
   );
 }
