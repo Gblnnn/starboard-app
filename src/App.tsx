@@ -17,6 +17,7 @@ import Login from "./pages/login";
 import PageNotFound from "./pages/page-not-found";
 import RequestAccess from "./pages/request-access";
 import UserReset from "./pages/user-reset";
+import UpdatePassword from "./pages/update-password";
 
 
 // Lazy load protected pages only (loaded after authentication)
@@ -147,6 +148,7 @@ export default function App() {
           {/* Public routes */}
         <Route path="/" element={<Login />} />
         <Route path="/user-reset" element={<UserReset />} />
+        <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/request-access" element={<RequestAccess />} />
         <Route path="/create-account" element={<CreateAccount />} />
         <Route path="/inbox" element={<Inbox />} />
