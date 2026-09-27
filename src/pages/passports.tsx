@@ -1062,11 +1062,11 @@ export default function Passports() {
         setLoading(true);
       }
 
-      if (!user?.uid) return;
+      if (!user?.id) return;
 
       const q = query(
         collection(db, "passports"),
-        where("userId", "==", user.uid),
+        where("userId", "==", user.id),
         orderBy("createdAt", "desc")
       );
 
@@ -1092,10 +1092,10 @@ export default function Passports() {
   };
 
   useEffect(() => {
-    if (user?.uid) {
+    if (user?.id) {
       fetchPassports();
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const resetForm = () => {
     setPassportNumber("");
@@ -1112,7 +1112,7 @@ export default function Passports() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.uid) return;
+    if (!user?.id) return;
 
     setSubmitting(true);
     try {
@@ -1126,7 +1126,7 @@ export default function Passports() {
         dateOfExpiry,
         nationality,
         sex,
-        userId: user.uid,
+        userId: user.id,
         updatedAt: new Date(),
       };
 
