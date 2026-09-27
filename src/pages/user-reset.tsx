@@ -14,22 +14,21 @@ export default function UserReset() {
   const ResetPassword = async () => {
     setLoading(true);
     
-    // Dynamically import Firebase auth
-    const { getFirebaseAuth } = await import("@/firebase");
-    const { sendPasswordResetEmail } = await import("firebase/auth");
-    const auth = getFirebaseAuth();
+    const { supabase } = await import("@/lib/supabase");
     
-    await sendPasswordResetEmail(auth, email)
-      .then(() => {
-        message.success("Password recovery mail sent.");
-        setLoading(false);
-        usenavigate("/");
-      })
-      .catch((error) => {
-        setLoading(false);
-        console.log(error);
-        message.error(error.message);
-      });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/update-password',
+    });
+    
+    if (error) {
+      setLoading(false);
+      console.log(error);
+      message.error(error.message);
+    } else {
+      message.success("Password recovery mail sent.");
+      setLoading(false);
+      usenavigate("/");
+    }
   };
 
   return (
