@@ -2,9 +2,10 @@
 import PropTypes from "prop-types";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { User } from "firebase/auth";
+import type { User } from "@supabase/supabase-js";
 import { fetchAndCacheProfile, clearProfileCache } from "@/utils/profileCache";
 import { fetchAndCacheVehicle, clearVehicleCache } from "@/utils/vehicleCache";
+import { supabase } from "@/lib/supabase";
 
 interface FirestoreUserData {
   id: string;
@@ -137,11 +138,11 @@ const AuthProvider = ({ children }: Props) => {
     try {
       if (user) {
         const cachedUser = {
-          uid: user.uid,
+          uid: user.id,
           email: user.email,
-          emailVerified: user.emailVerified,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
+          emailVerified: user.email_confirmed_at != null,
+          displayName: user.user_metadata?.full_name || user.user_metadata?.name || null,
+          photoURL: user.user_metadata?.avatar_url || null,
         };
         localStorage.setItem(CACHED_AUTH_KEY, JSON.stringify(cachedUser));
         localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
@@ -155,46 +156,40 @@ const AuthProvider = ({ children }: Props) => {
     }
   };
 
-  const fetchUserData = async (email: string) => {
-    // const fetchStartTime = performance.now();
+  const fetchUserData = async (emailOrEmpId: string) => {
     try {
-      const { getFirebaseDb } = await import("@/firebase");
-      const { collection, getDocs, query, where } = await import("firebase/firestore");
-      
-      const db = getFirebaseDb();
-      const usersCollection = collection(db, "users");
-      const usersQuery = query(usersCollection, where("email", "==", email));
-      const usersSnapshot = await getDocs(usersQuery);
-      const fetchedData = usersSnapshot.docs.map((doc) => ({ 
-        id: doc.id,
-        ...doc.data(),
-      })) as FirestoreUserData[];
+      const { data: usersData, error: usersError } = await supabase
+        .from("users")
+        .select("*")
+        .or(`email.eq.${emailOrEmpId},emp_id.eq.${emailOrEmpId}`);
 
-      if (fetchedData.length > 0) {
-        const baseUserData = fetchedData[0];
+      if (usersError) throw usersError;
 
-        // User profile source of truth for site/project is Record Master.
-        const recordsCollection = collection(db, "records");
-        const recordsQuery = query(recordsCollection, where("email", "==", email));
-        const recordsSnapshot = await getDocs(recordsQuery);
+      if (usersData && usersData.length > 0) {
+        const baseUserData = usersData[0];
 
-        if (recordsSnapshot.empty) {
-          toast.error("Record Master entry not found for this user.");
-          return null;
+        let recordData: any = {};
+        if (baseUserData.emp_id) {
+          const { data: empData } = await supabase
+            .from("employees")
+            .select("name, designation, project, department")
+            .eq("emp_id", baseUserData.emp_id);
+          
+          if (empData && empData.length > 0) {
+            recordData = empData[0];
+          }
         }
 
-        const recordData = recordsSnapshot.docs[0].data() as Record<string, any>;
         const mergedUserData: FirestoreUserData = {
           ...baseUserData,
           name: recordData.name || baseUserData.name || "",
           designation: recordData.designation || baseUserData.designation || "",
-          assignedSite: recordData.site || "",
+          assignedSite: recordData.department || "",
           assignedProject: recordData.project || "",
         };
 
         setUserData(mergedUserData);
         cacheUserData(mergedUserData);
-        // toast.success("✅ User data loaded (" + Math.round(performance.now() - fetchStartTime) + "ms)");
         return mergedUserData;
       }
 
@@ -222,56 +217,60 @@ const AuthProvider = ({ children }: Props) => {
   const createUser = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const { getFirebaseAuth } = await import("@/firebase");
-      const { createUserWithEmailAndPassword } = await import("firebase/auth");
-      
-      const auth = getFirebaseAuth();
-      const result = await createUserWithEmailAndPassword(
-        auth,
+      const { data, error } = await supabase.auth.signUp({
         email,
         password
-      );
-      cacheAuthState(result.user);
-      return result;
+      });
+      if (error) throw error;
+      cacheAuthState(data.user);
+      return data;
     } finally {
       setLoading(false);
     }
   };
 
-  const loginUser = async (email: string, password: string) => {
+  const loginUser = async (identifier: string, password: string) => {
     toast.info("🔐 Logging in...");
     setLoading(true);
     try {
-      // Import and ensure Firebase is initialized
-      const { getFirebaseAuth } = await import("@/firebase");
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
+      let loginEmail = identifier;
       
-      // Get auth instance (this will trigger initialization if needed)
-      const auth = getFirebaseAuth();
+      if (!identifier.includes('@')) {
+        const { data: userRecord } = await supabase
+          .from('users')
+          .select('email, emp_id')
+          .eq('emp_id', identifier)
+          .single();
+          
+        if (userRecord && userRecord.email) {
+          loginEmail = userRecord.email;
+        } else {
+          loginEmail = `${identifier}@starboard.local`;
+        }
+      }
+
+      const { data: result, error } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password
+      });
+
+      if (error) throw error;
       
-      // Always try online login first
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      const userData = await fetchUserData(email);
+      const userData = await fetchUserData(identifier);
       
       if (userData) {
-        // Cache everything for offline use
         setUser(result.user);
         setUserData(userData);
         cacheAuthState(result.user);
         setCachedAuthState(false);
 
         // Record last active timestamp in background
-        import("@/firebase").then(({ getFirebaseDb }) => {
-          import("firebase/firestore").then(({ doc, updateDoc }) => {
-            const db = getFirebaseDb();
-            updateDoc(doc(db, "users", userData.id), {
-              last_active: new Date().toISOString(),
-            }).catch(() => {});
-          });
-        });
+        supabase.from("users").update({
+          last_active: new Date().toISOString()
+        }).eq("id", userData.id).then();
         
         // Cache profile data in background
-        fetchAndCacheProfile(email, userData.allocated_vehicle).catch(err => 
+        fetchAndCacheProfile(loginEmail, userData.allocated_vehicle).catch(err => 
           console.error("Failed to cache profile:", err)
         );
         
@@ -282,14 +281,13 @@ const AuthProvider = ({ children }: Props) => {
           );
         }
         
-        // toast.success("✅ Login successful - cached for offline use!");
         return { result, userData };
       } else {
-        throw new Error("User data not found");
+        throw new Error("User data not found in Supabase database");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("❌ Login failed");
+      toast.error("❌ Login failed: " + (error.message || "Invalid credentials"));
       throw error;
     } finally {
       setLoading(false);
@@ -300,12 +298,7 @@ const AuthProvider = ({ children }: Props) => {
     toast.info("🚪 Logging out...");
     setLoading(true);
     try {
-      const { getFirebaseAuth } = await import("@/firebase");
-      const { signOut } = await import("firebase/auth");
-      
-      const auth = getFirebaseAuth();
-      // Sign out from Firebase
-      await signOut(auth);
+      await supabase.auth.signOut();
       
       // Clear all state
       setUser(null);
@@ -340,14 +333,9 @@ const AuthProvider = ({ children }: Props) => {
 
       // Stamp last_active for sessions resumed from persistence (no explicit login)
       if (userData?.id && navigator.onLine) {
-        import("@/firebase").then(({ getFirebaseDb }) => {
-          import("firebase/firestore").then(({ doc, updateDoc }) => {
-            const db = getFirebaseDb();
-            updateDoc(doc(db, "users", userData.id), {
-              last_active: new Date().toISOString(),
-            }).catch(() => {});
-          });
-        });
+        supabase.from("users").update({
+          last_active: new Date().toISOString()
+        }).eq("id", userData.id).then();
       }
 
       // Pre-fetch profile data in background if user email is available
@@ -400,79 +388,45 @@ const AuthProvider = ({ children }: Props) => {
     if (!user?.email || typeof window === 'undefined') return;
     if ('Notification' in window && Notification.permission !== 'granted') return;
 
-    const unsubscribers: (() => void)[] = [];
     let mounted = true;
+    let channel: any = null;
 
     const setupTicketNotifications = async () => {
       try {
-        const { getFirebaseDb } = await import("@/firebase");
-        const { collection, query, where, getDocs, onSnapshot, orderBy } = await import("firebase/firestore");
+        const { data: userTickets } = await supabase
+          .from("tickets")
+          .select("id")
+          .eq("createdBy", user.email);
 
-        const db = getFirebaseDb();
-        
-        // Get all tickets created by current user
-        const ticketsQuery = query(
-          collection(db, "tickets"),
-          where("createdBy", "==", user.email)
-        );
-        
-        const ticketsSnapshot = await getDocs(ticketsQuery);
-        const userTickets = ticketsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (!mounted || !userTickets || userTickets.length === 0) return;
 
-        console.log(`🔔 Global notification listener: monitoring ${userTickets.length} tickets`);
+        const ticketIds = userTickets.map(t => t.id);
+        console.log(`🔔 Global notification listener: monitoring ${ticketIds.length} tickets`);
 
-        userTickets.forEach((ticket: any) => {
-          const messagesQuery = query(
-            collection(db, `tickets/${ticket.id}/messages`),
-            orderBy('createdAt', 'desc')
-          );
-
-          let isFirstSnapshot = true;
-
-          const unsub = onSnapshot(messagesQuery, (snap) => {
-            // Skip first snapshot (existing messages)
-            if (isFirstSnapshot) {
-              isFirstSnapshot = false;
-              return;
+        channel = supabase.channel('global-ticket-notifications')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+            const message = payload.new as any;
+            if (ticketIds.includes(message.ticketId) && message.createdBy !== user.email) {
+               try {
+                 const notification = new Notification('New Reply to Your Ticket', {
+                   body: `${message.createdBy} replied: ${message.text?.substring(0, 100)}${message.text && message.text.length > 100 ? '...' : ''}`,
+                   icon: '/favicon.ico',
+                   tag: `ticket-${message.ticketId}`,
+                   requireInteraction: false,
+                   silent: false
+                 });
+                 notification.onclick = () => {
+                   window.focus();
+                   window.location.href = '/tickets';
+                   notification.close();
+                 };
+                 setTimeout(() => notification.close(), 6000);
+               } catch (err) {
+                 console.error('Failed to show notification:', err);
+               }
             }
-
-            if (!mounted) return;
-
-            snap.docChanges().forEach(change => {
-              if (change.type === 'added') {
-                const message = change.doc.data();
-                
-                // Only notify if message is from someone else
-                if (message.createdBy !== user.email) {
-                  try {
-                    const notification = new Notification('New Reply to Your Ticket', {
-                      body: `${message.createdBy} replied: ${message.text?.substring(0, 100)}${message.text && message.text.length > 100 ? '...' : ''}`,
-                      icon: '/favicon.ico',
-                      tag: `ticket-${ticket.id}`,
-                      requireInteraction: false,
-                      silent: false
-                    });
-
-                    console.log('✅ Notification shown:', message.createdBy);
-
-                    notification.onclick = () => {
-                      window.focus();
-                      // Navigate to tickets page
-                      window.location.href = '/tickets';
-                      notification.close();
-                    };
-
-                    setTimeout(() => notification.close(), 6000);
-                  } catch (err) {
-                    console.error('Failed to show notification:', err);
-                  }
-                }
-              }
-            });
-          });
-
-          unsubscribers.push(unsub);
-        });
+          })
+          .subscribe();
       } catch (error) {
         console.error('Failed to set up ticket notifications:', error);
       }
@@ -482,42 +436,37 @@ const AuthProvider = ({ children }: Props) => {
 
     return () => {
       mounted = false;
-      unsubscribers.forEach(unsub => unsub());
+      if (channel) supabase.removeChannel(channel);
     };
   }, [user?.email]);
 
-  // Listen for realtime changes to the current user's Firestore document
-  // so that clearance/role/permissions update without requiring re-login.
+  // Listen for realtime changes to the current user's Supabase document
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
+    let unsubscribe = () => {};
 
     const setupListener = async () => {
       try {
-        const email = userData?.email || user?.email;
-        if (!email) return;
+        const identifier = userData?.email || user?.email;
+        if (!identifier) return;
 
-        const { getFirebaseDb } = await import("@/firebase");
-        const { collection, query, where, onSnapshot } = await import("firebase/firestore");
-
-        const db = getFirebaseDb();
-        const usersCollection = collection(db, "users");
-        const userQuery = query(usersCollection, where("email", "==", email));
-
-        unsubscribe = onSnapshot(
-          userQuery,
-          async (snapshot) => {
-            if (!snapshot.empty) {
-              const latestData = await fetchUserData(email);
-              if (!latestData) {
-                return;
-              }
+        const channel = supabase.channel('schema-db-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'users',
+              filter: `email=eq.${identifier}`
+            },
+            async () => {
+              const latestData = await fetchUserData(identifier);
+              if (!latestData) return;
+              
               const prev = lastUserDataRef.current;
-
               setUserData(latestData);
               cacheUserData(latestData);
               lastUserDataRef.current = latestData;
 
-              // Notify the user if their access level/clearance changed
               if (prev) {
                 const roleChanged = prev.role !== latestData.role;
                 const clearanceChanged = prev.clearance !== latestData.clearance;
@@ -529,11 +478,12 @@ const AuthProvider = ({ children }: Props) => {
                 }
               }
             }
-          },
-          (error) => {
-            console.error("Error listening to user data changes:", error);
-          }
-        );
+          )
+          .subscribe();
+
+        unsubscribe = () => {
+          supabase.removeChannel(channel);
+        };
       } catch (error) {
         console.error("Failed to set up user data listener:", error);
       }
@@ -542,9 +492,7 @@ const AuthProvider = ({ children }: Props) => {
     setupListener();
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      unsubscribe();
     };
   }, [user?.email, userData?.email]);
 
