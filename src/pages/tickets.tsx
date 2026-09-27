@@ -14,8 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { db } from "@/firebase";
-import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 import JavascriptTimeAgo from 'javascript-time-ago';
 import en from 'javascript-time-ago/locale/en';
 import { ArrowDown, ArrowUp, FileX, Globe, Info, Loader2, Lock, LockKeyholeIcon, MoreVertical, Reply, Send, Ticket } from "lucide-react";
@@ -253,42 +252,32 @@ export default function Tickets() {
 
   useEffect(() => {
     setLoadingTickets(true);
-    const q = query(collection(db, "tickets"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Ticket));
-      setTickets(docs);
+    const fetchTickets = async () => {
+      const { data } = await supabase.from('tickets').select('*').order('createdAt', { ascending: false });
+      if (data) setTickets(data as Ticket[]);
       setLoadingTickets(false);
-    }, (err) => {
-      console.error(err); setLoadingTickets(false);
-    });
-    return unsub;
+    };
+    fetchTickets();
+    const channel = supabase.channel('tickets-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, fetchTickets)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [activeUserEmail]);
 
   // when a ticket is selected, stream its messages
   useEffect(() => {
     if (!selectedTicket) return;
     setMessagesLoading(true);
-    const q = query(collection(db, `tickets/${selectedTicket.id}/messages`), orderBy("createdAt", "asc"));
-    const unsub = onSnapshot(q, (snap) => {
-      // ignore documents that are local pending writes; this prevents local cached writes
-      // from briefly appearing out of order before the server timestamp is assigned.
-      const msgs: Message[] = snap.docs
-        .filter(d => !(d.metadata && (d.metadata as any).hasPendingWrites))
-        .map(d => {
-          const data = d.data();
-          // normalize parentId to string or null
-          const rawParent = (data as any).parentId;
-          let parentId: string | null = null;
-          if (rawParent) {
-            if (typeof rawParent === 'string') parentId = rawParent;
-            else if ((rawParent as any).id) parentId = (rawParent as any).id;
-          }
-          return { id: d.id, ...(data as any), parentId } as Message;
-        });
-      setMessages(msgs);
+    const fetchMessages = async () => {
+      const { data } = await supabase.from('messages').select('*').eq('ticketId', selectedTicket.id).order('createdAt', { ascending: true });
+      if (data) setMessages(data as Message[]);
       setMessagesLoading(false);
-    }, (err) => { console.error(err); setMessagesLoading(false); });
-    return () => { try { unsub(); } catch (e) { /* ignore */ } setMessagesLoading(false); };
+    };
+    fetchMessages();
+    const channel = supabase.channel(`messages-${selectedTicket.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `ticketId=eq.${selectedTicket.id}` }, fetchMessages)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [selectedTicket]);
 
   // fetch handler status for message authors so we can label replies
@@ -303,10 +292,9 @@ export default function Tickets() {
         }
         const pairs = await Promise.all(emails.map(async (email) => {
           try {
-            const q = query(collection(db, 'users'), where('email', '==', email));
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-              const data = snap.docs[0].data() as any;
+            const { data: usersData } = await supabase.from('users').select('*').eq('email', email);
+            if (usersData && usersData.length > 0) {
+              const data = usersData[0];
               const c = data.clearance || '{}';
               const parsed = typeof c === 'string' ? JSON.parse(c || '{}') : c;
               return [email, !!parsed?.tickets_handler] as [string, boolean];
@@ -339,10 +327,9 @@ export default function Tickets() {
         const map: Record<string, string> = {};
         await Promise.all(emails.map(async (email) => {
           try {
-            const q = query(collection(db, 'users'), where('email', '==', email));
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-              const data = snap.docs[0].data() as any;
+            const { data: usersData } = await supabase.from('users').select('*').eq('email', email);
+            if (usersData && usersData.length > 0) {
+              const data = usersData[0];
               map[email] = data.name || data.displayName || data.fullName || email;
             } else {
               map[email] = email;
@@ -365,9 +352,8 @@ export default function Tickets() {
       try {
         const entries = await Promise.all(tickets.map(async (t) => {
           try {
-            const q = query(collection(db, `tickets/${t.id}/messages`));
-            const snap = await getCountFromServer(q);
-            return [t.id, snap.data().count] as [string, number];
+            const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('ticketId', t.id);
+            return [t.id, count || 0] as [string, number];
           } catch (e) {
             console.error('count error', e);
             return [t.id, 0] as [string, number];
@@ -504,14 +490,14 @@ export default function Tickets() {
     setSending(true);
     try {
       // store on server
-      await addDoc(collection(db, `tickets/${ticketId}/messages`), {
+      await supabase.from('messages').insert({
+        ticketId: ticketId,
         text: plainText,
         createdBy: activeUserEmail,
-        createdAt: serverTimestamp(),
         parentId: parentId || null,
       });
       // update ticket preview
-      await updateDoc(doc(db, "tickets", ticketId), { lastMessage: text.trim(), lastMessageAt: serverTimestamp() });
+      await supabase.from("tickets").update({ lastMessage: text.trim(), lastMessageAt: new Date().toISOString() }).eq('id', ticketId);
       // optimistically update message count for the ticket
       setMessageCounts(prev => ({ ...prev, [ticketId]: (prev[ticketId] || 0) + 1 }));
 
@@ -534,16 +520,15 @@ export default function Tickets() {
     }
     setSending(true);
     try {
-      await addDoc(collection(db, "tickets"), {
+      await supabase.from("tickets").insert({
         title: newTicket.title,
         description: newTicket.description,
         priority: newTicket.priority || 'Normal',
         confidential: !!newTicket.confidential,
         status: "open",
         createdBy: creatorEmail,
-        createdAt: serverTimestamp(),
         lastMessage: newTicket.description,
-        lastMessageAt: serverTimestamp(),
+        lastMessageAt: new Date().toISOString(),
       });
       setNewTicket({ title: "", description: "", priority: 'Normal', confidential: false });
       setShowNewModal(false);
@@ -554,7 +539,7 @@ export default function Tickets() {
 
   const handleDelete = async (id: string) => {
     setDeleting(true);
-    try { await deleteDoc(doc(db, "tickets", id)); toast.success("Ticket deleted"); }
+    try { await supabase.from("tickets").delete().eq('id', id); toast.success("Ticket deleted"); }
     catch (err) { console.error(err); toast.error("Failed to delete ticket"); }
     finally { setDeleting(false); setDeleteDialogOpen(null); }
   };
@@ -563,7 +548,7 @@ export default function Tickets() {
     try {
       // optimistic update
       setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, confidential: !current } : t));
-      await updateDoc(doc(db, 'tickets', ticketId), { confidential: !current });
+      await supabase.from('tickets').update({ confidential: !current }).eq('id', ticketId);
       toast.success(!current ? 'Switched to private' : 'Switched to public');
     } catch (err) {
       console.error(err);
@@ -622,7 +607,7 @@ export default function Tickets() {
                       if (!canEdit) return;
                       if (!confirm('Delete this reply?')) return;
                       try {
-                        await deleteDoc(doc(db, 'tickets', ticketId, 'messages', node.id));
+                        await supabase.from('messages').delete().eq('id', node.id);
                         // update local count
                         setMessageCounts(prev => ({ ...prev, [ticketId]: Math.max(0, (prev[ticketId] || 1) - 1) }));
                         toast.success('Reply deleted');
@@ -939,7 +924,7 @@ export default function Tickets() {
             <RichTextField value={editingMessage?.text || ''} onChange={(html) => setEditingMessage(editingMessage ? { ...editingMessage, text: html } : null)} minHeight={160} style={{ padding: 8 }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button onClick={() => setEditingMessage(null)} style={{ flex: 1, padding: 10, background: '#eee', border: 'none' }}>Cancel</button>
-              <button onClick={async () => { if (!editingMessage) return; try { await updateDoc(doc(db, 'tickets', editingMessage.ticketId, 'messages', editingMessage.id), { text: editingMessage.text, editedAt: serverTimestamp() }); toast.success('Reply updated'); setEditingMessage(null); } catch (err) { console.error(err); toast.error('Failed to update reply'); } }} style={{ flex: 1, padding: 10, background: 'darkblue', color: 'white', border: 'none' }}>Save</button>
+              <button onClick={async () => { if (!editingMessage) return; try { await supabase.from('messages').update({ text: editingMessage.text }).eq('id', editingMessage.id); toast.success('Reply updated'); setEditingMessage(null); } catch (err) { console.error(err); toast.error('Failed to update reply'); } }} style={{ flex: 1, padding: 10, background: 'darkblue', color: 'white', border: 'none' }}>Save</button>
             </div>
           </div>
         </ResponsiveModal>
@@ -1023,7 +1008,7 @@ export default function Tickets() {
               e.preventDefault();
               if (!editingTicket) return;
               try {
-                await updateDoc(doc(db, 'tickets', editingTicket.id), { title: editTicketData.title, description: editTicketData.description, priority: editTicketData.priority || 'Normal', confidential: !!editTicketData.confidential });
+                await supabase.from('tickets').update({ title: editTicketData.title, description: editTicketData.description, priority: editTicketData.priority || 'Normal', confidential: !!editTicketData.confidential }).eq('id', editingTicket.id);
                 toast.success('Ticket updated');
                 setEditingTicket(null);
                 setEditTicketData({ title: '', description: '', priority: 'Normal', confidential: false });
@@ -1085,7 +1070,7 @@ export default function Tickets() {
 
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button type="button" onClick={() => setCloseDialogOpen(null)} disabled={closing} style={{ padding: 10, background: '#eee', border: 'none', flex: 1, opacity: closing ? 0.6 : 1 }}>Cancel</button>
-              <button type="button" disabled={closing} onClick={async () => { if (!closeDialogOpen) return; setClosing(true); try { await updateDoc(doc(db, 'tickets', closeDialogOpen), { status: 'closed' }); toast.success('Ticket closed'); } catch (err) { console.error(err); toast.error('Failed to close ticket'); } finally { setClosing(false); setCloseDialogOpen(null); } }} style={{ padding: 10, background: 'crimson', color: 'white', border: 'none', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+              <button type="button" disabled={closing} onClick={async () => { if (!closeDialogOpen) return; setClosing(true); try { await supabase.from("tickets").update({ status: 'closed' }).eq('id', closeDialogOpen); toast.success('Ticket closed'); } catch (err) { console.error(err); toast.error('Failed to close ticket'); } finally { setClosing(false); setCloseDialogOpen(null); } }} style={{ padding: 10, background: 'crimson', color: 'white', border: 'none', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
                 {closing ? <Loader2 className="animate-spin" /> : 'Close Ticket'}
               </button>
             </div>
