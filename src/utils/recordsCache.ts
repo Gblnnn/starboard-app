@@ -1,6 +1,5 @@
 // Records data caching utilities for database-component
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 
 const RECORDS_CACHE_KEY = "cached_records_data";
 const RECORDS_CACHE_TIMESTAMP_KEY = "cached_records_timestamp";
@@ -93,30 +92,22 @@ export const fetchAndCacheRecords = async (
   pageSize: number
 ): Promise<CachedRecordsData | null> => {
   try {
-    const RecordCollection = collection(db, "records");
-    
-    const [recordsSnapshot, countSnapshot] = await Promise.all([
-      getDocs(
-        query(
-          RecordCollection,
-          orderBy(sortby),
-          where("type", "in", [dbCategory, "omni"]),
-          limit(pageSize)
-        )
-      ),
-      getDocs(
-        query(RecordCollection, where("type", "in", [dbCategory, "omni"]))
-      ),
-    ]);
+    const { data: recordsData, error, count } = await supabase
+      .from("employees")
+      .select("*", { count: "exact" })
+      .in("type", [dbCategory, "omni"])
+      .order(sortby)
+      .limit(pageSize);
 
-    const fetchedData: any[] = [];
-    recordsSnapshot.forEach((doc: any) => {
-      fetchedData.push({ id: doc.id, ...doc.data() });
-    });
+    if (error) {
+      throw error;
+    }
+
+    const fetchedData: any[] = recordsData || [];
 
     const cacheData: CachedRecordsData = {
       records: fetchedData,
-      totalRecords: countSnapshot.size,
+      totalRecords: count || 0,
       timestamp: Date.now(),
       dbCategory,
       sortby,
