@@ -154,7 +154,7 @@ const EditRecordFormContent: React.FC<EditRecordFormContentProps> = ({
         overflowY: "auto",
         minHeight: 0
       }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", paddingBottom: "1.5rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", paddingBottom: "1.5rem" }}>
           {/* Employee Code (Read Only) */}
           <div>
             <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Employee Code</label>
@@ -305,11 +305,11 @@ const EditRecordFormContent: React.FC<EditRecordFormContentProps> = ({
           {loading ? (
             <>
               <Loader2 className="animate-spin" width="1.125rem" />
-      
+
             </>
           ) : (
             <>
-            
+
               Update Record
             </>
           )}
@@ -328,13 +328,13 @@ export default function RecordDetail() {
   const [loading, setLoading] = useState(!record);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshCompleted, setRefreshCompleted] = useState(false);
-  
+
   // Dialog states
   const [archivePrompt, setArchivePrompt] = useState(false);
   const [deletePrompt, setDeletePrompt] = useState(false);
   const [editPrompt, setEditPrompt] = useState(false);
   const [recordDeleteStatus, setRecordDeleteStatus] = useState("");
-  
+
   // Edited values for edit dialog
   const [editedName, setEditedName] = useState<string | undefined>();
   const [editedDepartment, setEditedDepartment] = useState<string | undefined>();
@@ -352,7 +352,7 @@ export default function RecordDetail() {
   const [editedDoj, setEditedDoj] = useState<string | undefined>();
   const [editedPhone, setEditedPhone] = useState<string | undefined>();
   const [editedCug, setEditedCug] = useState<string | undefined>();
-  
+
   // Document states
   const [civil, setCivil] = useState(false);
   const [passportDialog, setPassportDialog] = useState(false);
@@ -362,7 +362,7 @@ export default function RecordDetail() {
   const [notify, setNotify] = useState(true);
   const [notifyLoading, setNotifyLoading] = useState(false);
   const [remarks, setRemarks] = useState("");
-  
+
   const today = new Date();
 
   const refreshData = async () => {
@@ -371,7 +371,7 @@ export default function RecordDetail() {
       setRefreshing(true);
       const docRef = doc(db, "records", id);
       const docSnap = await getDoc(docRef);
-      
+
       if (docSnap.exists()) {
         const data: any = { id: docSnap.id, ...docSnap.data() };
         setRecord(data);
@@ -389,7 +389,7 @@ export default function RecordDetail() {
       setRefreshing(false);
     }
   };
-  
+
   const handleNotify = async () => {
     if (!id) return;
     try {
@@ -408,7 +408,7 @@ export default function RecordDetail() {
       setNotifyLoading(false);
     }
   };
-  
+
   const addRemark = async () => {
     if (!id || !remarks.trim()) return;
     try {
@@ -437,7 +437,7 @@ export default function RecordDetail() {
           setLoading(true);
           const docRef = doc(db, "records", id);
           const docSnap = await getDoc(docRef);
-          
+
           if (docSnap.exists()) {
             const data: any = { id: docSnap.id, ...docSnap.data() };
             setRecord(data);
@@ -460,30 +460,30 @@ export default function RecordDetail() {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        height: "100vh" 
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh"
       }}>
         <Loader2 className="animate-spin" />
       </div>
     );
   }
 
-//   const getInitials = (name: string) => {
-//     return name[0]?.toUpperCase() || "?";
-//   };
+  //   const getInitials = (name: string) => {
+  //     return name[0]?.toUpperCase() || "?";
+  //   };
 
   if (!record) {
     return null;
   }
 
-//   const today = moment();
-//   const isExpiring = (dateStr: string, months: number = 2) => {
-//     if (!dateStr) return false;
-//     return moment(dateStr, "DD/MM/YYYY").diff(today, "months") <= months;
-//   };
+  //   const today = moment();
+  //   const isExpiring = (dateStr: string, months: number = 2) => {
+  //     if (!dateStr) return false;
+  //     return moment(dateStr, "DD/MM/YYYY").diff(today, "months") <= months;
+  //   };
 
   const handleEdit = () => {
     setEditPrompt(true);
@@ -608,25 +608,25 @@ export default function RecordDetail() {
 
   return (
     <>
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{border:"", height:"100svh", display:"flex", flexFlow:"column"}}>
-        <Back 
-        
-       
-          fixed 
-          blurBG 
-        //   subtitle={record.id} 
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ border: "", height: "100svh", display: "flex", flexFlow: "column" }}>
+        <Back
+
+
+          fixed
+          blurBG
+          //   subtitle={record.id} 
           extra={
             <>
-            <div style={{display:"flex", gap:"0.5rem"}}>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
                 {(userData?.editor === "true" || userData?.editor === true) && (
                   <Tooltip title={notify ? "Notifications enabled" : "Notifications disabled"}>
                     <button
-                
+
                       onClick={handleNotify}
                       style={{
                         paddingLeft: "1rem",
                         paddingRight: "1rem",
-                        
+
                         fontSize: "0.8rem"
                       }}
                     >
@@ -642,28 +642,28 @@ export default function RecordDetail() {
                   </Tooltip>
                 )}
                 <RefreshButton
-                onClick={refreshData}
-                refreshCompleted={refreshCompleted}
-                fetchingData={refreshing}
-              />
-              {(userData?.editor === "true" || userData?.editor === true) && (
-                <DropDown
-                  trigger={<EllipsisVertical width="1.1rem" />}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onExtra={handleArchive}
-                  extraText={record?.state === "active" ? "Archive" : "Unarchive"}
+                  onClick={refreshData}
+                  refreshCompleted={refreshCompleted}
+                  fetchingData={refreshing}
                 />
-              )}
-            </div>
-              
+                {(userData?.editor === "true" || userData?.editor === true) && (
+                  <DropDown
+                    trigger={<EllipsisVertical width="1.1rem" />}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onExtra={handleArchive}
+                    extraText={record?.state === "active" ? "Archive" : "Unarchive"}
+                  />
+                )}
+              </div>
+
             </>
           }
         />
-        <div style={{border:"", marginTop:"5rem", height:"100%", overflow:"auto"}}>
-            <div style={{padding:"1rem", display:"flex", flexFlow:"column", gap:"1rem"}}>
-                <div style={{display:"flex", background:"rgba(100 100 100/ 0.1)", padding:"1rem", borderRadius:"0.5rem", gap:"1rem", alignItems:"center", position:"sticky", top:0, zIndex:10, backdropFilter:"blur(20px)"}}>
-                    {/* <div onClick={() => record?.image && setImageDialog(true)} style={{cursor: record?.image ? "pointer" : "default"}}>
+        <div style={{ border: "", marginTop: "5rem", height: "100%", overflow: "auto" }}>
+          <div style={{ padding: "1rem", display: "flex", flexFlow: "column", gap: "1rem" }}>
+            <div style={{ display: "flex", background: "rgba(100 100 100/ 0.1)", padding: "1rem", borderRadius: "0.5rem", gap: "1rem", alignItems: "center", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(20px)" }}>
+              {/* <div onClick={() => record?.image && setImageDialog(true)} style={{cursor: record?.image ? "pointer" : "default"}}>
                       <LazyLoader
                         profile={record?.image}
                         gradient
@@ -676,353 +676,353 @@ export default function RecordDetail() {
                         omni={record?.omni}
                       />
                     </div> */}
-                   
-                    <div style={{display:"flex", flexFlow:"column", flex: 1, minWidth: 0}}>
-                      
-                        <div style={{display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap"}}>
-                           <FileArchive/>
-                          <h2 style={{textTransform: "capitalize", margin: 0, textAlign:"left"}}>{record?.name?.toLowerCase() || "Unknown"}</h2>
-                        </div>
-                        <p style={{margin: 0, opacity: 0.7}}>{record.emp_id}</p>
-                        {record?.modified_on && moment(record.modified_on, "DD/MM/YYYY", true).isValid() && (
-                          <p style={{fontSize:"0.75rem", opacity: 0.5, margin: 0}}>
-                            Last modified <ReactTimeAgo date={moment(record.modified_on, "DD/MM/YYYY").toDate()} timeStyle={"twitter"} locale="en-us" />
-                          </p>
-                        )}
-                    </div>
-                </div>
-                
-                <div style={{display:"flex", gap:"0.5rem", flexWrap:"wrap"}}>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"0.5rem 1rem", display:"flex", fontSize:"0.8rem", borderRadius:"0.5rem", gap:"0.5rem", flex:"1", minWidth:"fit-content"}}>
-                        <b>Joined</b> {record?.DOJ || "N/A"}
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"0.5rem 1rem", display:"flex", fontSize:"0.8rem", borderRadius:"0.5rem", gap:"0.5rem", flex:"1", minWidth:"fit-content", textAlign:"left"}}>
-                        <b>Company</b> {record?.company || "N/A"}
-                    </div>
-                </div>
 
-                <div style={{display:"flex", flexWrap:"wrap", gap:"1rem"}}>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", gap:"1rem"}}>
-                        <div style={{flex:"1"}}>
-                            <p style={{opacity:0.6, fontSize:"0.85rem"}}>Contact</p>
-                            <p style={{fontWeight:"600"}}>{record?.phone || "N/A"}</p>
-                        </div>
-                        <div style={{borderLeft:"1px solid rgba(100 100 100/ 0.2)", paddingLeft:"1rem", flex:"1"}}>
-                            <p style={{opacity:0.6, fontSize:"0.85rem"}}>CUG</p>
-                            <p style={{fontWeight:"600"}}>{record?.CUG || "N/A"}</p>
-                        </div>
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Email</p>
-                        <p style={{fontWeight:"600", fontSize:"0.9rem"}}>{record?.email || "N/A"}</p>
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Nationality</p>
-                        <p style={{fontWeight:"600"}}>{record?.nationality || "N/A"}</p>
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Role</p>
-                        <p style={{fontWeight:"600"}}>{record?.role || "N/A"}</p>
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Department</p>
-                        <p style={{fontWeight:"600"}}>{record?.department || "N/A"}</p>
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Designation</p>
-                        <p style={{fontWeight:"600"}}>{record?.designation || "N/A"}</p>
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Location</p>
-                        <p style={{fontWeight:"600"}}>{record?.location || "N/A"}</p>
-                    </div>
-                    <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Project</p>
-                        <p style={{fontWeight:"600"}}>{record?.project || "N/A"}</p>
-                    </div>
-                    {
-                      record?.allocated_vehicle&&
-                      <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", flex:"1", minWidth:"250px", borderRadius:"0.5rem", display:"flex", flexDirection:"column", gap:"0.25rem"}}>
-                        <p style={{opacity:0.6, fontSize:"0.85rem"}}>Allocated Vehicle</p>
-                        <p style={{fontWeight:"600"}}>{record?.allocated_vehicle || "N/A"}</p>
-                    </div>
+              <div style={{ display: "flex", flexFlow: "column", flex: 1, minWidth: 0 }}>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <FileArchive />
+                  <h2 style={{ textTransform: "capitalize", margin: 0, textAlign: "left" }}>{record?.name?.toLowerCase() || "Unknown"}</h2>
+                </div>
+                <p style={{ margin: 0, opacity: 0.7 }}>{record.emp_id}</p>
+                {record?.modified_on && moment(record.modified_on, "DD/MM/YYYY", true).isValid() && (
+                  <p style={{ fontSize: "0.75rem", opacity: 0.5, margin: 0 }}>
+                    Last modified <ReactTimeAgo date={moment(record.modified_on, "DD/MM/YYYY").toDate()} timeStyle={"twitter"} locale="en-us" />
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "0.5rem 1rem", display: "flex", fontSize: "0.8rem", borderRadius: "0.5rem", gap: "0.5rem", flex: "1", minWidth: "fit-content" }}>
+                <b>Joined</b> {record?.DOJ || "N/A"}
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "0.5rem 1rem", display: "flex", fontSize: "0.8rem", borderRadius: "0.5rem", gap: "0.5rem", flex: "1", minWidth: "fit-content", textAlign: "left" }}>
+                <b>Company</b> {record?.company || "N/A"}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", gap: "1rem" }}>
+                <div style={{ flex: "1" }}>
+                  <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Contact</p>
+                  <p style={{ fontWeight: "600" }}>{record?.phone || "N/A"}</p>
+                </div>
+                <div style={{ borderLeft: "1px solid rgba(100 100 100/ 0.2)", paddingLeft: "1rem", flex: "1" }}>
+                  <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>CUG</p>
+                  <p style={{ fontWeight: "600" }}>{record?.CUG || "N/A"}</p>
+                </div>
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Email</p>
+                <p style={{ fontWeight: "600", fontSize: "0.9rem" }}>{record?.email || "N/A"}</p>
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Nationality</p>
+                <p style={{ fontWeight: "600" }}>{record?.nationality || "N/A"}</p>
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Role</p>
+                <p style={{ fontWeight: "600" }}>{record?.role || "N/A"}</p>
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Department</p>
+                <p style={{ fontWeight: "600" }}>{record?.department || "N/A"}</p>
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Designation</p>
+                <p style={{ fontWeight: "600" }}>{record?.designation || "N/A"}</p>
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Location</p>
+                <p style={{ fontWeight: "600" }}>{record?.location || "N/A"}</p>
+              </div>
+              <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Project</p>
+                <p style={{ fontWeight: "600" }}>{record?.project || "N/A"}</p>
+              </div>
+              {
+                record?.allocated_vehicle &&
+                <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", flex: "1", minWidth: "250px", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <p style={{ opacity: 0.6, fontSize: "0.85rem" }}>Allocated Vehicle</p>
+                  <p style={{ fontWeight: "600" }}>{record?.allocated_vehicle || "N/A"}</p>
+                </div>
+              }
+
+            </div>
+
+            {/* Remarks Section */}
+            <div style={{ background: "rgba(100 100 100/ 0.1)", padding: "1rem", borderRadius: "0.5rem" }}>
+              <p style={{ opacity: 0.6, fontSize: "0.85rem", marginBottom: "0.5rem" }}>Remarks</p>
+              <p style={{ fontWeight: "500" }}>{record?.remarks || "N/A"}</p>
+            </div>
+
+            {/* Documents Section */}
+            <div style={{ display: "flex", flexFlow: "column", gap: "0.5rem" }}>
+              <h3 style={{ fontSize: "0.9rem", fontWeight: "600", opacity: 0.8, margin: "0.5rem 0" }}>Documents</h3>
+
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", width: "100%", minWidth: 0, maxWidth: "100%", flexWrap: "wrap" }}>
+                <Directive
+                  noArrow
+                  id_subtitle={record?.civil_expiry ? record.civil_expiry : "No Data"}
+                  onClick={() => setCivil(true)}
+                  icon={<CreditCard color="mediumslateblue" />}
+                  title="Civil ID"
+                  expiring={
+                    record?.civil_expiry && moment(record.civil_expiry, "DD/MM/YYYY").diff(moment(today), "months") <= 2
+                      ? true
+                      : false
+                  }
+                />
+
+                <Directive
+                  noArrow
+                  id_subtitle={record?.passportExpiry ? record.passportExpiry : "No Data"}
+                  onClick={() => setPassportDialog(true)}
+                  icon={<Book color="goldenrod" />}
+                  title="Passport"
+                  expiring={
+                    record?.passportExpiry && moment(record.passportExpiry, "DD/MM/YYYY").diff(moment(today), "months") <= 6
+                      ? true
+                      : false
+                  }
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", width: "100%", minWidth: 0, maxWidth: "100%", flexWrap: "wrap" }}>
+                {(record?.type === "vale" || record?.omni) && (
+                  <Directive
+                    noArrow
+                    id_subtitle={record?.medical_due_on ? record.medical_due_on : "No Data"}
+                    onClick={() => setHealthDialog(true)}
+                    icon={<HeartPulse color="tomato" />}
+                    title="Medical"
+                    expiring={
+                      record?.medical_due_on && moment(record.medical_due_on, "DD/MM/YYYY").diff(moment(today), "months") <= 2
+                        ? true
+                        : false
                     }
-                    
-                </div>
-                
-                {/* Remarks Section */}
-                <div style={{background:"rgba(100 100 100/ 0.1)", padding:"1rem", borderRadius:"0.5rem"}}>
-                    <p style={{opacity:0.6, fontSize:"0.85rem", marginBottom: "0.5rem"}}>Remarks</p>
-                    <p style={{fontWeight:"500"}}>{record?.remarks || "N/A"}</p>
-                </div>
-                
-                {/* Documents Section */}
-                <div style={{display:"flex", flexFlow:"column", gap:"0.5rem"}}>
-                  <h3 style={{fontSize:"0.9rem", fontWeight:"600", opacity: 0.8, margin: "0.5rem 0"}}>Documents</h3>
-                  
-                  <div style={{display:"flex", gap:"0.5rem", alignItems:"center", width:"100%", minWidth: 0, maxWidth:"100%", flexWrap: "wrap"}}>
-                    <Directive
-                      noArrow
-                      id_subtitle={record?.civil_expiry ? record.civil_expiry : "No Data"}
-                      onClick={() => setCivil(true)}
-                      icon={<CreditCard color="mediumslateblue" />}
-                      title="Civil ID"
-                      expiring={
-                        record?.civil_expiry && moment(record.civil_expiry, "DD/MM/YYYY").diff(moment(today), "months") <= 2
-                          ? true
-                          : false
-                      }
-                    />
-                    
-                    <Directive
-                      noArrow
-                      id_subtitle={record?.passportExpiry ? record.passportExpiry : "No Data"}
-                      onClick={() => setPassportDialog(true)}
-                      icon={<Book color="goldenrod" />}
-                      title="Passport"
-                      expiring={
-                        record?.passportExpiry && moment(record.passportExpiry, "DD/MM/YYYY").diff(moment(today), "months") <= 6
-                          ? true
-                          : false
-                      }
-                    />
-                  </div>
-                  
-                  <div style={{display:"flex", gap:"0.5rem", alignItems:"center", width:"100%", minWidth: 0, maxWidth:"100%", flexWrap: "wrap"}}>
-                    {(record?.type === "vale" || record?.omni) && (
-                      <Directive
-                        noArrow
-                        id_subtitle={record?.medical_due_on ? record.medical_due_on : "No Data"}
-                        onClick={() => setHealthDialog(true)}
-                        icon={<HeartPulse color="tomato" />}
-                        title="Medical"
-                        expiring={
-                          record?.medical_due_on && moment(record.medical_due_on, "DD/MM/YYYY").diff(moment(today), "months") <= 2
-                            ? true
-                            : false
-                        }
-                      />
-                    )}
-                    
-                    {(record?.omni || record?.vt_hse_induction || record?.vt_car_1) && (
-                      <Directive
-                        noArrow
-                        id_subtitle={
-                          (record?.vt_hse_induction && moment(record.vt_hse_induction, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
-                          (record?.vt_car_1 && moment(record.vt_car_1, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
-                          (record?.vt_car_2 && moment(record.vt_car_2, "DD/MM/YYYY").diff(moment(today), "months") <= 2)
-                            ? "Expiring"
-                            : "No Alerts"
-                        }
-                        onClick={() => toast.info("Training details")}
-                        icon={<GraduationCap color="lightgreen" />}
-                        title="Training"
-                        expiring={
-                          (record?.vt_hse_induction && moment(record.vt_hse_induction, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
-                          (record?.vt_car_1 && moment(record.vt_car_1, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
-                          (record?.vt_car_2 && moment(record.vt_car_2, "DD/MM/YYYY").diff(moment(today), "months") <= 2)
-                            ? true
-                            : false
-                        }
-                      />
-                    )}
-                  </div>
-                </div>
-                
-            </div>
-            
-        </div>
-    </motion.div>
-    
-    {/* Archive Dialog */}
-    <DefaultDialog
-      titleIcon={<Archive color="orange" />}
-      title={record?.state === "active" ? "Archive Record?" : "Unarchive?"}
-      open={archivePrompt}
-      onCancel={() => setArchivePrompt(false)}
-      OkButtonText={record?.state === "active" ? "Archive" : "Confirm"}
-      onOk={archiveRecord}
-      updating={loading}
-      disabled={loading}
-    />
+                  />
+                )}
 
-    {/* Delete Dialog */}
-    <DefaultDialog
-      open={deletePrompt}
-      titleIcon={<X />}
-      destructive
-      title="Delete Record?"
-      desc={id}
-      OkButtonText="Delete"
-      onCancel={() => setDeletePrompt(false)}
-      onOk={deleteRecord}
-      updating={loading}
-      disabled={loading}
-      extra={
-        recordDeleteStatus ? (
-          <div style={{ width: "100%" }}>
-            <p style={{ fontSize: "0.7rem", opacity: 0.5 }}>
-              {recordDeleteStatus}
-            </p>
+                {(record?.omni || record?.vt_hse_induction || record?.vt_car_1) && (
+                  <Directive
+                    noArrow
+                    id_subtitle={
+                      (record?.vt_hse_induction && moment(record.vt_hse_induction, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
+                        (record?.vt_car_1 && moment(record.vt_car_1, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
+                        (record?.vt_car_2 && moment(record.vt_car_2, "DD/MM/YYYY").diff(moment(today), "months") <= 2)
+                        ? "Expiring"
+                        : "No Alerts"
+                    }
+                    onClick={() => toast.info("Training details")}
+                    icon={<GraduationCap color="lightgreen" />}
+                    title="Training"
+                    expiring={
+                      (record?.vt_hse_induction && moment(record.vt_hse_induction, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
+                        (record?.vt_car_1 && moment(record.vt_car_1, "DD/MM/YYYY").diff(moment(today), "months") <= 2) ||
+                        (record?.vt_car_2 && moment(record.vt_car_2, "DD/MM/YYYY").diff(moment(today), "months") <= 2)
+                        ? true
+                        : false
+                    }
+                  />
+                )}
+              </div>
+            </div>
+
           </div>
-        ) : null
-      }
-    />
 
-    {/* Edit Dialog/Drawer - Responsive Modal */}
-    {editPrompt && (
-      <ResponsiveModal
-        open={true}
-        onOpenChange={(open) => {
-          if (!open) {
-            resetEditedStates();
-            setEditPrompt(false);
-          }
-        }}
-        title=""
-        description=""
-      >
-        <EditRecordFormContent
-          record={record}
-          editedName={editedName}
-          editedDepartment={editedDepartment}
-          editedEmail={editedEmail}
-          editedEmpId={editedEmpId}
-          editedEmpType={editedEmpType}
-          editedNationality={editedNationality}
-          editedDesignation={editedDesignation}
-          editedProject={editedProject}
-          editedOtEligible={editedOtEligible}
-          editedCompany={editedCompany}
-          editedCivilId={editedCivilId}
-          editedStatus={editedStatus}
-          editedShift={editedShift}
-          editedDoj={editedDoj}
-          editedPhone={editedPhone}
-          editedCug={editedCug}
-          setEditedName={setEditedName}
-          setEditedDepartment={setEditedDepartment}
-          setEditedEmail={setEditedEmail}
-          setEditedEmpId={setEditedEmpId}
-          setEditedEmpType={setEditedEmpType}
-          setEditedNationality={setEditedNationality}
-          setEditedDesignation={setEditedDesignation}
-          setEditedProject={setEditedProject}
-          setEditedOtEligible={setEditedOtEligible}
-          setEditedCompany={setEditedCompany}
-          setEditedCivilId={setEditedCivilId}
-          setEditedStatus={setEditedStatus}
-          setEditedShift={setEditedShift}
-          setEditedDoj={setEditedDoj}
-          setEditedPhone={setEditedPhone}
-          setEditedCug={setEditedCug}
-          loading={loading}
-          handleSubmit={editRecord}
-        />
-      </ResponsiveModal>
-    )}
-    
-    {/* Remarks Dialog */}
-    <InputDialog
-      title="Add Remark"
-      inputplaceholder="Enter remarks"
-      OkButtonText="Update"
-      OkButtonIcon={<RefreshCcw width={"1rem"} />}
-      open={remarksDialog}
-      onCancel={() => setRemarksDialog(false)}
-      inputOnChange={(e: any) => setRemarks(e.target.value)}
-      onOk={addRemark}
-      updating={loading}
-      disabled={loading}
-      input1Value={remarks}
-    />
-    
-    {/* Image Dialog */}
-    <ImageDialog
-      open={imageDialog}
-      src={record?.image}
-      onCancel={() => setImageDialog(false)}
-    />
-    
-    {/* Civil ID Dialog */}
-    <DefaultDialog
-      close
-      titleIcon={<CreditCard color="mediumslateblue" />}
-      title="Civil ID"
-      open={civil}
-      onCancel={() => setCivil(false)}
-      extra={
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "20ch" }}>
-          {record?.civil_id ? (
-            <CivilID
-              name={record?.name}
-              expirydate={record?.civil_expiry}
-              civilid={record?.civil_id}
-              DOB={record?.civil_DOB}
-            />
-          ) : (
-            <div style={{ opacity: 0.5, textAlign: "center" }}>
-              <CreditCard width="3rem" height="3rem" style={{ margin: "1rem auto" }} />
-              <p>No Civil ID data</p>
-            </div>
-          )}
         </div>
-      }
-    />
-    
-    {/* Passport Dialog */}
-    <DefaultDialog
-      close
-      titleIcon={<Book color="goldenrod" />}
-      title="Passport"
-      open={passportDialog}
-      onCancel={() => setPassportDialog(false)}
-      extra={
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "20ch" }}>
-          {record?.passportID ? (
-            <Passport
-              name={record?.name}
-              expiry={record?.passportExpiry}
-              passport_id={record?.passportID}
-              issue={record?.passportIssue}
-            />
-          ) : (
-            <div style={{ opacity: 0.5, textAlign: "center" }}>
-              <Book width="3rem" height="3rem" style={{ margin: "1rem auto" }} />
-              <p>No Passport data</p>
+      </motion.div>
+
+      {/* Archive Dialog */}
+      <DefaultDialog
+        titleIcon={<Archive color="orange" />}
+        title={record?.state === "active" ? "Archive Record?" : "Unarchive?"}
+        open={archivePrompt}
+        onCancel={() => setArchivePrompt(false)}
+        OkButtonText={record?.state === "active" ? "Archive" : "Confirm"}
+        onOk={archiveRecord}
+        updating={loading}
+        disabled={loading}
+      />
+
+      {/* Delete Dialog */}
+      <DefaultDialog
+        open={deletePrompt}
+        titleIcon={<X />}
+        destructive
+        title="Delete Record?"
+        desc={id}
+        OkButtonText="Delete"
+        onCancel={() => setDeletePrompt(false)}
+        onOk={deleteRecord}
+        updating={loading}
+        disabled={loading}
+        extra={
+          recordDeleteStatus ? (
+            <div style={{ width: "100%" }}>
+              <p style={{ fontSize: "0.7rem", opacity: 0.5 }}>
+                {recordDeleteStatus}
+              </p>
             </div>
-          )}
-        </div>
-      }
-    />
-    
-    {/* Medical Dialog */}
-    <DefaultDialog
-      close
-      titleIcon={<HeartPulse color="tomato" />}
-      title="Medical"
-      open={healthDialog}
-      onCancel={() => setHealthDialog(false)}
-      extra={
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "20ch" }}>
-          {record?.medical_due_on ? (
-            <MedicalID
-              name={record?.name}
-              dueOn={record?.medical_due_on}
-              completedOn={record?.medical_completed_on}
-            />
-          ) : (
-            <div style={{ opacity: 0.5, textAlign: "center" }}>
-              <HeartPulse width="3rem" height="3rem" style={{ margin: "1rem auto" }} />
-              <p>No Medical data</p>
-            </div>
-          )}
-        </div>
-      }
-    />
+          ) : null
+        }
+      />
+
+      {/* Edit Dialog/Drawer - Responsive Modal */}
+      {editPrompt && (
+        <ResponsiveModal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              resetEditedStates();
+              setEditPrompt(false);
+            }
+          }}
+          title=""
+          description=""
+        >
+          <EditRecordFormContent
+            record={record}
+            editedName={editedName}
+            editedDepartment={editedDepartment}
+            editedEmail={editedEmail}
+            editedEmpId={editedEmpId}
+            editedEmpType={editedEmpType}
+            editedNationality={editedNationality}
+            editedDesignation={editedDesignation}
+            editedProject={editedProject}
+            editedOtEligible={editedOtEligible}
+            editedCompany={editedCompany}
+            editedCivilId={editedCivilId}
+            editedStatus={editedStatus}
+            editedShift={editedShift}
+            editedDoj={editedDoj}
+            editedPhone={editedPhone}
+            editedCug={editedCug}
+            setEditedName={setEditedName}
+            setEditedDepartment={setEditedDepartment}
+            setEditedEmail={setEditedEmail}
+            setEditedEmpId={setEditedEmpId}
+            setEditedEmpType={setEditedEmpType}
+            setEditedNationality={setEditedNationality}
+            setEditedDesignation={setEditedDesignation}
+            setEditedProject={setEditedProject}
+            setEditedOtEligible={setEditedOtEligible}
+            setEditedCompany={setEditedCompany}
+            setEditedCivilId={setEditedCivilId}
+            setEditedStatus={setEditedStatus}
+            setEditedShift={setEditedShift}
+            setEditedDoj={setEditedDoj}
+            setEditedPhone={setEditedPhone}
+            setEditedCug={setEditedCug}
+            loading={loading}
+            handleSubmit={editRecord}
+          />
+        </ResponsiveModal>
+      )}
+
+      {/* Remarks Dialog */}
+      <InputDialog
+        title="Add Remark"
+        inputplaceholder="Enter remarks"
+        OkButtonText="Update"
+        OkButtonIcon={<RefreshCcw width={"1rem"} />}
+        open={remarksDialog}
+        onCancel={() => setRemarksDialog(false)}
+        inputOnChange={(e: any) => setRemarks(e.target.value)}
+        onOk={addRemark}
+        updating={loading}
+        disabled={loading}
+        input1Value={remarks}
+      />
+
+      {/* Image Dialog */}
+      <ImageDialog
+        open={imageDialog}
+        src={record?.image}
+        onCancel={() => setImageDialog(false)}
+      />
+
+      {/* Civil ID Dialog */}
+      <DefaultDialog
+        close
+        titleIcon={<CreditCard color="mediumslateblue" />}
+        title="Civil ID"
+        open={civil}
+        onCancel={() => setCivil(false)}
+        extra={
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "20ch" }}>
+            {record?.civil_id ? (
+              <CivilID
+                name={record?.name}
+                expirydate={record?.civil_expiry}
+                civilid={record?.civil_id}
+                DOB={record?.civil_DOB}
+              />
+            ) : (
+              <div style={{ opacity: 0.5, textAlign: "center" }}>
+                <CreditCard width="3rem" height="3rem" style={{ margin: "1rem auto" }} />
+                <p>No Civil ID data</p>
+              </div>
+            )}
+          </div>
+        }
+      />
+
+      {/* Passport Dialog */}
+      <DefaultDialog
+        close
+        titleIcon={<Book color="goldenrod" />}
+        title="Passport"
+        open={passportDialog}
+        onCancel={() => setPassportDialog(false)}
+        extra={
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "20ch" }}>
+            {record?.passportID ? (
+              <Passport
+                name={record?.name}
+                expiry={record?.passportExpiry}
+                passport_id={record?.passportID}
+                issue={record?.passportIssue}
+              />
+            ) : (
+              <div style={{ opacity: 0.5, textAlign: "center" }}>
+                <Book width="3rem" height="3rem" style={{ margin: "1rem auto" }} />
+                <p>No Passport data</p>
+              </div>
+            )}
+          </div>
+        }
+      />
+
+      {/* Medical Dialog */}
+      <DefaultDialog
+        close
+        titleIcon={<HeartPulse color="tomato" />}
+        title="Medical"
+        open={healthDialog}
+        onCancel={() => setHealthDialog(false)}
+        extra={
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "20ch" }}>
+            {record?.medical_due_on ? (
+              <MedicalID
+                name={record?.name}
+                dueOn={record?.medical_due_on}
+                completedOn={record?.medical_completed_on}
+              />
+            ) : (
+              <div style={{ opacity: 0.5, textAlign: "center" }}>
+                <HeartPulse width="3rem" height="3rem" style={{ margin: "1rem auto" }} />
+                <p>No Medical data</p>
+              </div>
+            )}
+          </div>
+        }
+      />
 
     </>
-    
+
     // <div style={{ paddingBottom: "2rem", border:"solid" }}>
     //   <div style={{ padding: "1.25rem", border:"solid"}}>
     //     <Back  title={record.name} />
@@ -1037,7 +1037,7 @@ export default function RecordDetail() {
     //       marginBottom: "1.5rem"
     //     }}>
     //       <h3 style={{ opacity: 0.7, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Basic Information</h3>
-          
+
     //       {record.email && (
     //         <Directive 
     //           icon={<Mail width="1.25rem" color="mediumslateblue" />}
@@ -1046,7 +1046,7 @@ export default function RecordDetail() {
     //           onClick={() => window.location.href = `mailto:${record.email}`}
     //         />
     //       )}
-          
+
     //       {record.phone && (
     //         <Directive 
     //           icon={<Phone width="1.25rem" color="mediumslateblue" />}
@@ -1054,7 +1054,7 @@ export default function RecordDetail() {
     //           onClick={() => window.location.href = `tel:${record.phone}`}
     //         />
     //       )}
-          
+
     //       {record.CUG && (
     //         <Directive 
     //           icon={<Building2 width="1.25rem" color="mediumslateblue" />}
@@ -1062,7 +1062,7 @@ export default function RecordDetail() {
     //           onClick={() => window.location.href = `tel:${record.CUG}`}
     //         />
     //       )}
-          
+
     //       {record.designation && (
     //         <Directive 
     //           icon={<Briefcase width="1.25rem" color="mediumslateblue" />}
@@ -1070,7 +1070,7 @@ export default function RecordDetail() {
     //           subtext="Designation"
     //         />
     //       )}
-          
+
     //       {record.site && (
     //         <Directive 
     //           icon={<MapPin width="1.25rem" color="mediumslateblue" />}
@@ -1078,7 +1078,7 @@ export default function RecordDetail() {
     //           subtext="Site"
     //         />
     //       )}
-          
+
     //       {record.project && (
     //         <Directive 
     //           icon={<Building2 width="1.25rem" color="mediumslateblue" />}
@@ -1095,7 +1095,7 @@ export default function RecordDetail() {
     //       gap: "0.75rem" 
     //     }}>
     //       <h3 style={{ opacity: 0.7, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Documents</h3>
-          
+
     //       <div style={{ display: "flex", gap: "0.75rem" }}>
     //         <Directive 
     //           noArrow
@@ -1104,7 +1104,7 @@ export default function RecordDetail() {
     //           id_subtitle={record.civil_expiry || "No Data"}
     //           expiring={isExpiring(record.civil_expiry, 2)}
     //         />
-            
+
     //         <Directive 
     //           noArrow
     //           icon={<Book width="1.25rem" color="goldenrod" />}
@@ -1113,7 +1113,7 @@ export default function RecordDetail() {
     //           expiring={isExpiring(record.passportExpiry, 6)}
     //         />
     //       </div>
-          
+
     //       {record.medical_due_on && (
     //         <Directive 
     //           noArrow
@@ -1123,7 +1123,7 @@ export default function RecordDetail() {
     //           expiring={isExpiring(record.medical_due_on, 2)}
     //         />
     //       )}
-          
+
     //       {(record.vt_hse_induction || record.vt_car_1) && (
     //         <Directive 
     //           noArrow
@@ -1144,7 +1144,7 @@ export default function RecordDetail() {
     //         />
     //       )}
     //     </div>
-        
+
     //     {record.emp_id && (
     //       <div style={{ marginTop: "1.5rem", opacity: 0.5, fontSize: "0.85rem", border:"solid" }}>
     //         Employee Code: {record.emp_id}
