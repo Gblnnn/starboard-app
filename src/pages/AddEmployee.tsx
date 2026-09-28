@@ -1,6 +1,8 @@
 import { AlertCircle, CheckCircle2, Loader2, Monitor } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import ProjectSelect from '../components/project-select';
+import CompanySelect from '../components/company-select';
 
 interface Device {
   id: number;
@@ -15,6 +17,17 @@ interface FormState {
   email: string;
   emp_id: string;
   emp_type: 'staff' | 'worker';
+  doj: string;
+  phone: string;
+  cug: string;
+  nationality: string;
+  designation: string;
+  project: string;
+  ot_eligible: boolean;
+  company: string;
+  civil_id: string;
+  status: string;
+  shift: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -24,6 +37,17 @@ const EMPTY_FORM: FormState = {
   email: '',
   emp_id: '',
   emp_type: 'staff',
+  doj: '',
+  phone: '',
+  cug: '',
+  nationality: '',
+  designation: '',
+  project: '',
+  ot_eligible: false,
+  company: '',
+  civil_id: '',
+  status: 'active',
+  shift: '',
 };
 
 // Builds the ZKTeco ADMS "DATA UPDATE USERINFO" command string
@@ -105,6 +129,17 @@ export default function AddEmployee() {
           email: form.email.trim() || null,
           emp_id: form.emp_id.trim() || null,
           emp_type: form.emp_type,
+          doj: form.doj || null,
+          phone: form.phone.trim() || null,
+          cug: form.cug.trim() || null,
+          nationality: form.nationality.trim() || null,
+          designation: form.designation.trim() || null,
+          project: form.project.trim() || null,
+          ot_eligible: form.ot_eligible,
+          company: form.company.trim() || null,
+          civil_id: form.civil_id.trim() || null,
+          status: form.status || 'active',
+          shift: form.shift.trim() || null,
         })
         .select()
         .single();
@@ -160,6 +195,17 @@ export default function AddEmployee() {
           email: form.email.trim() || null,
           emp_id: form.emp_id.trim() || null,
           emp_type: form.emp_type,
+          doj: form.doj || null,
+          phone: form.phone.trim() || null,
+          cug: form.cug.trim() || null,
+          nationality: form.nationality.trim() || null,
+          designation: form.designation.trim() || null,
+          project: form.project.trim() || null,
+          ot_eligible: form.ot_eligible,
+          company: form.company.trim() || null,
+          civil_id: form.civil_id.trim() || null,
+          status: form.status || 'active',
+          shift: form.shift.trim() || null,
         });
 
       if (empErr) throw new Error(empErr.message);
@@ -177,13 +223,6 @@ export default function AddEmployee() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
       <div className="max-w-xl mx-auto w-full px-4 py-6">
-
-        {/* Header */}
-        {/* <div className="flex items-center gap-2.5 mb-6">
-          <UserPlus className="w-5 h-5 text-gray-400" />
-          <h1 className="text-lg font-semibold text-gray-900">Add Employee</h1>
-        </div> */}
-
         {/* Alerts */}
         {error && (
           <div className="mb-4 flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
@@ -203,6 +242,18 @@ export default function AddEmployee() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                Employee ID (HR)
+              </label>
+              <input
+                type="text"
+                value={form.emp_id}
+                onChange={e => update('emp_id', e.target.value)}
+                placeholder="e.g. EMP-045"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
                 Full name <span className="text-red-400">*</span>
               </label>
               <input
@@ -213,16 +264,49 @@ export default function AddEmployee() {
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Device User ID <span className="text-red-400">*</span>
-              </label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Date of Join</label>
+              <input
+                type="date"
+                value={form.doj}
+                onChange={e => update('doj', e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Phone</label>
               <input
                 type="text"
-                value={form.device_user_id}
-                onChange={e => update('device_user_id', e.target.value)}
-                placeholder="e.g. 110525"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors font-mono"
+                value={form.phone}
+                onChange={e => update('phone', e.target.value)}
+                placeholder="e.g. +971501234567"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">CUG</label>
+              <input
+                type="number"
+                value={form.cug}
+                onChange={e => update('cug', e.target.value)}
+                placeholder="Enter CUG Number"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={e => update('email', e.target.value)}
+                placeholder="e.g. john@company.com"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
               />
             </div>
           </div>
@@ -253,30 +337,109 @@ export default function AddEmployee() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Nationality</label>
               <input
-                type="email"
-                value={form.email}
-                onChange={e => update('email', e.target.value)}
-                placeholder="e.g. john@company.com"
+                type="text"
+                value={form.nationality}
+                onChange={e => update('nationality', e.target.value)}
+                placeholder="Enter Nationality"
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Employee ID (HR)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Designation</label>
               <input
                 type="text"
-                value={form.emp_id}
-                onChange={e => update('emp_id', e.target.value)}
-                placeholder="e.g. EMP-045"
+                value={form.designation}
+                onChange={e => update('designation', e.target.value)}
+                placeholder="Enter Designation"
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
               />
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Civil ID</label>
+              <input
+                type="text"
+                value={form.civil_id}
+                onChange={e => update('civil_id', e.target.value)}
+                placeholder="Enter Civil ID"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Shift</label>
+              <input
+                type="text"
+                value={form.shift}
+                onChange={e => update('shift', e.target.value)}
+                placeholder="Enter Shift"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 items-center">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+              <select
+                value={form.status}
+                onChange={e => update('status', e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors bg-white"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <input
+                type="checkbox"
+                id="add_ot_eligible"
+                checked={form.ot_eligible}
+                onChange={e => update('ot_eligible', e.target.checked)}
+                className="w-4 h-4"
+              />
+              <label htmlFor="add_ot_eligible" className="text-sm font-medium text-gray-700 cursor-pointer">
+                OT Eligible
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Project</label>
+              <ProjectSelect
+                value={form.project}
+                onChange={(v) => update('project', v)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Company Name</label>
+              <CompanySelect
+                value={form.company}
+                onChange={(v) => update('company', v)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                Device User ID <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.device_user_id}
+                onChange={e => update('device_user_id', e.target.value)}
+                placeholder="e.g. 110525"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors font-mono"
+              />
+              <p className="text-xs text-gray-400 mt-1">This must match the ID used on the biometric device.</p>
+            </div>
+          </div>
+
           {/* Device selection */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-1.5 mt-2">
               <label className="block text-xs font-medium text-gray-600">
                 Push to devices
               </label>
