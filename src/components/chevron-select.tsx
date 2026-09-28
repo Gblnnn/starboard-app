@@ -20,13 +20,13 @@ export default function ChevronSelect({ title, icon, options, value, onChange, p
   const selectedLabel = currentIndex !== -1 ? options[currentIndex].label : placeholder;
   
   const handlePrevious = () => {
-    if (!onChange) return;
+    if (!onChange || options.length === 0) return;
     const newIndex = currentIndex <= 0 ? options.length - 1 : currentIndex - 1;
     onChange(options[newIndex].value);
   };
   
   const handleNext = () => {
-    if (!onChange) return;
+    if (!onChange || options.length === 0) return;
     const newIndex = currentIndex >= options.length - 1 ? 0 : currentIndex + 1;
     onChange(options[newIndex].value);
   };
