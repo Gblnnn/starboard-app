@@ -8,35 +8,31 @@ import InputDialog from "@/components/input-dialog";
 import MedicalID from "@/components/medical-id";
 import Passport from "@/components/passport";
 import { ResponsiveModal } from "@/components/responsive-modal";
+import VehicleID from "@/components/vehicle-id";
+import { db, storage } from "@/firebase";
 import RoleSelect from "@/components/role-select";
 import SearchBar from "@/components/search-bar";
 import DefaultDialog from "@/components/ui/default-dialog";
-import VehicleID from "@/components/vehicle-id";
-import { db, storage } from "@/firebase";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { supabase } from "@/lib/supabase";
 import {
   exportExpiringRecords,
 } from "@/utils/excelUtils";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  Timestamp,
+  where,
+  writeBatch
+} from "firebase/firestore";
 import { fetchAndCacheRecords, getCachedRecords } from "@/utils/recordsCache";
 import { LoadingOutlined } from "@ant-design/icons";
 import * as XLSX from "@e965/xlsx";
 import { message, Tooltip } from "antd";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  startAfter,
-  Timestamp,
-  updateDoc,
-  where,
-  writeBatch
-} from "firebase/firestore";
 import {
   deleteObject,
   ref
@@ -840,22 +836,7 @@ export default function DbComponent(props: Props) {
 
   // Real-time updates
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      query(collection(db, "records")),
-      (snapshot: any) => {
-        snapshot.docChanges().forEach((change: any) => {
-          if (
-            change.type === "added" ||
-            change.type === "modified" ||
-            change.type === "removed"
-          ) {
-            fetchData();
-          }
-        });
-      }
-    );
-
-    return () => unsubscribe();
+    fetchData();
   }, []);
 
   // Combine initial essential data fetch
@@ -864,28 +845,17 @@ export default function DbComponent(props: Props) {
       if (!silent) {
         setfetchingData(true);
       }
-      const RecordCollection = collection(db, "records");
-
-      // Fetch records only (access data is already cached)
-      const recordsSnapshot = await getDocs(
-        query(
-          RecordCollection,
-          orderBy(sortby),
-          where("type", "in", [props.dbCategory, "omni"]),
-          limit(pageSize)
-        )
-      );
-
-      // Process records
-      const fetchedData: Record[] = [];
-      recordsSnapshot.forEach((doc: any) => {
-        fetchedData.push({ id: doc.id, ...doc.data() });
-      });
-
-      // Set the last document for pagination
-      const lastVisible = recordsSnapshot.docs[recordsSnapshot.docs.length - 1];
-      setLastDoc(lastVisible);
-      setHasMore(recordsSnapshot.docs.length === pageSize);
+      const { data: recordsData } = await supabase
+        .from("employees")
+        .select("*")
+        .in("type", [props.dbCategory, "omni"])
+        .order(sortby)
+        .limit(pageSize);
+      
+      const fetchedData: Record[] = recordsData || [];
+      
+      setLastDoc(fetchedData.length > 0 ? fetchedData.length : null);
+      setHasMore(fetchedData.length === pageSize);
 
       // Update records
       setRecords(fetchedData);
@@ -908,10 +878,8 @@ export default function DbComponent(props: Props) {
       }
 
       // Get total count in background
-      const countSnapshot = await getDocs(
-        query(RecordCollection, where("type", "in", [props.dbCategory, "omni"]))
-      );
-      setTotalRecords(countSnapshot.size);
+      const { count } = await supabase.from("employees").select("*", { count: "exact" }).in("type", [props.dbCategory, "omni"]);
+      setTotalRecords(count || 0);
 
       // Show offline warning if needed
       if (!navigator.onLine) {
@@ -962,36 +930,22 @@ export default function DbComponent(props: Props) {
     console.log("Record Fetch", { loadMore, selectableState: selectable, projectAllocMode, checkedCount: checked.length });
     try {
       setfetchingData(true);
-      const RecordCollection = collection(db, "records");
-      let recordQuery;
-
+      let query = supabase
+        .from("employees")
+        .select("*")
+        .in("type", [props.dbCategory, "omni"])
+        .order(sortby)
+        .limit(pageSize);
+        
       if (loadMore && lastDoc) {
-        recordQuery = query(
-          RecordCollection,
-          orderBy(sortby),
-          where("type", "in", [props.dbCategory, "omni"]),
-          startAfter(lastDoc),
-          limit(pageSize)
-        );
-      } else {
-        recordQuery = query(
-          RecordCollection,
-          orderBy(sortby),
-          where("type", "in", [props.dbCategory, "omni"]),
-          limit(pageSize)
-        );
+        query = query.range(records.length, records.length + pageSize - 1);
       }
-
-      const querySnapshot = await getDocs(recordQuery);
-      const fetchedData: Record[] = [];
-
-      querySnapshot.forEach((doc: any) => {
-        fetchedData.push({ id: doc.id, ...doc.data() });
-      });
-
-      const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
-      setLastDoc(lastVisible);
-      setHasMore(querySnapshot.docs.length === pageSize);
+      
+      const { data: recordsData } = await query;
+      const fetchedData: Record[] = recordsData || [];
+      
+      setLastDoc(fetchedData.length > 0 ? records.length + fetchedData.length : null);
+      setHasMore(fetchedData.length === pageSize);
 
       setfetchingData(false);
       setRefreshCompleted(true);
@@ -1102,10 +1056,10 @@ export default function DbComponent(props: Props) {
  
   const RenewID = async () => {
     setLoading(true);
-    await updateDoc(doc(db, "records", doc_id), {
+    await supabase.from("employees").update({
       civil_expiry: newExpiry,
       modified_on: new Date(),
-    });
+    }).eq("id", doc_id);
     await AddHistory("renew", newExpiry, "", "Civil ID");
     setCivilExpiry(newExpiry);
     setLoading(false);
@@ -1118,10 +1072,10 @@ export default function DbComponent(props: Props) {
   const archiveRecord = async () => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         state: state == "active" ? "archived" : "active",
         notify: state == "active" ? false : true,
-      });
+      }).eq("id", doc_id);
       setLoading(false);
       setArchivePrompt(false);
       setState(state == "active" ? "archived" : "active");
@@ -1169,7 +1123,7 @@ export default function DbComponent(props: Props) {
   const addRecord = async () => {
     setLoading(true);
     await uploadFile();
-    await addDoc(collection(db, "records"), {
+    await supabase.from("employees").insert({
       name: name,
       display_name: displayName,
       email: email,
@@ -1248,12 +1202,12 @@ export default function DbComponent(props: Props) {
     setAddcivil(false);
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         civil_number: edited_civil_number,
         civil_expiry: edited_civil_expiry ? edited_civil_expiry : "",
         civil_DOB: edited_civil_DOB,
         modified_on: new Date(),
-      });
+      }).eq("id", doc_id);
       await AddHistory("addition", "Added", "", "Civil ID");
       setCivilNumber(edited_civil_number);
       setCivilExpiry(edited_civil_expiry);
@@ -1276,12 +1230,12 @@ export default function DbComponent(props: Props) {
   // FUNCTION TO DELETE A CIVIL ID
   const deleteCivilID = async () => {
     setLoading(true);
-    await updateDoc(doc(db, "records", doc_id), {
+    await supabase.from("employees").update({
       civil_number: "",
       civil_expiry: "",
       civil_DOB: "",
       modified_on: new Date(),
-    });
+    }).eq("id", doc_id);
     setLoading(true);
     await AddHistory("deletion", "Deleted", "", "Civil ID");
     setCivilDelete(false);
@@ -1300,12 +1254,12 @@ export default function DbComponent(props: Props) {
   const EditCivilID = async () => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         civil_number: edited_civil_number ? edited_civil_number : civil_number,
         civil_expiry: edited_civil_expiry ? edited_civil_expiry : civil_expiry,
         civil_DOB: edited_civil_DOB ? edited_civil_DOB : civil_DOB,
         modified_on: new Date(),
-      });
+      }).eq("id", doc_id);
       setLoading(true);
       await AddHistory("addition", "Updated", "", "Civil ID");
       setCivilNumber(edited_civil_number ? edited_civil_number : civil_number);
@@ -1332,12 +1286,12 @@ export default function DbComponent(props: Props) {
     setAddVehicleID(false);
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         license_number: vehicle_number,
         license_expiry: vehicle_expiry,
         license_issue: vehicle_issue,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       await AddHistory("addition", "Added", "", "Vehicle ID");
       setLoading(false);
       fetchData();
@@ -1357,12 +1311,12 @@ export default function DbComponent(props: Props) {
   // FUNCTION TO DELETE A VEHICLE ID
   const deleteVehicleID = async () => {
     setLoading(true);
-    await updateDoc(doc(db, "records", doc_id), {
+    await supabase.from("employees").update({
       license_number: "",
       license_expiry: "",
       license_issue: "",
       modified_on: Timestamp.fromDate(new Date()),
-    });
+    }).eq("id", doc_id);
     await AddHistory("deletion", "Deleted", "", "Vehicle ID");
     setVehicleIdDelete(false);
     setLoading(false);
@@ -1376,11 +1330,11 @@ export default function DbComponent(props: Props) {
   // FUNCTION TO DELETE A MEDICAL ID
   const deleteMedicalID = async () => {
     setLoading(true);
-    await updateDoc(doc(db, "records", doc_id), {
+    await supabase.from("employees").update({
       medical_completed_on: "",
       medical_due_on: "",
       modified_on: Timestamp.fromDate(new Date()),
-    });
+    }).eq("id", doc_id);
     await AddHistory("deletion", "Deleted", "", "Medical");
     setDeleteMedicalIDdialog(false);
     setLoading(false);
@@ -1394,7 +1348,7 @@ export default function DbComponent(props: Props) {
   const EditVehicleID = async () => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         license_number: edited_vehicle_number
           ? edited_vehicle_number
           : vehicle_number,
@@ -1405,7 +1359,7 @@ export default function DbComponent(props: Props) {
           ? edited_vehicle_issue
           : vehicle_issue,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
 
       await AddHistory("addition", "Updated", "", "Vehicle ID");
 
@@ -1433,13 +1387,13 @@ export default function DbComponent(props: Props) {
   const renewVehicleID = async () => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         license_issue: edited_vehicle_issue,
         license_expiry: edited_vehicle_expiry
           ? edited_vehicle_expiry
           : vehicle_expiry,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       await AddHistory("renew", edited_vehicle_expiry, "", "Vehicle ID");
       setVehicleIssue(
         edited_vehicle_issue ? edited_vehicle_issue : vehicle_issue
@@ -1461,11 +1415,11 @@ export default function DbComponent(props: Props) {
     setMedicalIDdialog(false);
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         medical_completed_on: medical_completed_on,
         medical_due_on: medical_due_on,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       await AddHistory("addition", "Added", "", "Medical ID");
       setLoading(false);
       fetchData();
@@ -1482,13 +1436,13 @@ export default function DbComponent(props: Props) {
   const EditMedicalID = async () => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         medical_completed_on: editedCompletedOn
           ? editedCompletedOn
           : medical_completed_on,
         medical_due_on: editedDueOn ? editedDueOn : medical_due_on,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       await AddHistory("addition", "Updated", "", "Medical");
 
       setDueOn(editedDueOn ? editedDueOn : medical_due_on);
@@ -1507,7 +1461,7 @@ export default function DbComponent(props: Props) {
   const EditPassport = async () => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         passportID: editedPassportID
           ? editedPassportID
           : passportID
@@ -1534,7 +1488,7 @@ export default function DbComponent(props: Props) {
           ? nativeAddress
           : "",
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       await AddHistory("addition", "Updated", "", "Passport");
       setPassportID(editedPassportID ? editedPassportID : passportID);
       setPassportIssue(
@@ -1574,13 +1528,13 @@ export default function DbComponent(props: Props) {
   const renewMedicalID = async () => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         medical_completed_on: editedCompletedOn
           ? editedCompletedOn
           : medical_completed_on,
         medical_due_on: editedDueOn ? editedDueOn : medical_due_on,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       await AddHistory("renew", editedCompletedOn, "", "Medical");
       setCompletedOn(
         editedCompletedOn ? editedCompletedOn : medical_completed_on
@@ -1601,14 +1555,14 @@ export default function DbComponent(props: Props) {
     setAddPassportDialog(false);
     setLoading(true);
     try {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         passportID: passportID ? passportID : "",
         passportIssue: passportIssue ? passportIssue : "",
         passportExpiry: passportExpiry,
         nativePhone: nativePhone ? nativePhone : "",
         nativeAddress: nativeAddress ? nativeAddress : "",
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       await AddHistory("addition", "Added", "", "Passport");
       setLoading(false);
       fetchData();
@@ -1621,12 +1575,12 @@ export default function DbComponent(props: Props) {
 
   const deletePassport = async () => {
     setLoading(true);
-    await updateDoc(doc(db, "records", doc_id), {
+    await supabase.from("employees").update({
       passportID: "",
       passportExpiry: "",
       passportIssue: "",
       modified_on: Timestamp.fromDate(new Date()),
-    });
+    }).eq("id", doc_id);
     await AddHistory("deletion", "Deleted", "", "Passport");
     setDeletePassportDialog(false);
     setLoading(false);
@@ -1639,13 +1593,13 @@ export default function DbComponent(props: Props) {
 
   const renewPassport = async () => {
     setLoading(true);
-    await updateDoc(doc(db, "records", doc_id), {
+    await supabase.from("employees").update({
       passportExpiry: editedPassportExpiry
         ? editedPassportExpiry
         : passportExpiry,
       passportIssue: editedPassportIssue ? editedPassportIssue : passportIssue,
       modified_on: Timestamp.fromDate(new Date()),
-    });
+    }).eq("id", doc_id);
     await AddHistory("renew", editedPassportExpiry, "", "Passport");
     setPassportIssue(editedPassportIssue ? editedPassportIssue : passportIssue);
     setPassportExpiry(
@@ -1826,14 +1780,18 @@ export default function DbComponent(props: Props) {
       let percentage = 100 / checked.length;
       setLoading(true);
 
-      const snapshot = await getDocs(collection(db, "records"));
-      snapshot.forEach((e: any) => {
-        e.profile_name && deleteObject(ref(storage, e.profile_name));
+      const { data } = await supabase.from("employees").select("*");
+      const snapshot = { docs: data?.map((d: any) => ({ id: d.id, data: () => d })) || [] };
+      snapshot.docs.forEach((e: any) => {
+        const itemData = e.data();
+        if (itemData && itemData.profile_name) {
+          deleteObject(ref(storage, itemData.profile_name)).catch(console.error);
+        }
       });
 
       await checked.forEach(async (item: any) => {
         // console.log(item)
-        await deleteDoc(doc(db, "records", item));
+        await supabase.from("employees").delete().eq("id", item);
         counts++;
         setProgress(String(percentage * counts) + "%");
         setProgressItem(item);
@@ -1864,90 +1822,90 @@ export default function DbComponent(props: Props) {
     setLoading(true);
 
     if (type == "hse_induction") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_hse_induction: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setHseInduction(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_1") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_1: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar1(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_2") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_2: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar2(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_3") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_3: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar3(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_4") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_4: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar4(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_5") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_5: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar5(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_6") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_6: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar6(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_7") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_7: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar7(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_8") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_8: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar8(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_9") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_9: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar9(EditedTrainingAddDialogInput);
     }
 
     if (type == "car_10") {
-      await updateDoc(doc(db, "records", doc_id), {
+      await supabase.from("employees").update({
         vt_car_10: EditedTrainingAddDialogInput,
         modified_on: Timestamp.fromDate(new Date()),
-      });
+      }).eq("id", doc_id);
       setVtCar10(EditedTrainingAddDialogInput);
     }
 
@@ -2099,10 +2057,8 @@ export default function DbComponent(props: Props) {
         
         for (let i = 0; i < idsToCheck.length; i += chunkSize) {
           const chunk = idsToCheck.slice(i, i + chunkSize);
-          const snapshot = await getDocs(
-            query(collection(db, "records"), where("__name__", "in", chunk))
-          );
-          snapshot.docs.forEach((doc) => existingIds.add(doc.id));
+          const { data } = await supabase.from("employees").select("id").in("id", chunk);
+          data?.forEach((doc) => existingIds.add(doc.id));
           
           // Show progress during ID checking (10% to 20%)
           const chunkProgress = Math.floor(i / chunkSize) + 1;
