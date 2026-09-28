@@ -6,19 +6,9 @@ import RefreshButton from "@/components/refresh-button";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import RoleSelect from "@/components/role-select";
 import DefaultDialog from "@/components/ui/default-dialog";
-import { db } from "@/firebase";
 import { message } from "antd";
 import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where
-} from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRightLeft,
@@ -959,18 +949,20 @@ export default function Users() {
     try {
       setLoading(true);
 
-      const recordsQuery = query(collection(db, "records"), where("email", "==", email.trim()));
-      const recordsSnapshot = await getDocs(recordsQuery);
+      const { data: recordsSnapshot, error: recordsError } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("email", email.trim());
 
-      if (recordsSnapshot.empty) {
+      if (recordsError || !recordsSnapshot || recordsSnapshot.length === 0) {
         setLoading(false);
         message.error("Cannot create user. Record Master entry is required first.");
         return;
       }
 
-      const recordData = recordsSnapshot.docs[0].data() as any;
+      const recordData = recordsSnapshot[0];
       await createUserWithEmailAndPassword(auth, email, password);
-      await addDoc(collection(db, "users"), {
+      await supabase.from("users").insert({
         name: recordData.name || name,
         email: email.trim(),
         role: "profile",  // system access role
@@ -1010,7 +1002,7 @@ export default function Users() {
 
   const deleteUser = async () => {
     setLoading(true);
-    await deleteDoc(doc(db, "users", docid));
+    await supabase.from("users").delete().eq("id", docid);
     fetchUsers();
     setLoading(false);
     setDeleteConfirmDialog(false);
@@ -1019,14 +1011,17 @@ export default function Users() {
 
   const fetchUsers = async () => {
     setfetchingData(true);
-    const RecordCollection = collection(db, "users");
-    const recordQuery = query(RecordCollection);
-    const querySnapshot = await getDocs(recordQuery);
-    const fetchedData: any = [];
+    const { data: querySnapshot, error } = await supabase
+      .from("users")
+      .select("*");
 
-    querySnapshot.forEach((doc: any) => {
-      fetchedData.push({ id: doc.id, ...doc.data() });
-    });
+    if (error) {
+      console.error(error);
+      setfetchingData(false);
+      return;
+    }
+
+    const fetchedData: any = querySnapshot || [];
 
     // Sort users by last active time descending, putting inactive users at the end
     fetchedData.sort((a: any, b: any) => {
@@ -1045,16 +1040,18 @@ export default function Users() {
   const updateUser = async () => {
     try {
       setLoading(true);
-      const recordsQuery = query(collection(db, "records"), where("email", "==", display_email.trim()));
-      const recordsSnapshot = await getDocs(recordsQuery);
+      const { data: recordsSnapshot, error: recordsError } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("email", display_email.trim());
 
-      if (recordsSnapshot.empty) {
+      if (recordsError || !recordsSnapshot || recordsSnapshot.length === 0) {
         setLoading(false);
         message.error("Cannot update user. Record Master entry is required.");
         return;
       }
 
-      const recordDocRef = recordsSnapshot.docs[0].ref;
+      const recordId = recordsSnapshot[0].id;
       const updatedData: Record<string, any> = {
         role: role || "profile",  // system access role
         clearance: clearance || "{}",
@@ -1071,8 +1068,8 @@ export default function Users() {
       }, {} as Record<string, any>);
 
       // Update both the user doc and the corresponding record with the role
-      await updateDoc(doc(db, "users", docid), filteredData);
-      await updateDoc(recordDocRef, { role: filteredData.role });
+      await supabase.from("users").update(filteredData).eq("id", docid);
+      await supabase.from("employees").update({ role: filteredData.role }).eq("id", recordId);
 
       // Update local cache if the updated user is the current user
       await updateLocalCache(display_email, filteredData);
