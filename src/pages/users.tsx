@@ -1021,7 +1021,26 @@ export default function Users() {
       return;
     }
 
-    const fetchedData: any = querySnapshot || [];
+    let fetchedData: any = querySnapshot || [];
+
+    // Fetch employees to map the true names using emp_id
+    const userEmpIds = fetchedData.map((u: any) => String(u.emp_id)).filter(Boolean);
+    if (userEmpIds.length > 0) {
+      const { data: empData, error: empErr } = await supabase
+        .from('employees')
+        .select('name, emp_id')
+        .in('emp_id', userEmpIds);
+        
+      if (!empErr && empData) {
+        fetchedData = fetchedData.map((user: any) => {
+          const emp = empData.find((e: any) => String(e.emp_id) === String(user.emp_id));
+          return {
+            ...user,
+            name: emp?.name || user.name
+          };
+        });
+      }
+    }
 
     // Sort users by last active time descending, putting inactive users at the end
     fetchedData.sort((a: any, b: any) => {
@@ -1312,7 +1331,7 @@ export default function Users() {
                       title={user.name}
                       // tag={user.email=="it@soharstar.com"?"Developer":""}
                       status={true}
-                      id_subtitle={user.emp_id ? `ID: ${user.emp_id} | ${user.email}` : user.email}                      
+                      id_subtitle={user.emp_id ? `ID: ${user.emp_id} | ${user.email}` : user.email}
                       subtext={
                         user.last_active
                           ? (() => {
