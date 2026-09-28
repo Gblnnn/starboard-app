@@ -17,6 +17,7 @@ import { db, storage } from "@/firebase";
 import { Tooltip } from "antd";
 import { deleteDoc, doc, getDoc, updateDoc } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
+import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import {
   Archive,
@@ -582,12 +583,45 @@ export default function RecordDetail() {
         doj: editedDoj !== undefined ? editedDoj : (record.doj || record.DOJ || ""),
         phone: editedPhone !== undefined ? editedPhone : (record.phone || ""),
         cug: editedCug !== undefined ? editedCug : (record.cug || record.CUG || ""),
-        modified_on: new Date(),
+        modified_on: new Date().toISOString(),
       };
 
       // Since we are restricting editing to only the fields in the `employees` table,
       // we save them to the Firebase document as expected.
-      await updateDoc(doc(db, "records", id), updatedFields);
+      try {
+        await updateDoc(doc(db, "records", id), updatedFields);
+      } catch (fbError) {
+        console.error("Firebase update failed, continuing to Supabase:", fbError);
+        // Continue even if Firebase fails, in case it's disabled due to migration
+      }
+
+      if (updatedFields.emp_id) {
+        const { error: sbError } = await supabase
+          .from('employees')
+          .update({
+            name: updatedFields.name || null,
+            department: updatedFields.department || null,
+            email: updatedFields.email || null,
+            emp_id: updatedFields.emp_id || null,
+            emp_type: updatedFields.emp_type || null,
+            nationality: updatedFields.nationality || null,
+            designation: updatedFields.designation || null,
+            project: updatedFields.project || null,
+            ot_eligible: updatedFields.ot_eligible || false,
+            company: updatedFields.company || null,
+            civil_id: updatedFields.civil_id || null,
+            status: updatedFields.status || 'active',
+            shift: updatedFields.shift || null,
+            doj: updatedFields.doj || null,
+            phone: updatedFields.phone || null,
+            cug: updatedFields.cug || null,
+          })
+          .eq('emp_id', updatedFields.emp_id);
+
+        if (sbError) {
+          throw new Error("Supabase Error: " + sbError.message);
+        }
+      }
 
       // Update local record state
       setRecord({
@@ -600,7 +634,7 @@ export default function RecordDetail() {
       resetEditedStates();
     } catch (error) {
       console.error("Error updating record:", error);
-      toast.error("Failed to update record");
+      toast.error("Failed to update record: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setLoading(false);
     }
