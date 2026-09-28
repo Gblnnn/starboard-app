@@ -19,10 +19,10 @@ export const isRecordsCacheValid = (dbCategory: string): boolean => {
     const timestampKey = `${RECORDS_CACHE_TIMESTAMP_KEY}_${dbCategory}`;
     const timestamp = localStorage.getItem(timestampKey);
     if (!timestamp) return false;
-    
+
     const cacheAge = Date.now() - parseInt(timestamp);
     const maxAge = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
-    
+
     return cacheAge < maxAge;
   } catch (e) {
     return false;
@@ -95,7 +95,6 @@ export const fetchAndCacheRecords = async (
     const { data: recordsData, error, count } = await supabase
       .from("employees")
       .select("*", { count: "exact" })
-      .in("emp_type", [dbCategory, "staff"])
       .order(sortby)
       .limit(pageSize);
 
