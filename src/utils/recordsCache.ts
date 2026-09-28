@@ -95,7 +95,7 @@ export const fetchAndCacheRecords = async (
     const { data: recordsData, error, count } = await supabase
       .from("employees")
       .select("*", { count: "exact" })
-      .in("emp_type", [dbCategory, "omni"])
+      .in("emp_type", [dbCategory, "staff"])
       .order(sortby)
       .limit(pageSize);
 
