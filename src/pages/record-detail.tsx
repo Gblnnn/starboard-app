@@ -683,7 +683,7 @@ export default function RecordDetail() {
                 {(userData?.editor === "true" || userData?.editor === true) && (
                   <DropDown
                     trigger={<EllipsisVertical width="1.1rem" />}
-                    onEdit={handleEdit}
+                    // onEdit={handleEdit} // Editing is now handled in Attendance -> Manage
                     onDelete={handleDelete}
                     onExtra={handleArchive}
                     extraText={record?.state === "active" ? "Archive" : "Unarchive"}
