@@ -6,7 +6,7 @@ async function main() {
     let supabaseKey = 'sb_publishable_60EgFkAFmczfEjOySTOBQQ_QYKGosa_';
     
     // Check company_master
-    const url = `${supabaseUrl}/rest/v1/employees?select=id&limit=1`;
+    const url = `${supabaseUrl}/rest/v1/projects?select=*&limit=1`;
     console.log("Fetching from:", url);
     
     const response = await fetch(url, {
