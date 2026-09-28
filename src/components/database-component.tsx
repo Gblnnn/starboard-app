@@ -11,6 +11,8 @@ import { ResponsiveModal } from "@/components/responsive-modal";
 import VehicleID from "@/components/vehicle-id";
 import { db, storage } from "@/firebase";
 import RoleSelect from "@/components/role-select";
+import ProjectSelect from "./project-select";
+import CompanySelect from "./company-select";
 import SearchBar from "@/components/search-bar";
 import DefaultDialog from "@/components/ui/default-dialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -95,7 +97,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "./ui/select";
 type Record = {
   id: string;
   name: string;
-  employeeCode?: string;
+  emp_id?: string;
   // Add other potential fields
 };
 
@@ -123,72 +125,76 @@ interface Props {
 
 // Shared Record Form Content Component
 interface RecordFormContentProps {
+  emp_id: string;
+  setEmployeeCode: (value: string) => void;
   name: string;
   setName: (value: string) => void;
-  displayName: string;
-  setDisplayName: (value: string) => void;
+  DOJ: string;
+  setDateofJoin: (value: string) => void;
+  phone: string;
+  setContact: (value: string) => void;
+  CUG: string;
+  setCug: (value: string) => void;
   email: string;
   setEmail: (value: string) => void;
-  employeeCode: string;
-  setEmployeeCode: (value: string) => void;
-  companyName: string;
-  setCompanyName: (value: string) => void;
-  dateofJoin: string;
-  setDateofJoin: (value: string) => void;
-  salaryBasic: number;
-  setSalaryBasic: (value: any) => void;
-  allowance: number;
-  setAllowance: (value: any) => void;
-  contact: string;
-  setContact: (value: string) => void;
-  cug: string;
-  setCug: (value: string) => void;
-  designation: string;
-  setDesignation: (value: string) => void;
+  department: string;
+  setDepartment: (value: string) => void;
   workerType: string;
   setWorkerType: (value: string) => void;
-  site: string;
-  setSite: (value: string) => void;
+  nationality: string;
+  setNationality: (value: string) => void;
+  designation: string;
+  setDesignation: (value: string) => void;
   project: string;
   setProject: (value: string) => void;
-  systemRole: string;
-  setSystemRole: (value: string) => void;
+  ot_eligible: boolean;
+  setOtEligible: (value: boolean) => void;
+  company: string;
+  setCompanyName: (value: string) => void;
+  civil_id: string;
+  setCivilId: (value: string) => void;
+  empStatus: string;
+  setEmpStatus: (value: string) => void;
+  shift: string;
+  setShift: (value: string) => void;
   loading: boolean;
   onSave: () => void;
   isEditMode?: boolean;
 }
 
 const RecordFormContent: React.FC<RecordFormContentProps> = ({
+  emp_id,
+  setEmployeeCode,
   name,
   setName,
-  displayName,
-  setDisplayName,
+  DOJ,
+  setDateofJoin,
+  phone,
+  setContact,
+  CUG,
+  setCug,
   email,
   setEmail,
-  employeeCode,
-  setEmployeeCode,
-  companyName,
-  setCompanyName,
-  dateofJoin,
-  setDateofJoin,
-  salaryBasic,
-  setSalaryBasic,
-  allowance,
-  setAllowance,
-  contact,
-  setContact,
-  cug,
-  setCug,
-  designation,
-  setDesignation,
+  department,
+  setDepartment,
   workerType,
   setWorkerType,
-  site,
-  setSite,
+  nationality,
+  setNationality,
+  designation,
+  setDesignation,
   project,
   setProject,
-  systemRole,
-  setSystemRole,
+  ot_eligible,
+  setOtEligible,
+  company,
+  setCompanyName,
+  civil_id,
+  setCivilId,
+  empStatus,
+  setEmpStatus,
+  shift,
+  setShift,
   loading,
   onSave,
   isEditMode = false,
@@ -206,7 +212,7 @@ const RecordFormContent: React.FC<RecordFormContentProps> = ({
         width: "100%"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <FileArchive/>
+          <FileArchive />
           <p style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0 }}>
             {isEditMode ? "Edit Record" : "Add Record"}
           </p>
@@ -224,113 +230,123 @@ const RecordFormContent: React.FC<RecordFormContentProps> = ({
         overflowY: "auto",
         minHeight: 0
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", paddingBottom: "1.5rem" }}>
-          <input
-            placeholder="Enter Full Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Display Name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Employee Code"
-            value={employeeCode}
-            onChange={(e) => setEmployeeCode(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Company Name"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Date of Join"
-            value={dateofJoin}
-            onChange={(e) => setDateofJoin(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Basic Salary"
-            value={salaryBasic.toString()}
-            onChange={(e) => setSalaryBasic(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Allowance"
-            value={allowance.toString()}
-            onChange={(e) => setAllowance(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Contact"
-            value={contact}
-            onChange={(e) => setContact(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter CUG"
-            value={cug}
-            onChange={(e) => setCug(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Site"
-            value={site}
-            onChange={(e) => setSite(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Project"
-            value={project}
-            onChange={(e) => setProject(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          
-          <input
-            placeholder="Enter Designation"
-            value={designation}
-            onChange={(e) => setDesignation(e.target.value)}
-            style={{ width: "100%" }}
-          />
-          <Select value={workerType} onValueChange={(value) => setWorkerType(value)}>
-            <SelectTrigger style={{ width: "100%", justifyContent: "space-between" }}>
-              <span style={{ opacity: workerType ? 1 : 0.5 }}>
-                {workerType === "staff" ? "Staff" : workerType === "worker" ? "Worker" : "Select Employee Type"}
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="staff">Staff</SelectItem>
-              <SelectItem value="worker">Worker</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <RoleSelect 
-            value={systemRole || 'profile'} 
-            onChange={(value) => setSystemRole(value)}
-          />
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", paddingBottom: "1.5rem" }}>
+          {/* Employee Code (Editable) */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Employee Code</label>
+            <input type="text" value={emp_id} onChange={(e) => setEmployeeCode(e.target.value)} placeholder="Employee Code" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Full Name */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Full Name</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter Full Name" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Date of Join */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Date of Join</label>
+            <input type="date" value={DOJ} onChange={(e) => setDateofJoin(e.target.value)} placeholder="YYYY-MM-DD" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Phone */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Phone</label>
+            <input type="text" value={phone} onChange={(e) => setContact(e.target.value)} placeholder="Enter Phone Number" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* CUG */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>CUG</label>
+            <input type="number" value={CUG} onChange={(e) => setCug(e.target.value)} placeholder="Enter CUG Number" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter Email" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Department */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Department</label>
+            <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Enter Department" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Employee Type */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Employee Type</label>
+            <Select value={workerType} onValueChange={(value) => setWorkerType(value)}>
+              <SelectTrigger style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)", border: "1px solid rgba(100, 100, 100, 0.1)", justifyContent: "space-between" }}>
+                <span style={{ opacity: workerType ? 1 : 0.5 }}>
+                  {workerType || "Select Employee Type"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="staff">Staff</SelectItem>
+                <SelectItem value="worker">Worker</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Nationality */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Nationality</label>
+            <input type="text" value={nationality} onChange={(e) => setNationality(e.target.value)} placeholder="Enter Nationality" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Designation */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Designation</label>
+            <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Enter Designation" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Project */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Project</label>
+            <ProjectSelect value={project} onChange={(value) => setProject(value)} />
+          </div>
+
+          {/* OT Eligible */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input type="checkbox" id="ot_eligible" checked={ot_eligible} onChange={(e) => setOtEligible(e.target.checked)} style={{ width: "1.2rem", height: "1.2rem" }} />
+            <label htmlFor="ot_eligible" style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, cursor: "pointer" }}>OT Eligible</label>
+          </div>
+
+          {/* Company */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Company Name</label>
+            <CompanySelect value={company} onChange={(value) => setCompanyName(value)} />
+          </div>
+
+          {/* Civil ID */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Civil ID</label>
+            <input type="text" value={civil_id} onChange={(e) => setCivilId(e.target.value)} placeholder="Enter Civil ID" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
+
+          {/* Status */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Status</label>
+            <Select value={empStatus} onValueChange={(value) => setEmpStatus(value)}>
+              <SelectTrigger style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)", border: "1px solid rgba(100, 100, 100, 0.1)" }}>
+                <span style={{ opacity: empStatus ? 1 : 0.5 }}>
+                  {empStatus || "Select Status"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Shift */}
+          <div>
+            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Shift</label>
+            <input type="text" value={shift} onChange={(e) => setShift(e.target.value)} placeholder="Enter Shift" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
+          </div>
         </div>
       </div>
 
@@ -340,7 +356,7 @@ const RecordFormContent: React.FC<RecordFormContentProps> = ({
         borderTop: "1px solid rgba(100, 100, 100, 0.1)",
         background: "var(--background)",
         display: "flex",
-        paddingBottom:"2rem",
+        paddingBottom: "2rem",
         gap: "0.5rem",
         boxSizing: "border-box",
         width: "100%"
@@ -366,7 +382,6 @@ const RecordFormContent: React.FC<RecordFormContentProps> = ({
           {loading ? (
             <>
               <Loader2 className="animate-spin" width="1rem" />
-              
             </>
           ) : (
             <>
@@ -383,7 +398,7 @@ const RecordFormContent: React.FC<RecordFormContentProps> = ({
 export default function DbComponent(props: Props) {
   const { windowName } = useCurrentUser();
   const { userData } = useAuth();
-  
+
 
   // Memoized function to check if record is expiring (within 2 months)
   const isRecordExpiring = useMemo(() => {
@@ -405,41 +420,41 @@ export default function DbComponent(props: Props) {
         post.vt_car_9,
         post.vt_car_10,
       ];
-      
+
       return expiryFields.some(date => {
         if (!date || date === "") return false;
         return moment(date, "DD/MM/YYYY").diff(moment(), "months") < 2;
       });
     };
   }, []);
-  
- 
+
+
   const [selectAll, setSelectAll] = useState(false);
   const [deleteKey, setDeleteKey] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [jsonData, setJsonData] = useState<any>([]);
-  const [companyName, setCompanyName] = useState("");
+  const [company, setCompanyName] = useState("");
 
- 
+
 
   const [archivePrompt, setArchivePrompt] = useState(false);
   const [state, setState] = useState("");
- 
 
-  const [contact, setContact] = useState("");
+
+  const [phone, setContact] = useState("");
   const [displayName, setDisplayName] = useState("");
-  
+
   const [nativePhone, setNativePhone] = useState("");
   const [nativeAddress, setNativeAddress] = useState("");
   const [editedNativePhone, setEditedNativePhone] = useState("");
   const [editedNativeAddress, setEditedNativeAddress] = useState("");
- 
-  
- 
+
+
+
 
   const usenavigate = useNavigate();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  
+
   // BASIC PAGE VARIABLES
   // const [pageLoad, setPageLoad] = useState(false)
   const [records, setRecords] = useState<Record[]>([]);
@@ -450,16 +465,16 @@ export default function DbComponent(props: Props) {
   const [civil, setCivil] = useState(false);
   const [vehicle, setVehicle] = useState(false);
   const [addcivil, setAddcivil] = useState(false);
-  
+
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [deleteMedicalIDdialog, setDeleteMedicalIDdialog] = useState(false);
   const [email, setEmail] = useState("");
-  
-  
+
+
 
   // CIVIL ID VARIABLES
-  const [civil_number, setCivilNumber] = useState<any>();
+  const [civil_id, setCivilNumber] = useState<any>();
   const [new_civil_number, setNewCivilNumber] = useState<any>();
   const [new_civil_expiry, setNewCivilExpiry] = useState<any>();
   const [civil_expiry, setCivilExpiry] = useState<any>();
@@ -486,7 +501,7 @@ export default function DbComponent(props: Props) {
 
   //MAIL CONFIG VARIABLES
   const [addDialog, setAddDialog] = useState(false);
- 
+
   const [editcivilprompt, setEditcivilprompt] = useState(false);
   const [valeTrainingDialog, setValeTrainingDialog] = useState(false);
   const [renewMedicalIDdialog, setRenewMedicalIDdialog] = useState(false);
@@ -541,7 +556,7 @@ export default function DbComponent(props: Props) {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [allocatingProject, setAllocatingProject] = useState<string | null>(null);
   const [pendingProject, setPendingProject] = useState<{ id: string; name: string } | null>(null);
-  
+
   // Project personnel viewer
   const [viewingProject, setViewingProject] = useState<{ id: string; name: string } | null>(null);
   const [projectPersonnel, setProjectPersonnel] = useState<Record[]>([]);
@@ -566,7 +581,7 @@ export default function DbComponent(props: Props) {
   const [trainingDialog, setTrainingDialog] = useState(false);
   const [healthDialog, setHealthDialog] = useState(false);
 
-  
+
 
   const [trainingType, setTrainingType] = useState("");
 
@@ -585,36 +600,40 @@ export default function DbComponent(props: Props) {
   const [imageUpload] = useState(null);
   const [fileName, setFileName] = useState("");
 
-  const [employeeCode, setEmployeeCode] = useState("");
-  const [dateofJoin, setDateofJoin] = useState("");
-  const [salaryBasic, setSalaryBasic] = useState(0);
-  const [allowance, setAllowance] = useState(0);
-  const [cug, setCug] = useState("");
-  const [systemRole, setSystemRole] = useState("");  // system access role
-  const [designation, setDesignation] = useState("");  // job title
-  const [workerType, setWorkerType] = useState("");  // staff or worker
-  const [site, setSite] = useState("");
+  const [emp_id, setEmployeeCode] = useState("");
+  const [DOJ, setDateofJoin] = useState("");
+  const [CUG, setCug] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [workerType, setWorkerType] = useState("staff");
   const [project, setProject] = useState("");
+  
+  const [department, setDepartment] = useState("");
+  const [nationality, setNationality] = useState("");
+  const [ot_eligible, setOtEligible] = useState(false);
+  const [shift, setShift] = useState("");
+  const [addCivilId, setAddCivilId] = useState("");
+  const [empStatus, setEmpStatus] = useState("active");
 
 
   // Collect all Firestore fields for tabular view
   const allKeys = useMemo(() => {
     const preferredColumnOrder = [
-      "employeeCode",
+      "emp_id",
       "name",
       "display_name",
       "designation",
       "workerType",
-      "companyName",
+      "company",
       "project",
       "site",
       "type",
       "state",
       "systemRole",
       "email",
-      "contact",
+      "phone",
       "cug",
-      "dateofJoin",
+      "doj",
+      "status",
       "salaryBasic",
       "allowance",
       "civil_id",
@@ -661,6 +680,7 @@ export default function DbComponent(props: Props) {
   const [filterProject, setFilterProject] = useState("");
   const [filterDesignation, setFilterDesignation] = useState("");
   const [filterCompany, setFilterCompany] = useState("");
+  const [filterStatus, setFilterStatus] = useState("Active");
 
   // Unique values for filter dropdowns
   const uniqueProjects = useMemo(() => {
@@ -677,11 +697,17 @@ export default function DbComponent(props: Props) {
 
   const uniqueCompanies = useMemo(() => {
     const set = new Set<string>();
-    records.forEach((r: any) => { if (r.companyName) set.add(r.companyName); });
+    records.forEach((r: any) => { if (r.company) set.add(r.company); });
     return Array.from(set).sort();
   }, [records]);
 
-  const activeFilterCount = [filterProject, filterDesignation, filterCompany].filter(Boolean).length;
+  const uniqueStatus = useMemo(() => {
+    const set = new Set<string>();
+    records.forEach((r: any) => { if (r.status) set.add(r.status); });
+    return Array.from(set).sort();
+  }, [records]);
+
+  const activeFilterCount = [filterProject, filterDesignation, filterCompany, filterStatus !== "Active" ? filterStatus : ""].filter(Boolean).length;
 
   // Memoized filtered records for search + filters
   const filteredRecords = useMemo(() => {
@@ -691,31 +717,34 @@ export default function DbComponent(props: Props) {
         const lowerSearch = search.toLowerCase();
         const matchesSearch =
           (record.name && record.name.toLowerCase().includes(lowerSearch)) ||
-          (record.civil_number && String(record.civil_number).toLowerCase().includes(lowerSearch)) ||
+          (record.civil_id && String(record.civil_id).toLowerCase().includes(lowerSearch)) ||
           (record.display_name && record.display_name.toLowerCase().includes(lowerSearch)) ||
           (record.email && record.email.toLowerCase().includes(lowerSearch)) ||
-          (record.employeeCode && String(record.employeeCode).toLowerCase().includes(lowerSearch)) ||
+          (record.emp_id && String(record.emp_id).toLowerCase().includes(lowerSearch)) ||
           (record.designation && record.designation.toLowerCase().includes(lowerSearch)) ||
-          (record.contact && String(record.contact).includes(lowerSearch));
+          (record.phone && String(record.phone).includes(lowerSearch));
         if (!matchesSearch) return false;
       }
 
       // Field filters
       if (filterProject && record.project !== filterProject) return false;
       if (filterDesignation && record.designation !== filterDesignation) return false;
-      if (filterCompany && record.companyName !== filterCompany) return false;
+      if (filterCompany && record.company !== filterCompany) return false;
+      if (filterStatus) {
+        if (!record.status || record.status.toLowerCase() !== filterStatus.toLowerCase()) return false;
+      }
 
       return true;
     });
-  }, [records, search, filterProject, filterDesignation, filterCompany]);
+  }, [records, search, filterProject, filterDesignation, filterCompany, filterStatus]);
 
- 
+
 
 
 
   // const [recordDeleteStatus, setRecordDeleteStatus] = useState("");
 
- 
+
 
   const [importDialog, setImportDialog] = useState(false);
   const [sortby, setSortBy] = useState("name");
@@ -735,10 +764,10 @@ export default function DbComponent(props: Props) {
     if (userData) {
       const hasEditorAccess = userData.editor === "true" || userData.editor === true;
       const hasSensitiveAccess = userData.sensitive_data === "true" || userData.sensitive_data === true;
-      
+
       setAccess(hasEditorAccess);
-     
-      
+
+
       console.log("⚡ Access permissions loaded from cache:", {
         editor: hasEditorAccess,
         sensitiveData: hasSensitiveAccess
@@ -769,8 +798,8 @@ export default function DbComponent(props: Props) {
       fetchData();
     } else if (status === "offline") {
       toast.warning(
-         "You are offline. Some features may be limited."
-        
+        "You are offline. Some features may be limited."
+
       );
     }
   }, [status]);
@@ -812,7 +841,7 @@ export default function DbComponent(props: Props) {
       // message.info("No image attached");
       return;
     }
-    
+
 
     console.log("Uploading ", fileName);
     if (fileName === "") {
@@ -821,8 +850,8 @@ export default function DbComponent(props: Props) {
     }
 
     try {
-    
-    
+
+
       setFileName("");
     } catch (error: any) {
       toast.error(error.message);
@@ -851,14 +880,14 @@ export default function DbComponent(props: Props) {
         .in("emp_type", [props.dbCategory, "omni"])
         .order(sortby)
         .limit(pageSize);
-        
+
       if (recordsError) {
         console.error("Supabase fetchInitialData error:", recordsError);
         return; // Don't overwrite state with empty if query failed
       }
-      
+
       const fetchedData: Record[] = recordsData || [];
-      
+
       setLastDoc(fetchedData.length > 0 ? fetchedData.length : null);
       setHasMore(fetchedData.length === pageSize);
 
@@ -888,9 +917,9 @@ export default function DbComponent(props: Props) {
 
       // Show offline warning if needed
       if (!navigator.onLine) {
-      //   toast.warning(
-      //     "You are offline. Showing cached data.",
-      // );
+        //   toast.warning(
+        //     "You are offline. Showing cached data.",
+        // );
       } else {
         message.destroy("offline-warning");
       }
@@ -941,11 +970,11 @@ export default function DbComponent(props: Props) {
         .in("emp_type", [props.dbCategory, "omni"])
         .order(sortby)
         .limit(pageSize);
-        
+
       if (loadMore && lastDoc) {
         query = query.range(records.length, records.length + pageSize - 1);
       }
-      
+
       const { data: recordsData, error: recordsError } = await query;
       if (recordsError) {
         console.error("Supabase fetchData error:", recordsError);
@@ -954,7 +983,7 @@ export default function DbComponent(props: Props) {
         return;
       }
       const fetchedData: Record[] = recordsData || [];
-      
+
       setLastDoc(fetchedData.length > 0 ? records.length + fetchedData.length : null);
       setHasMore(fetchedData.length === pageSize);
 
@@ -1006,12 +1035,12 @@ export default function DbComponent(props: Props) {
       if (!navigator.onLine) {
         // toast.warning(
         //   "You are offline. Showing cached data."
-        
+
         // );
       } else {
         toast.error(
-        `Error fetching data: ${error.message}`,
-          );
+          `Error fetching data: ${error.message}`,
+        );
       }
       setStatus(navigator.onLine ? "error" : "offline");
     } finally {
@@ -1064,7 +1093,7 @@ export default function DbComponent(props: Props) {
     /*///////////////////////////////////////////////////////////////////////////////////////////////////////*/
   }
 
- 
+
   const RenewID = async () => {
     setLoading(true);
     await supabase.from("employees").update({
@@ -1077,7 +1106,7 @@ export default function DbComponent(props: Props) {
     setRenewDocDialog(false);
     fetchData();
     setNewExpiry("");
-    
+
   };
 
   const archiveRecord = async () => {
@@ -1090,7 +1119,7 @@ export default function DbComponent(props: Props) {
       setLoading(false);
       setArchivePrompt(false);
       setState(state == "active" ? "archived" : "active");
-    
+
     } catch (error) {
       setLoading(false);
     }
@@ -1128,7 +1157,7 @@ export default function DbComponent(props: Props) {
     exportRaw(records);
   };
 
- 
+
 
   // FUNCTION TO ADD A RECORD
   const addRecord = async () => {
@@ -1136,73 +1165,45 @@ export default function DbComponent(props: Props) {
     await uploadFile();
     await supabase.from("employees").insert({
       name: name,
-      display_name: displayName,
       email: email,
-      employeeCode: employeeCode,
-      companyName: companyName,
-      dateofJoin: dateofJoin,
-      salaryBasic: salaryBasic,
-      initialSalary: salaryBasic,
-      allowance: allowance,
-      initialAllowance: allowance,
-      contact: contact,
-      created_on: new Date(),
-      modified_on: new Date(),
-      emp_type: props.dbCategory,
-      notify: true,
-      profile_name: fileName,
-      cug: cug,
-      role: systemRole || 'profile',  // system access role
-      designation: designation,  // job title
-      workerType: workerType,  // staff or worker
-      site: site,
+      emp_id: emp_id,
+      company: company,
+      doj: DOJ,
+      phone: phone,
+      created_at: new Date(),
+      emp_type: workerType || "staff",
+      cug: CUG,
+      designation: designation,
       project: project,
-      civil_number: "",
-      civil_expiry: "",
-      civil_DOB: "",
-      license_number: "",
-      license_issue: "",
-      license_expiry: "",
-      medical_completed_on: "",
-      medical_due_on: "",
-      passportID: "",
-      passportIssue: "",
-      passportExpiry: "",
-      vt_hse_induction: "",
-      vt_car_1: "",
-      vt_car_2: "",
-      vt_car_3: "",
-      vt_car_4: "",
-      vt_car_5: "",
-      vt_car_6: "",
-      vt_car_7: "",
-      vt_car_8: "",
-      vt_car_9: "",
-      vt_car_10: "",
-      state: "active",
-      remarks: "",
+      department: department,
+      nationality: nationality,
+      ot_eligible: ot_eligible,
+      civil_id: addCivilId,
+      status: empStatus || "active",
+      shift: shift
     });
     await AddHistory("addition", "Created", "", "Record");
     setAddDialog(false);
     setLoading(false);
     fetchData();
-    
+
     // Clear form fields after adding
     setName("");
-    setDisplayName("");
     setEmail("");
     setEmployeeCode("");
     setCompanyName("");
     setDateofJoin("");
-    setSalaryBasic(0);
-    setAllowance(0);
     setContact("");
     setCug("");
     setDesignation("");
-    setSite("");
     setProject("");
-    setSystemRole("");
-  }; 
+    setDepartment("");
+    setNationality("");
+    setOtEligible(false);
+    setAddCivilId("");
+    setEmpStatus("active");
+    setShift("");
+  };
 
   {
     /* ////////////////////////////////////////////////////////////////////////////////////////////////////////////// */
@@ -1214,7 +1215,7 @@ export default function DbComponent(props: Props) {
     setLoading(true);
     try {
       await supabase.from("employees").update({
-        civil_number: edited_civil_number,
+        civil_id: edited_civil_number,
         civil_expiry: edited_civil_expiry ? edited_civil_expiry : "",
         civil_DOB: edited_civil_DOB,
         modified_on: new Date(),
@@ -1225,7 +1226,7 @@ export default function DbComponent(props: Props) {
       setCivilDOB(edited_civil_DOB);
       setLoading(false);
       fetchData();
-     
+
     } catch (error) {
       console.log(error);
       setCivilNumber("");
@@ -1242,7 +1243,7 @@ export default function DbComponent(props: Props) {
   const deleteCivilID = async () => {
     setLoading(true);
     await supabase.from("employees").update({
-      civil_number: "",
+      civil_id: "",
       civil_expiry: "",
       civil_DOB: "",
       modified_on: new Date(),
@@ -1258,7 +1259,7 @@ export default function DbComponent(props: Props) {
     setNewCivilExpiry("");
     setNewCivilNumber("");
     fetchData();
-   
+
   };
 
   // FUNCTION TO EDIT A CIVIL ID
@@ -1266,21 +1267,21 @@ export default function DbComponent(props: Props) {
     setLoading(true);
     try {
       await supabase.from("employees").update({
-        civil_number: edited_civil_number ? edited_civil_number : civil_number,
+        civil_id: edited_civil_number ? edited_civil_number : civil_id,
         civil_expiry: edited_civil_expiry ? edited_civil_expiry : civil_expiry,
         civil_DOB: edited_civil_DOB ? edited_civil_DOB : civil_DOB,
         modified_on: new Date(),
       }).eq("id", doc_id);
       setLoading(true);
       await AddHistory("addition", "Updated", "", "Civil ID");
-      setCivilNumber(edited_civil_number ? edited_civil_number : civil_number);
+      setCivilNumber(edited_civil_number ? edited_civil_number : civil_id);
       setCivilExpiry(edited_civil_expiry ? edited_civil_expiry : civil_expiry);
       setCivilDOB(edited_civil_DOB ? edited_civil_DOB : civil_DOB);
 
       setEditcivilprompt(false);
       setLoading(false);
       fetchData();
-     
+
     } catch (error) {
       console.log(error);
       setLoading(false);
@@ -1306,7 +1307,7 @@ export default function DbComponent(props: Props) {
       await AddHistory("addition", "Added", "", "Vehicle ID");
       setLoading(false);
       fetchData();
-     
+
     } catch (error) {
       console.log(error);
       setCivilNumber("");
@@ -1335,7 +1336,7 @@ export default function DbComponent(props: Props) {
     setVehicleExpiry("");
     setVehicleIssue("");
     fetchData();
-   
+
   };
 
   // FUNCTION TO DELETE A MEDICAL ID
@@ -1352,7 +1353,7 @@ export default function DbComponent(props: Props) {
     setCompletedOn("");
     setDueOn("");
     fetchData();
-    
+
   };
 
   //FUNCTION TO EDIT VEHICLE ID
@@ -1387,7 +1388,7 @@ export default function DbComponent(props: Props) {
       setEditVehicleIDprompt(false);
       setLoading(false);
       fetchData();
-     
+
     } catch (error) {
       console.log(error);
       setLoading(false);
@@ -1415,7 +1416,7 @@ export default function DbComponent(props: Props) {
       setLoading(false);
       setRenewVehicleDialog(false);
       fetchData();
-      
+
     } catch (error) {
       toast.error(String(error));
       setLoading(false);
@@ -1434,7 +1435,7 @@ export default function DbComponent(props: Props) {
       await AddHistory("addition", "Added", "", "Medical ID");
       setLoading(false);
       fetchData();
-      
+
     } catch (error) {
       console.log(error);
       setCompletedOn("");
@@ -1463,7 +1464,7 @@ export default function DbComponent(props: Props) {
       setLoading(false);
       setEditMedicalIDdialog(false);
       fetchData();
-    
+
     } catch (error) {
       toast.error(String(error));
     }
@@ -1476,28 +1477,28 @@ export default function DbComponent(props: Props) {
         passportID: editedPassportID
           ? editedPassportID
           : passportID
-          ? passportID
-          : "",
+            ? passportID
+            : "",
         passportIssue: editedPassportIssue
           ? editedPassportIssue
           : passportIssue
-          ? passportIssue
-          : "",
+            ? passportIssue
+            : "",
         passportExpiry: editedPassportExpiry
           ? editedPassportExpiry
           : passportExpiry
-          ? passportExpiry
-          : "",
+            ? passportExpiry
+            : "",
         nativePhone: editedNativePhone
           ? editedNativePhone
           : nativePhone
-          ? nativePhone
-          : "",
+            ? nativePhone
+            : "",
         nativeAddress: editedNativeAddress
           ? editedNativeAddress
           : nativeAddress
-          ? nativeAddress
-          : "",
+            ? nativeAddress
+            : "",
         modified_on: Timestamp.fromDate(new Date()),
       }).eq("id", doc_id);
       await AddHistory("addition", "Updated", "", "Passport");
@@ -1506,15 +1507,15 @@ export default function DbComponent(props: Props) {
         editedPassportIssue
           ? editedPassportIssue
           : passportIssue
-          ? passportIssue
-          : ""
+            ? passportIssue
+            : ""
       );
       setPassportExpiry(
         editedPassportExpiry
           ? editedPassportExpiry
           : passportExpiry
-          ? passportExpiry
-          : ""
+            ? passportExpiry
+            : ""
       );
       setNativePhone(
         editedNativePhone ? editedNativePhone : nativePhone ? nativePhone : ""
@@ -1523,13 +1524,13 @@ export default function DbComponent(props: Props) {
         editedNativeAddress
           ? editedNativeAddress
           : nativeAddress
-          ? nativeAddress
-          : ""
+            ? nativeAddress
+            : ""
       );
       setLoading(false);
       setEditPassportDialog(false);
       fetchData();
-     
+
     } catch (error) {
       toast.error(String(error));
       setLoading(false);
@@ -1555,7 +1556,7 @@ export default function DbComponent(props: Props) {
       setLoading(false);
       setRenewMedicalIDdialog(false);
       fetchData();
-     
+
     } catch (error) {
       toast.error(String(error));
       setLoading(false);
@@ -1577,7 +1578,7 @@ export default function DbComponent(props: Props) {
       await AddHistory("addition", "Added", "", "Passport");
       setLoading(false);
       fetchData();
-    
+
     } catch (error) {
       toast.error(String(error));
       setLoading(false);
@@ -1599,7 +1600,7 @@ export default function DbComponent(props: Props) {
     setPassportExpiry("");
     setPassportIssue("");
     fetchData();
-    
+
   };
 
   const renewPassport = async () => {
@@ -1619,7 +1620,7 @@ export default function DbComponent(props: Props) {
     setLoading(false);
     setRenewPassportDialog(false);
     fetchData();
-  
+
   };
   {
     /* ////////////////////////////////////////////////////////////////////////////////////////////////////////////// */
@@ -1769,13 +1770,13 @@ export default function DbComponent(props: Props) {
         where("project", "==", projectName),
         where("type", "in", [props.dbCategory, "omni"])
       );
-      
+
       const snapshot = await getDocs(personnelQuery);
       const personnel: Record[] = [];
       snapshot.forEach((doc: any) => {
         personnel.push({ id: doc.id, ...doc.data() });
       });
-      
+
       setProjectPersonnel(personnel);
     } catch (error) {
       console.error("Error fetching project personnel:", error);
@@ -1827,7 +1828,7 @@ export default function DbComponent(props: Props) {
     }
   };
 
- 
+
 
   const addTraining = async (type: any) => {
     setLoading(true);
@@ -1921,7 +1922,7 @@ export default function DbComponent(props: Props) {
     }
 
     setLoading(false);
-   
+
     setTrainingAddDialog(false);
     fetchData();
   };
@@ -2059,18 +2060,18 @@ export default function DbComponent(props: Props) {
       const idsToCheck = jsonData
         .map((r: any) => r.id)
         .filter((id: string) => id && id.trim() !== "");
-      
+
       const existingIds = new Set<string>();
       if (idsToCheck.length > 0) {
         // Fetch in chunks of 10 due to Firestore 'in' query limit
         const chunkSize = 10;
         const totalChunks = Math.ceil(idsToCheck.length / chunkSize);
-        
+
         for (let i = 0; i < idsToCheck.length; i += chunkSize) {
           const chunk = idsToCheck.slice(i, i + chunkSize);
           const { data } = await supabase.from("employees").select("id").in("id", chunk);
           data?.forEach((doc) => existingIds.add(doc.id));
-          
+
           // Show progress during ID checking (10% to 20%)
           const chunkProgress = Math.floor(i / chunkSize) + 1;
           const idsChecked = Math.min(i + chunkSize, idsToCheck.length);
@@ -2082,13 +2083,13 @@ export default function DbComponent(props: Props) {
 
       setProgress("20%");
       setProgressItem("Processing records...");
-      
+
       const batchSize = 500;
       const batches = [];
       let currentBatch = writeBatch(db);
       let currentBatchSize = 0;
       let processedCount = 0;
-      
+
       // OPTIMIZATION 2: Update progress every 10 records or 2% progress, whichever is more frequent
       const progressUpdateInterval = Math.min(10, Math.max(1, Math.floor(totalRecords / 50)));
       let lastUpdate = 0;
@@ -2096,9 +2097,9 @@ export default function DbComponent(props: Props) {
       for (const record of jsonData) {
         try {
           const { id, ...recordWithoutId } = record;
-          
+
           processedCount++;
-          
+
           // Update progress more frequently (20% to 90% range)
           if (processedCount - lastUpdate >= progressUpdateInterval || processedCount === totalRecords) {
             const processingProgress = (processedCount / totalRecords);
@@ -2107,7 +2108,7 @@ export default function DbComponent(props: Props) {
             setProgressItem(`Processing ${processedCount}/${totalRecords} (${newCount} new, ${updateCount} updates)`);
             lastUpdate = processedCount;
           }
-          
+
           const processedRecord = {
             ...recordWithoutId,
             emp_type: record.type == "omni" ? "omni" : props.dbCategory,
@@ -2115,8 +2116,8 @@ export default function DbComponent(props: Props) {
             notify: true,
             state: "active",
             email: record.email || "",
-            dateofJoin: record.dateofJoin
-              ? moment(record.dateofJoin, "DD/MM/YYYY").format("DD/MM/YYYY")
+            DOJ: record.DOJ
+              ? moment(record.DOJ, "DD/MM/YYYY").format("DD/MM/YYYY")
               : "",
             salaryBasic: record.initialSalary || 0,
             allowance: record.initialAllowance || 0,
@@ -2144,7 +2145,7 @@ export default function DbComponent(props: Props) {
 
           currentBatch.set(docRef, processedRecord, { merge: isUpdate });
           currentBatchSize++;
-          
+
           if (isUpdate) {
             updateCount++;
           } else {
@@ -2169,20 +2170,20 @@ export default function DbComponent(props: Props) {
       setProgress("95%");
       setProgressItem(`Saving to database... (${newCount} new, ${updateCount} updates)`);
       await Promise.all(batches.map((batch) => batch.commit()));
-      
+
       setProgress("100%");
       setProgressItem(`Complete! ${newCount} new records added, ${updateCount} records updated`);
 
       const messages = [];
       if (newCount > 0) messages.push(`${newCount} new`);
       if (updateCount > 0) messages.push(`${updateCount} updated`);
-      
+
       toast.success(`Imported ${messages.join(", ")} records successfully`);
       if (errorCount > 0) {
         toast.warning(`Failed to import ${errorCount} records`);
       }
 
-      
+
     } catch (error) {
       console.error("Import error:", error);
       toast.error("Failed to import records");
@@ -2197,7 +2198,7 @@ export default function DbComponent(props: Props) {
     }
   };
 
-  
+
 
   // Add effect to handle sort changes
   useEffect(() => {
@@ -2207,20 +2208,20 @@ export default function DbComponent(props: Props) {
 
 
 
- 
 
 
 
 
 
- 
 
- 
+
+
+
 
   const handleExportExpiring = async () => {
     try {
       setExportLoading(true);
-      
+
       // Fetch ALL records to ensure we get all expiring documents
       const RecordCollection = collection(db, "records");
       const recordQuery = query(
@@ -2230,14 +2231,14 @@ export default function DbComponent(props: Props) {
       );
       const querySnapshot = await getDocs(recordQuery);
       const allRecords: any[] = [];
-      
+
       querySnapshot.forEach((doc: any) => {
         allRecords.push({ id: doc.id, ...doc.data() });
       });
-      
+
       await exportExpiringRecords(allRecords);
       setExportDialog(false);
-      
+
     } catch (error) {
       console.error("Error exporting expiring records:", error);
       toast.error("Failed to export expiring records");
@@ -2332,7 +2333,7 @@ export default function DbComponent(props: Props) {
                   {access && (
                     <div style={{ display: "flex" }} className="transitions">
                       <DbDropDown
-                      
+
                         onUpload={() => setImportDialog(true)}
                         onExport={() => setExportDialog(true)}
                         onInbox={() => usenavigate("/inbox")}
@@ -2533,8 +2534,8 @@ export default function DbComponent(props: Props) {
                 >
                   {access && (
                     <button
-                      
-                      style={{background:selectable?"darkblue":""}}
+
+                      style={{ background: selectable ? "darkblue" : "" }}
                       onClick={() => {
                         if (selectable) {
                           setProjectAllocMode(false);
@@ -2548,7 +2549,7 @@ export default function DbComponent(props: Props) {
                       title={selectable ? "Exit Selection" : "Select Records"}
                     >
                       <CheckSquare2
-                        color={selectable? "white" : "darkblue"}
+                        color={selectable ? "white" : "darkblue"}
                       />
                     </button>
                   )}
@@ -2558,7 +2559,7 @@ export default function DbComponent(props: Props) {
                         <button
                           style={{
                             minWidth: "2.5rem",
-                        
+
                             paddingInline: "0.65rem",
                             background: "rgba(100 100 100/ 10%)",
                             display: "flex",
@@ -2671,9 +2672,9 @@ export default function DbComponent(props: Props) {
                       setSearch(e.target.value.toLowerCase());
                     }}
                   />
-                  <button 
+                  <button
                     onClick={() => setViewMode(viewMode === "directive" ? "table" : "directive")}
-                    style={{width:"2.5rem", background:viewMode === "table" ? "mediumslateblue" : "rgba(100 100 100/ 10%)"}}
+                    style={{ width: "2.5rem", background: viewMode === "table" ? "mediumslateblue" : "rgba(100 100 100/ 10%)" }}
                     className={viewMode === "table" ? "" : ""}
                   >
                     {viewMode === "directive" ? (
@@ -2760,6 +2761,7 @@ export default function DbComponent(props: Props) {
                                   setFilterProject("");
                                   setFilterDesignation("");
                                   setFilterCompany("");
+                                  setFilterStatus("");
                                 }}
                                 style={{ fontSize: "0.7rem", color: "mediumslateblue", background: "none", border: "none", cursor: "pointer", padding: "0.15rem 0.35rem", borderRadius: "0.25rem" }}
                               >
@@ -2812,6 +2814,21 @@ export default function DbComponent(props: Props) {
                               ))}
                             </SelectContent>
                           </Select>
+
+                          {/* Status filter */}
+                          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v === "__all__" ? "" : v)}>
+                            <SelectTrigger style={{ width: "100%", fontSize: "0.8rem", justifyContent: "space-between" }}>
+                              <span style={{ opacity: filterStatus ? 1 : 0.5 }}>
+                                {filterStatus || "Status"}
+                              </span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__all__" style={{ justifyContent: "flex-start" }}>All Status</SelectItem>
+                              {uniqueStatus.map((s) => (
+                                <SelectItem key={s} value={s} style={{ justifyContent: "flex-start" }}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </PopoverContent>
@@ -2834,8 +2851,8 @@ export default function DbComponent(props: Props) {
                   
                   </button> */}
 
-              
-                 
+
+
 
 
                   {/* <button onClick={()=>setImportDialog(true)}>
@@ -2871,66 +2888,66 @@ export default function DbComponent(props: Props) {
                         gap: "0.75rem",
                         gridTemplateColumns: "repeat(auto-fill, minmax(min(350px, 100%), 1fr))",
                         maxWidth: "100%",
-                        paddingTop:"1rem",
-                        paddingBottom:"5rem"
+                        paddingTop: "1rem",
+                        paddingBottom: "5rem"
                       }}
                     >
-                    {
-                      // RECORD DATA MAPPING
-                      filteredRecords
-                        .map((post: any) => (
-                          // <motion.div
-                          //   key={post.id}
-                          //   initial={{ opacity: 0 }}
-                          //   whileInView={{ opacity: 1 }}
-                          // >
-                          <Directive
-                            icon={<FileArchive color="darkblue"/>}
-                            noArrow
-id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.phone}` : "", (post.CUG || post.cug) ? `CUG: ${post.CUG || post.cug}` : ""].filter(Boolean).join(" | ") || "No details"}
-                            className="record-item"
-                            space
-                            dotColor={selectable ? "violet" : "mediumslateblue"}
-                            notify={!post.notify}
-                            archived={post.state == "archived" ? true : false}
-                            expiring={isRecordExpiring(post)}
-                            // tag={
-                            //   post.civil_expiry != "" ||
-                            //   post.license_expiry != "" ||
-                            //   post.medical_due_on != "" ||
-                            //   post.passportExpiry != "" ||
-                            //   post.vt_hse_induction != "" ||
-                            //   post.vt_car_1 != "" ||
-                            //   post.vt_car_2 != "" ||
-                            //   post.vt_car_3 != "" ||
-                            //   post.vt_car_4 != "" ||
-                            //   post.vt_car_5 != "" ||
-                            //   post.vt_car_6 != "" ||
-                            //   post.vt_car_7 != "" ||
-                            //   post.vt_car_8 != "" ||
-                            //   post.vt_car_9 != "" ||
-                            //   post.vt_car_10 != "" ? (
-                            //     ""
-                            //   ) : (
-                            //     <FileWarning width={"1rem"} />
-                            //   )
-                            // }
-                            selected={checked.includes(post.id)}
-                            selectable={selectable}
-                            status
-                            // ON CLICK
-                            onSelect={() => {
-                              handleSelect(post.id);
-                            }}
-                            onClick={() => {
-                              // Save scroll position before navigating
-                              if (scrollContainerRef.current) {
-                                sessionStorage.setItem('database-scroll-position', scrollContainerRef.current.scrollTop.toString());
-                              }
-                              usenavigate(`/record/${post.id}`, { state: { record: post } });
-                            }}
-                            key={post.id}
-                            title={post.name.toLowerCase()}
+                      {
+                        // RECORD DATA MAPPING
+                        filteredRecords
+                          .map((post: any) => (
+                            // <motion.div
+                            //   key={post.id}
+                            //   initial={{ opacity: 0 }}
+                            //   whileInView={{ opacity: 1 }}
+                            // >
+                            <Directive
+                              icon={<FileArchive color="darkblue" />}
+                              noArrow
+                              id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.phone}` : "", (post.CUG || post.cug) ? `CUG: ${post.CUG || post.cug}` : ""].filter(Boolean).join(" | ") || "No details"}
+                              className="record-item"
+                              space
+                              dotColor={selectable ? "violet" : "mediumslateblue"}
+                              notify={!post.notify}
+                              archived={post.state == "archived" ? true : false}
+                              expiring={isRecordExpiring(post)}
+                              // tag={
+                              //   post.civil_expiry != "" ||
+                              //   post.license_expiry != "" ||
+                              //   post.medical_due_on != "" ||
+                              //   post.passportExpiry != "" ||
+                              //   post.vt_hse_induction != "" ||
+                              //   post.vt_car_1 != "" ||
+                              //   post.vt_car_2 != "" ||
+                              //   post.vt_car_3 != "" ||
+                              //   post.vt_car_4 != "" ||
+                              //   post.vt_car_5 != "" ||
+                              //   post.vt_car_6 != "" ||
+                              //   post.vt_car_7 != "" ||
+                              //   post.vt_car_8 != "" ||
+                              //   post.vt_car_9 != "" ||
+                              //   post.vt_car_10 != "" ? (
+                              //     ""
+                              //   ) : (
+                              //     <FileWarning width={"1rem"} />
+                              //   )
+                              // }
+                              selected={checked.includes(post.id)}
+                              selectable={selectable}
+                              status
+                              // ON CLICK
+                              onSelect={() => {
+                                handleSelect(post.id);
+                              }}
+                              onClick={() => {
+                                // Save scroll position before navigating
+                                if (scrollContainerRef.current) {
+                                  sessionStorage.setItem('database-scroll-position', scrollContainerRef.current.scrollTop.toString());
+                                }
+                                usenavigate(`/record/${post.id}`, { state: { record: post } });
+                              }}
+                              key={post.id}
+                              title={post.name.toLowerCase()}
                             // icon={
                             //   thumbnails ? (
                             //     <UserCircle
@@ -2940,7 +2957,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                             //     />
                             //   ) : (
                             //     <div
-                                  
+
                             //     >
                             //       <LazyLoader
                             //         gradient
@@ -2954,32 +2971,32 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                             //     </div>
                             //   )
                             // }
-                          />
-                          // </motion.div>
-                        ))
-                    }
-                    {hasMore && (
-                      <div
-                        id="load-more-trigger"
-                        style={{
-                          width: "100%",
-                          padding: "2rem 0",
-                          display: "flex",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          opacity: fetchingData ? 1 : 0.3,
-                          gridColumn: "1 / -1",
-                        }}
-                      >
-                        {fetchingData && (
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", opacity: 0.6 }}>
-                            <Loader className="animate-spin" width="1.25rem" />
-                            <span style={{ fontSize: "0.875rem" }}></span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </motion.div>
+                            />
+                            // </motion.div>
+                          ))
+                      }
+                      {hasMore && (
+                        <div
+                          id="load-more-trigger"
+                          style={{
+                            width: "100%",
+                            padding: "2rem 0",
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            opacity: fetchingData ? 1 : 0.3,
+                            gridColumn: "1 / -1",
+                          }}
+                        >
+                          {fetchingData && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", opacity: 0.6 }}>
+                              <Loader className="animate-spin" width="1.25rem" />
+                              <span style={{ fontSize: "0.875rem" }}></span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </motion.div>
                   ) : (
                     // TABLE VIEW
                     <motion.div
@@ -2997,7 +3014,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                         borderSpacing: 0,
                         fontSize: "0.9rem"
                       }}>
-                        <thead style={{backdropFilter:"blur(16px)"}}>
+                        <thead style={{ backdropFilter: "blur(16px)" }}>
                           <tr style={{
                             borderBottom: "2px solid rgba(100 100 100/ 20%)"
                           }}>
@@ -3020,7 +3037,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                                   boxShadow: "inset 0 -1px 0 rgba(100 100 100/ 20%)"
                                 }}
                               >
-                                {key}
+                                {key === "doj" ? "Join Date" : key === "cug" ? "CUG" : key === "status" ? "Status (Remarks)" : key === "emp_id" ? "Emp ID" : key}
                               </th>
                             ))}
                           </tr>
@@ -3057,7 +3074,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                                 }}
                               >
                                 {selectable && (
-                                  <td 
+                                  <td
                                     style={{ padding: "0.75rem", position: "sticky", left: 0, zIndex: 1, background: "var(--background)" }}
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -3157,7 +3174,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
             )
           }
 
-       
+
 
           {/* <Pagination style={{cursor:"pointer"}}>
                     <PaginationContent>
@@ -3190,7 +3207,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
 
         {/* ADD RECORD BUTTON */}
 
-        {access && !projectAllocMode && (
+        {false && !projectAllocMode && (
           <AddRecordButton
             onClickSwap={selectable}
             onClick={() => {
@@ -3252,7 +3269,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-             
+
                 <span style={{ fontWeight: 600, fontSize: "0.95rem" }}>
                   Allocate to Project
                 </span>
@@ -3337,8 +3354,8 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                             allocatingProject === project.id
                               ? "rgba(123, 104, 238, 0.15)"
                               : checked.length < 1
-                              ? "rgba(100, 100, 100, 0.04)"
-                              : "rgba(100, 100, 100, 0.06)",
+                                ? "rgba(100, 100, 100, 0.04)"
+                                : "rgba(100, 100, 100, 0.06)",
                         }}
                       >
                         <motion.button
@@ -3528,7 +3545,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
         {/* PROJECT PERSONNEL VIEWER */}
         <ResponsiveModal
           open={!!viewingProject}
-          onOpenChange={(open) => { 
+          onOpenChange={(open) => {
             if (!open) {
               setViewingProject(null);
               setProjectPersonnel([]);
@@ -3549,10 +3566,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "0.5rem", 
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
                   padding: "0.5rem 0.75rem",
                   marginBottom: "0.5rem",
                   background: "rgba(123, 104, 238, 0.08)",
@@ -3619,7 +3636,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
           codeIcon={<File width={"1rem"} color="mediumslateblue" />}
           onCancel={() => {
             setExportDialog(false);
-            
+
           }}
           open={exportDialog}
           title_extra={
@@ -3752,15 +3769,15 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 >
                   {jsonData.map((record: Record, index: number) => (
                     <motion.div
-                      key={record.id || record.employeeCode || `record-${index}`}
+                      key={record.id || record.emp_id || `record-${index}`}
                       initial={{ opacity: 0 }}
                       whileInView={{ opacity: 1 }}
                     >
                       <Directive
                         status={true}
                         noArrow
-                        onClick={() => {}}
-                        tag={record.employeeCode}
+                        onClick={() => { }}
+                        tag={record.emp_id}
                         title={record.name.toLowerCase()}
                         titleSize="0.75rem"
                         icon={<UserCircle width={"1.25rem"} color="salmon" />}
@@ -3791,14 +3808,14 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
               <p
                 style={{
                   display: "flex",
-                  alignItems:"center",
-                  gap:"0.5rem",
+                  alignItems: "center",
+                  gap: "0.5rem",
                   fontSize: "0.75rem",
                   fontWeight: 400,
                   marginBottom: "0.5rem",
                 }}
               >
-                <Info width={"3rem"}/>
+                <Info width={"3rem"} />
                 Records with existing document IDs will be updated. Records without IDs will be added as new.
               </p>
 
@@ -3825,7 +3842,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                       // const hasDuplicates = records.some((item2) =>
                       //   jsonData.some(
                       //     (item1: any) =>
-                      //       item1.employeeCode === item2.employeeCode
+                      //       item1.emp_id === item2.emp_id
                       //   )
                       // );
                       // message.info(
@@ -3888,11 +3905,11 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
           disabled={loading}
         />
 
-       
 
-        
 
-       
+
+
+
 
         {/* ADD RECORD DIALOG - Responsive Modal */}
         <ResponsiveModal
@@ -3921,46 +3938,48 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
           title=""
           description=""
         >
-          <RecordFormContent
+                    <RecordFormContent
+            emp_id={emp_id}
+            setEmployeeCode={setEmployeeCode}
             name={name}
             setName={setName}
-            displayName={displayName}
-            setDisplayName={setDisplayName}
+            DOJ={DOJ}
+            setDateofJoin={setDateofJoin}
+            phone={phone}
+            setContact={setContact}
+            CUG={CUG}
+            setCug={setCug}
             email={email}
             setEmail={setEmail}
-            employeeCode={employeeCode}
-            setEmployeeCode={setEmployeeCode}
-            companyName={companyName}
-            setCompanyName={setCompanyName}
-            dateofJoin={dateofJoin}
-            setDateofJoin={setDateofJoin}
-            salaryBasic={salaryBasic}
-            setSalaryBasic={setSalaryBasic}
-            allowance={allowance}
-            setAllowance={setAllowance}
-            contact={contact}
-            setContact={setContact}
-            cug={cug}
-            setCug={setCug}
-            designation={designation}
-            setDesignation={setDesignation}
+            department={department}
+            setDepartment={setDepartment}
             workerType={workerType}
             setWorkerType={setWorkerType}
-            site={site}
-            setSite={setSite}
+            nationality={nationality}
+            setNationality={setNationality}
+            designation={designation}
+            setDesignation={setDesignation}
             project={project}
             setProject={setProject}
-            systemRole={systemRole}
-            setSystemRole={setSystemRole}
+            ot_eligible={ot_eligible}
+            setOtEligible={setOtEligible}
+            company={company}
+            setCompanyName={setCompanyName}
+            civil_id={addCivilId}
+            setCivilId={setAddCivilId}
+            empStatus={empStatus}
+            setEmpStatus={setEmpStatus}
+            shift={shift}
+            setShift={setShift}
             loading={loading}
             onSave={addRecord}
             isEditMode={false}
           />
         </ResponsiveModal>
 
-       
 
-        
+
+
 
         {/* ////////////////////////////////////////////////////////////////////////////////////////////////////////////// */}
 
@@ -3971,7 +3990,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
           titleIcon={<CreditCard color="mediumslateblue" />}
           title="Civil ID"
           open={civil}
-          onCancel={() => {setCivil(false)}}
+          onCancel={() => { setCivil(false) }}
           OkButtonText="Add"
           title_extra={
             civil_expiry ? (
@@ -3983,7 +4002,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                   "months"
                 ) +
                   1 <=
-                3 ? (
+                  3 ? (
                   <button
                     onClick={() => {
                       setRenewDocDialog(true);
@@ -4054,7 +4073,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                     expirydate={
                       new_civil_expiry ? new_civil_expiry : civil_expiry
                     }
-                    civilid={new_civil_number ? new_civil_number : civil_number}
+                    civilid={new_civil_number ? new_civil_number : civil_id}
                     DOB={civil_DOB}
                   />
                   {/* <br/>
@@ -4108,7 +4127,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
           onOk={EditCivilID}
           updating={loading}
           disabled={loading}
-          input1Value={civil_number}
+          input1Value={civil_id}
           input2Value={civil_expiry}
           input3Value={civil_DOB}
           input1Label="Civil Number : "
@@ -4396,7 +4415,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
           titleIcon={<HeartPulse color="tomato" />}
           title="Medical ID"
           open={healthDialog}
-          onCancel={() => {setHealthDialog(false)}}
+          onCancel={() => { setHealthDialog(false) }}
           back
           title_extra={
             medical_due_on ? (
@@ -4574,7 +4593,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
             />
           }
           title={"Vale Training"}
-        onCancel={() => {setValeTrainingDialog(false)}}
+          onCancel={() => { setValeTrainingDialog(false) }}
           close
           back
           title_extra={
@@ -4601,8 +4620,8 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="HSE Induction"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("HSE Induction");
                   setTrainingType("hse_induction");
                   setTrainingAddDialogInputValue(vt_hse_induction)
@@ -4622,10 +4641,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 1"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 1");
-                  
+
                   setTrainingType("car_1");
                   setTrainingAddDialogInputValue(vt_car_1);
                 }}
@@ -4644,10 +4663,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 2"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 2");
-                  
+
                   setTrainingType("car_2");
                   setTrainingAddDialogInputValue(vt_car_2);
                 }}
@@ -4666,10 +4685,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 3"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 3");
-                  
+
                   setTrainingType("car_3");
                   setTrainingAddDialogInputValue(vt_car_3);
                 }}
@@ -4688,10 +4707,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 4"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 4");
-                  
+
                   setTrainingType("car_4");
                   setTrainingAddDialogInputValue(vt_car_4);
                 }}
@@ -4710,10 +4729,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 5"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 5");
-                  
+
                   setTrainingType("car_5");
                   setTrainingAddDialogInputValue(vt_car_5);
                 }}
@@ -4732,10 +4751,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 6"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 6");
-                  
+
                   setTrainingType("car_6");
                   setTrainingAddDialogInputValue(vt_car_6);
                 }}
@@ -4754,10 +4773,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 7"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 7");
-                  
+
                   setTrainingType("car_7");
                   setTrainingAddDialogInputValue(vt_car_7);
                 }}
@@ -4776,10 +4795,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 8"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 8");
-                  
+
                   setTrainingType("car_8");
                   setTrainingAddDialogInputValue(vt_car_8);
                 }}
@@ -4798,10 +4817,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 9"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 9");
-                  
+
                   setTrainingType("car_9");
                   setTrainingAddDialogInputValue(vt_car_9);
                 }}
@@ -4820,10 +4839,10 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
                 icon={<Disc color="mediumslateblue" />}
                 title="CAR - 10"
                 onClick={() => {
-                  access&&
-                  setTrainingAddDialog(true);
+                  access &&
+                    setTrainingAddDialog(true);
                   setTrainingAddDialogTitle("CAR - 10");
-                  
+
                   setTrainingType("car_10");
                   setTrainingAddDialogInputValue(vt_car_10);
                 }}
@@ -4845,7 +4864,7 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
           titleIcon={<Book color="goldenrod" />}
           title="Passport"
           open={passportDialog}
-          onCancel={() => {setPassportDialog(false)}}
+          onCancel={() => { setPassportDialog(false) }}
           back
           title_extra={
             passportExpiry ? (
@@ -5050,18 +5069,18 @@ id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.
         />
 
 
-      
 
-        
 
-     
+
+
+
       </div>
 
-      
 
-      
 
-     
+
+
+
       {/* Add hidden file input for Excel import */}
       {/* <input
         type="file"
