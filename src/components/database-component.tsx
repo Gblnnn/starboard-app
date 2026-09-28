@@ -1,4 +1,4 @@
-import AddRecordButton from "@/components/add-record-button";
+
 import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import CivilID from "@/components/civil-id";
@@ -10,9 +10,7 @@ import Passport from "@/components/passport";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import VehicleID from "@/components/vehicle-id";
 import { db, storage } from "@/firebase";
-import RoleSelect from "@/components/role-select";
-import ProjectSelect from "./project-select";
-import CompanySelect from "./company-select";
+
 import SearchBar from "@/components/search-bar";
 import DefaultDialog from "@/components/ui/default-dialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -433,7 +431,7 @@ export default function DbComponent(props: Props) {
   const [deleteKey, setDeleteKey] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [jsonData, setJsonData] = useState<any>([]);
-  const [company, setCompanyName] = useState("");
+
 
 
 
@@ -441,8 +439,7 @@ export default function DbComponent(props: Props) {
   const [state, setState] = useState("");
 
 
-  const [phone, setContact] = useState("");
-  const [displayName, setDisplayName] = useState("");
+
 
   const [nativePhone, setNativePhone] = useState("");
   const [nativeAddress, setNativeAddress] = useState("");
@@ -459,17 +456,9 @@ export default function DbComponent(props: Props) {
   // const [pageLoad, setPageLoad] = useState(false)
   const [records, setRecords] = useState<Record[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [name, setName] = useState("");
-  const [doc_id] = useState("");
-
-  const [civil, setCivil] = useState(false);
-  const [vehicle, setVehicle] = useState(false);
-  const [addcivil, setAddcivil] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [deleteMedicalIDdialog, setDeleteMedicalIDdialog] = useState(false);
-  const [email, setEmail] = useState("");
 
 
 
@@ -498,9 +487,6 @@ export default function DbComponent(props: Props) {
 
   const [editedCompletedOn, setEditedCompletedOn] = useState("");
   const [editedDueOn, setEditedDueOn] = useState<any>();
-
-  //MAIL CONFIG VARIABLES
-  const [addDialog, setAddDialog] = useState(false);
 
   const [editcivilprompt, setEditcivilprompt] = useState(false);
   const [valeTrainingDialog, setValeTrainingDialog] = useState(false);
@@ -600,19 +586,7 @@ export default function DbComponent(props: Props) {
   const [imageUpload] = useState(null);
   const [fileName, setFileName] = useState("");
 
-  const [emp_id, setEmployeeCode] = useState("");
-  const [DOJ, setDateofJoin] = useState("");
-  const [CUG, setCug] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [workerType, setWorkerType] = useState("staff");
-  const [project, setProject] = useState("");
-  
-  const [department, setDepartment] = useState("");
-  const [nationality, setNationality] = useState("");
-  const [ot_eligible, setOtEligible] = useState(false);
-  const [shift, setShift] = useState("");
-  const [addCivilId, setAddCivilId] = useState("");
-  const [empStatus, setEmpStatus] = useState("active");
+
 
 
   // Collect all Firestore fields for tabular view
@@ -836,28 +810,7 @@ export default function DbComponent(props: Props) {
   };
 
   // File upload handling
-  const uploadFile = async () => {
-    if (imageUpload === null) {
-      // message.info("No image attached");
-      return;
-    }
 
-
-    console.log("Uploading ", fileName);
-    if (fileName === "") {
-      console.log("Skipped Upload");
-      return;
-    }
-
-    try {
-
-
-      setFileName("");
-    } catch (error: any) {
-      toast.error(error.message);
-      console.log(error.message);
-    }
-  };
 
   const fetchBlank = () => {
     getBlank(props.dbCategory);
@@ -1159,51 +1112,7 @@ export default function DbComponent(props: Props) {
 
 
 
-  // FUNCTION TO ADD A RECORD
-  const addRecord = async () => {
-    setLoading(true);
-    await uploadFile();
-    await supabase.from("employees").insert({
-      name: name,
-      email: email,
-      emp_id: emp_id,
-      company: company,
-      doj: DOJ,
-      phone: phone,
-      created_at: new Date(),
-      emp_type: workerType || "staff",
-      cug: CUG,
-      designation: designation,
-      project: project,
-      department: department,
-      nationality: nationality,
-      ot_eligible: ot_eligible,
-      civil_id: addCivilId,
-      status: empStatus || "active",
-      shift: shift
-    });
-    await AddHistory("addition", "Created", "", "Record");
-    setAddDialog(false);
-    setLoading(false);
-    fetchData();
 
-    // Clear form fields after adding
-    setName("");
-    setEmail("");
-    setEmployeeCode("");
-    setCompanyName("");
-    setDateofJoin("");
-    setContact("");
-    setCug("");
-    setDesignation("");
-    setProject("");
-    setDepartment("");
-    setNationality("");
-    setOtEligible(false);
-    setAddCivilId("");
-    setEmpStatus("active");
-    setShift("");
-  };
 
   {
     /* ////////////////////////////////////////////////////////////////////////////////////////////////////////////// */
@@ -3205,34 +3114,7 @@ export default function DbComponent(props: Props) {
                 </Pagination> */}
         </motion.div>
 
-        {/* ADD RECORD BUTTON */}
-
-        {false && !projectAllocMode && (
-          <AddRecordButton
-            onClickSwap={selectable}
-            onClick={() => {
-              setAddDialog(true);
-              setName("");
-              setEmail("");
-              setEmployeeCode("");
-              setCompanyName("");
-              setDateofJoin("");
-              setSalaryBasic(0);
-              setAllowance(0);
-              setContact("");
-            }}
-            alternateOnClick={() => {
-              checked.length < 1 ? null : setBulkDeleteDialog(true);
-            }}
-            icon={
-              selectable ? (
-                <Trash color={checked.length < 1 ? "#5a5a5a" : "crimson"} />
-              ) : (
-                <Plus color="mediumslateblue" />
-              )
-            }
-          />
-        )}
+        {/* ADD RECORD BUTTON REMOVED */}
 
         {/* PROJECT ALLOCATION DRAWER */}
         {projectAllocMode && (
@@ -3890,7 +3772,7 @@ export default function DbComponent(props: Props) {
           }
         />
 
-        <SheetComponent title={name} />
+        <SheetComponent title={""} />
         {/* ////////////////////////////////////////////////////////////////////////////////////////////////////////////// */}
 
 
@@ -3905,77 +3787,7 @@ export default function DbComponent(props: Props) {
           disabled={loading}
         />
 
-
-
-
-
-
-
-        {/* ADD RECORD DIALOG - Responsive Modal */}
-        <ResponsiveModal
-          open={addDialog}
-          onOpenChange={(open) => {
-            if (!open) {
-              // Clear all form fields when closing
-              setName("");
-              setDisplayName("");
-              setEmail("");
-              setEmployeeCode("");
-              setCompanyName("");
-              setDateofJoin("");
-              setSalaryBasic(0);
-              setAllowance(0);
-              setContact("");
-              setCug("");
-              setDesignation("");
-              setWorkerType("");
-              setSite("");
-              setProject("");
-              setSystemRole("");
-            }
-            setAddDialog(open);
-          }}
-          title=""
-          description=""
-        >
-                    <RecordFormContent
-            emp_id={emp_id}
-            setEmployeeCode={setEmployeeCode}
-            name={name}
-            setName={setName}
-            DOJ={DOJ}
-            setDateofJoin={setDateofJoin}
-            phone={phone}
-            setContact={setContact}
-            CUG={CUG}
-            setCug={setCug}
-            email={email}
-            setEmail={setEmail}
-            department={department}
-            setDepartment={setDepartment}
-            workerType={workerType}
-            setWorkerType={setWorkerType}
-            nationality={nationality}
-            setNationality={setNationality}
-            designation={designation}
-            setDesignation={setDesignation}
-            project={project}
-            setProject={setProject}
-            ot_eligible={ot_eligible}
-            setOtEligible={setOtEligible}
-            company={company}
-            setCompanyName={setCompanyName}
-            civil_id={addCivilId}
-            setCivilId={setAddCivilId}
-            empStatus={empStatus}
-            setEmpStatus={setEmpStatus}
-            shift={shift}
-            setShift={setShift}
-            loading={loading}
-            onSave={addRecord}
-            isEditMode={false}
-          />
-        </ResponsiveModal>
+        {/* ADD RECORD DIALOG REMOVED */}
 
 
 
