@@ -1,6 +1,5 @@
 // Profile data caching utilities
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 
 const PROFILE_CACHE_KEY = "cached_profile_data";
 const PROFILE_CACHE_TIMESTAMP_KEY = "cached_profile_timestamp";
@@ -9,11 +8,11 @@ const CACHE_EXPIRY_HOURS = 24; // Cache valid for 24 hours
 export interface ProfileData {
   name: string;
   email: string;
-  employeeCode: string;
-  companyName: string;
-  dateofJoin: string;
-  contact: string;
-  cug: string;
+  emp_id: string;
+  company: string;
+  DOJ: string;
+  phone: string;
+  CUG: string;
   site: string;
   project: string;
   designation: string;
@@ -21,7 +20,7 @@ export interface ProfileData {
   allowance: string;
   profile: string;
   // Document fields
-  civil_number?: string;
+  civil_id?: string;
   civil_expiry?: string;
   vehicle_number?: string;
   vehicle_expiry?: string;
@@ -89,33 +88,34 @@ export const clearProfileCache = (): void => {
   }
 };
 
-// Fetch and cache profile data from Firestore
+// Fetch and cache profile data from Supabase
 export const fetchAndCacheProfile = async (email: string, allocatedVehicle?: string): Promise<ProfileData | null> => {
   try {
-    const docQuery = query(
-      collection(db, "records"),
-      where("email", "==", email)
-    );
-    const docSnapshot = await getDocs(docQuery);
+    const { data: docSnapshot, error } = await supabase
+      .from("employees")
+      .select("*")
+      .eq("email", email)
+      .limit(1)
+      .single();
     
-    if (!docSnapshot.empty) {
-      const docData = docSnapshot.docs[0].data();
+    if (docSnapshot && !error) {
+      const docData = docSnapshot;
       
       const profileData: ProfileData = {
         name: docData.name || '',
         email: docData.email || '',
-        employeeCode: docData.employeeCode || '',
-        companyName: docData.companyName || '',
-        dateofJoin: docData.dateofJoin || '',
-        contact: docData.contact || '',
-        cug: docData.cug || '',
+        emp_id: docData.emp_id || '',
+        company: docData.company || '',
+        DOJ: docData.doj || '',
+        phone: docData.phone || '',
+        CUG: docData.cug || '',
         site: docData.site || '',
         project: docData.project || '',
         designation: docData.designation || '',
         salaryBasic: docData.salaryBasic || '',
         allowance: docData.allowance || '',
         profile: docData.profile || '',
-        civil_number: docData.civil_number,
+        civil_id: docData.civil_id,
         civil_expiry: docData.civil_expiry,
         vehicle_number: docData.vehicle_number,
         vehicle_expiry: docData.vehicle_expiry,
@@ -130,13 +130,13 @@ export const fetchAndCacheProfile = async (email: string, allocatedVehicle?: str
       };
       
       cacheProfileData(profileData);
-      console.log("✅ Profile data fetched and cached");
+      console.log("✅ Profile data fetched and cached from Supabase");
       return profileData;
     }
     
     return null;
   } catch (err) {
-    console.error("Error fetching profile data:", err);
+    console.error("Error fetching profile data from Supabase:", err);
     return null;
   }
 };
