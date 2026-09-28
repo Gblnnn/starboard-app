@@ -1,5 +1,4 @@
-import { db } from "@/firebase";
-import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 
 const CACHE_KEY = "phonebook_cache";
 const CACHE_TIMESTAMP_KEY = "phonebook_cache_timestamp";
@@ -10,11 +9,11 @@ export interface PhonebookRecord {
     name: string;
     display_name?: string;
     email: string;
-    contact?: string;
-    cug?: number;
+    phone?: string;
+    CUG?: number;
     role?: string;
     designation?: string;
-    employeeCode?: string;
+    emp_id?: string;
 }
 
 /**
@@ -22,21 +21,37 @@ export interface PhonebookRecord {
  */
 export async function fetchPhonebookData(): Promise<PhonebookRecord[]> {
     try {
-        const recordsRef = collection(db, "records");
-        const q = query(recordsRef, orderBy("name", "asc"), where("contact", "!=", ""));
-        const querySnapshot = await getDocs(q);
+        const { data: recordsData, error } = await supabase
+            .from("employees")
+            .select("*")
+            .not("phone", "is", null)
+            .neq("phone", "")
+            .order("name", { ascending: true });
+        
+        if (error) {
+            throw error;
+        }
         
         const fetchedRecords: PhonebookRecord[] = [];
-        querySnapshot.forEach((doc) => {
-            fetchedRecords.push({
-                id: doc.id,
-                ...doc.data() as Omit<PhonebookRecord, "id">
+        if (recordsData) {
+            recordsData.forEach((doc: any) => {
+                fetchedRecords.push({
+                    id: String(doc.id),
+                    name: doc.name || '',
+                    display_name: doc.display_name,
+                    email: doc.email || '',
+                    phone: doc.phone,
+                    CUG: doc.cug ? Number(doc.cug) : undefined,
+                    role: doc.systemRole || doc.role,
+                    designation: doc.designation,
+                    emp_id: doc.emp_id
+                });
             });
-        });
+        }
         
         return fetchedRecords;
     } catch (error) {
-        console.error("Error fetching phonebook records:", error);
+        console.error("Error fetching phonebook records from Supabase:", error);
         throw error;
     }
 }
