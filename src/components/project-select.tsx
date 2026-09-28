@@ -1,5 +1,4 @@
-import { db } from "@/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 import { FolderKanban } from "lucide-react";
 import { useEffect, useState } from "react";
 import ChevronSelect from "./chevron-select";
@@ -21,21 +20,20 @@ export default function ProjectSelect({ value, onChange }: Props) {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const projectSnap = await getDocs(collection(db, "projects"));
-      const fetchedProjects: { value: string; label: string }[] = [];
-      
-      projectSnap.forEach((doc) => {
-        const data = doc.data();
-        if (data.name) {
-          fetchedProjects.push({
-            value: data.name,
-            label: data.name
-          });
-        }
-      });
+      const { data, error } = await supabase
+        .from("projects")
+        .select("project_code, project_name")
+        .order("project_code");
 
-      // Sort projects alphabetically
-      fetchedProjects.sort((a, b) => a.label.localeCompare(b.label));
+      if (error) {
+        console.error("Error fetching projects:", error);
+        return;
+      }
+
+      const fetchedProjects = (data || []).map((project: any) => ({
+        value: project.project_code,
+        label: `${project.project_code} - ${project.project_name}`
+      }));
       
       setProjects(fetchedProjects);
     } catch (error) {
