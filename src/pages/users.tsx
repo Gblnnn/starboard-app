@@ -1312,7 +1312,7 @@ export default function Users() {
                       title={user.name}
                       // tag={user.email=="it@soharstar.com"?"Developer":""}
                       status={true}
-                      id_subtitle={user.email}
+                      id_subtitle={user.emp_id ? `ID: ${user.emp_id} | ${user.email}` : user.email}                      
                       subtext={
                         user.last_active
                           ? (() => {
