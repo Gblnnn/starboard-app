@@ -845,12 +845,17 @@ export default function DbComponent(props: Props) {
       if (!silent) {
         setfetchingData(true);
       }
-      const { data: recordsData } = await supabase
+      const { data: recordsData, error: recordsError } = await supabase
         .from("employees")
         .select("*")
-        .in("type", [props.dbCategory, "omni"])
+        .in("emp_type", [props.dbCategory, "omni"])
         .order(sortby)
         .limit(pageSize);
+        
+      if (recordsError) {
+        console.error("Supabase fetchInitialData error:", recordsError);
+        return; // Don't overwrite state with empty if query failed
+      }
       
       const fetchedData: Record[] = recordsData || [];
       
@@ -878,7 +883,7 @@ export default function DbComponent(props: Props) {
       }
 
       // Get total count in background
-      const { count } = await supabase.from("employees").select("*", { count: "exact" }).in("type", [props.dbCategory, "omni"]);
+      const { count } = await supabase.from("employees").select("*", { count: "exact" }).in("emp_type", [props.dbCategory, "omni"]);
       setTotalRecords(count || 0);
 
       // Show offline warning if needed
@@ -933,7 +938,7 @@ export default function DbComponent(props: Props) {
       let query = supabase
         .from("employees")
         .select("*")
-        .in("type", [props.dbCategory, "omni"])
+        .in("emp_type", [props.dbCategory, "omni"])
         .order(sortby)
         .limit(pageSize);
         
@@ -941,7 +946,13 @@ export default function DbComponent(props: Props) {
         query = query.range(records.length, records.length + pageSize - 1);
       }
       
-      const { data: recordsData } = await query;
+      const { data: recordsData, error: recordsError } = await query;
+      if (recordsError) {
+        console.error("Supabase fetchData error:", recordsError);
+        setfetchingData(false);
+        setRefreshCompleted(true);
+        return;
+      }
       const fetchedData: Record[] = recordsData || [];
       
       setLastDoc(fetchedData.length > 0 ? records.length + fetchedData.length : null);
@@ -1137,7 +1148,7 @@ export default function DbComponent(props: Props) {
       contact: contact,
       created_on: new Date(),
       modified_on: new Date(),
-      type: props.dbCategory,
+      emp_type: props.dbCategory,
       notify: true,
       profile_name: fileName,
       cug: cug,
@@ -2099,7 +2110,7 @@ export default function DbComponent(props: Props) {
           
           const processedRecord = {
             ...recordWithoutId,
-            type: record.type == "omni" ? "omni" : props.dbCategory,
+            emp_type: record.type == "omni" ? "omni" : props.dbCategory,
             modified_on: new Date(),
             notify: true,
             state: "active",
