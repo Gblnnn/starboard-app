@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { message } from "antd";
 import { motion } from "framer-motion";
-import { KeyRound, Eye, EyeOff } from "lucide-react";
+import { KeyRound, Eye, EyeOff, Home } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { LoadingOutlined } from "@ant-design/icons";
@@ -121,20 +121,45 @@ export default function UpdatePassword() {
             style={{ width: "100%" }}
           />
 
-          <button
-            onClick={handleUpdatePassword}
-            disabled={!password || !confirmPassword || loading}
-            style={{
-              background: "midnightblue",
-              color: "white",
-              height: "2.5rem",
-              fontSize: "0.9rem",
-              opacity: (!password || !confirmPassword || loading) ? 0.6 : 1,
-              cursor: (!password || !confirmPassword || loading) ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? <LoadingOutlined /> : "Update Password"}
-          </button>
+          <div style={{ display: "flex", flexFlow: "column", gap: "0.75rem", width: "100%" }}>
+            <button
+              onClick={handleUpdatePassword}
+              disabled={!password || !confirmPassword || loading}
+              style={{
+                background: "midnightblue",
+                color: "white",
+                height: "2.5rem",
+                fontSize: "0.9rem",
+                opacity: (!password || !confirmPassword || loading) ? 0.6 : 1,
+                cursor: (!password || !confirmPassword || loading) ? "not-allowed" : "pointer",
+                width: "100%",
+                borderRadius: "0.5rem",
+                border: "none",
+              }}
+            >
+              {loading ? <LoadingOutlined /> : "Update Password"}
+            </button>
+
+            <button
+              onClick={() => navigate("/")}
+              style={{
+                background: "transparent",
+                color: "inherit",
+                height: "2.5rem",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                width: "100%",
+                borderRadius: "0.5rem",
+                border: "1px solid rgba(100, 100, 100, 0.2)",
+              }}
+            >
+              <Home size={16} /> Home
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
