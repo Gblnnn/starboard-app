@@ -2887,7 +2887,7 @@ export default function DbComponent(props: Props) {
                           <Directive
                             icon={<FileArchive color="darkblue"/>}
                             noArrow
-                            id_subtitle={(post.employeeCode ? post.employeeCode : "No Civil ID") + (post.civil_number ? ` - ${post.civil_number}` : "")}
+                            id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Phone: ${post.phone}` : "", post.CUG ? `CUG: ${post.CUG}` : ""].filter(Boolean).join(" | ") || "No details"}
                             className="record-item"
                             space
                             dotColor={selectable ? "violet" : "mediumslateblue"}
