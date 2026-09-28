@@ -226,16 +226,14 @@ export default function IndexDropDown(props: Props) {
             <DropdownMenuItem
               onClick={async () => {
                 try {
-                  if ('caches' in window) {
-                    const keys = await caches.keys();
-                    await Promise.all(keys.map(key => caches.delete(key)));
-                  }
+                  // Unregister service workers first
                   if (navigator.serviceWorker) {
                     const registrations = await navigator.serviceWorker.getRegistrations();
-                    for (let reg of registrations) {
+                    for (const reg of registrations) {
                       await reg.unregister();
                     }
                   }
+                  
                   // Clear local storage items that are not essential auth states
                   const keysToKeep = ['cached_user_data', 'cached_auth_state', 'cached_timestamp'];
                   for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -244,7 +242,23 @@ export default function IndexDropDown(props: Props) {
                       localStorage.removeItem(key);
                     }
                   }
-                  window.location.reload();
+
+                  // Clear caches, but DO NOT delete Workbox/Vite PWA caches! 
+                  // Deleting PWA caches while the Service Worker is still controlling the page 
+                  // causes it to serve empty responses (blank white screen).
+                  if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(
+                      keys
+                        .filter(key => !key.toLowerCase().includes('workbox') && !key.toLowerCase().includes('pwa'))
+                        .map(key => caches.delete(key))
+                    );
+                  }
+                  
+                  // Force a network reload by redirecting to the current URL with a timestamp
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('reload', Date.now().toString());
+                  window.location.replace(url.toString());
                 } catch (e) {
                   window.location.reload();
                 }
