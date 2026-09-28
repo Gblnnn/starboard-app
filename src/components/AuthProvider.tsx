@@ -354,6 +354,19 @@ const AuthProvider = ({ children }: Props) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
+  // Global listener for Supabase auth events like password recovery
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/update-password';
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // When the tab/window comes back to the foreground, re-check the
   // user's Firestore profile so changes made while the app was not
   // visible get picked up quickly after return.
