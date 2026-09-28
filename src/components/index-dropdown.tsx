@@ -4,7 +4,7 @@ import { auth } from "@/firebase";
 import emailjs from "@emailjs/browser";
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu";
 import { motion } from "framer-motion";
-import { Bug, List, LoaderCircle, LogOut, RefreshCcw, UserX } from "lucide-react";
+import { Bug, List, LoaderCircle, LogOut, RefreshCcw, UserX, KeyRound } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -224,12 +224,45 @@ export default function IndexDropDown(props: Props) {
             <div className="h-px bg-border my-1" />
 
             <DropdownMenuItem
-              onClick={() => window.location.reload()}
+              onClick={async () => {
+                try {
+                  if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(key => caches.delete(key)));
+                  }
+                  if (navigator.serviceWorker) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let reg of registrations) {
+                      await reg.unregister();
+                    }
+                  }
+                  // Clear local storage items that are not essential auth states
+                  const keysToKeep = ['cached_user_data', 'cached_auth_state', 'cached_timestamp'];
+                  for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const key = localStorage.key(i);
+                    if (key && !key.startsWith('sb-') && !keysToKeep.includes(key)) {
+                      localStorage.removeItem(key);
+                    }
+                  }
+                  window.location.reload();
+                } catch (e) {
+                  window.location.reload();
+                }
+              }}
               className="cursor-pointer"
               style={{ display: "flex", justifyContent: "flex-start", alignItems: "center" }}
             >
               <RefreshCcw className="mr-2 h-4 w-4 text-teal-500" />
               <span>Force Reload</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => window.location.href = "/update-password"}
+              className="cursor-pointer"
+              style={{ display: "flex", justifyContent: "flex-start", alignItems: "center" }}
+            >
+              <KeyRound className="mr-2 h-4 w-4 text-indigo-500" />
+              <span>Change Password</span>
             </DropdownMenuItem>
 
             <DropdownMenuItem
