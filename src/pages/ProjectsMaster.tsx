@@ -291,17 +291,32 @@ export default function ProjectsMaster({ refreshTrigger, onLoadingChange, employ
         .order('serial_no', { ascending: true });
       if (devErr) throw devErr;
 
-      // Fetch employees for focal point assignment
-      const { data: empData, error: empErr } = await supabase
-        .from('employees')
-        .select('id, name, email, emp_id, device_user_id')
-        .or('status.ilike.active,status.is.null')
-        .order('name', { ascending: true });
-      if (empErr) console.warn("Could not load employees for focal point:", empErr.message);
+      // Fetch users and map with employees for focal point assignment
+      const { data: usersData } = await supabase.from('users').select('emp_id, email');
+      const { data: empData, error: empErr } = await supabase.from('employees').select('id, name, email, emp_id');
+      
+      let mappedEmployees: any[] = [];
+      if (empErr) {
+        console.warn("Could not load employees for focal point:", empErr.message);
+      } else if (usersData && empData) {
+        const userEmpIds = usersData.map(u => String(u.emp_id)).filter(Boolean);
+        mappedEmployees = empData
+          .filter(emp => userEmpIds.includes(String(emp.emp_id)))
+          .map(emp => {
+            const userRec = usersData.find(u => String(u.emp_id) === String(emp.emp_id));
+            return {
+              id: emp.id,
+              name: emp.name,
+              email: userRec?.email || emp.email,
+              emp_id: emp.emp_id
+            };
+          })
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      }
 
       setProjects(projData || []);
       setDevices(devData || []);
-      setEmployeesList(empData || []);
+      setEmployeesList(mappedEmployees || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load projects and devices data.');
     } finally {
