@@ -135,7 +135,7 @@ export default function Tasks() {
 
             const shiftLogRef = await addDoc(collection(db, "shift-logs"), {
                 employee_name: profile?.name || userData?.name || "",
-                employee_code: profile?.employeeCode || userData?.employeeCode || "",
+                employee_code: profile?.emp_id || userData?.emp_id || "",
                 email: userData?.email || profile?.email || "",
                 shift_start_time: now,
                 shift_start_time_iso: now.toISOString(),
