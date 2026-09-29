@@ -3,8 +3,7 @@ import Back from "@/components/back";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 import IndexDropDown from "@/components/index-dropdown";
 import DefaultDialog from "@/components/ui/default-dialog";
 import Directive from "@/components/directive";
@@ -30,19 +29,13 @@ const [logoutPrompt, setLogoutPrompt] = useState(false);
     if (!userData?.assignedSite || !userData?.assignedProject) return;
 
     try {
-      const recordsQuery = query(
-        collection(db, "records"),
-        where("site", "==", userData.assignedSite),
-        where("project", "==", userData.assignedProject)
-      );
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("project", userData.assignedProject);
 
-      const snapshot = await getDocs(recordsQuery);
-      const fetchedRecords: any[] = [];
-      snapshot.forEach((doc) => {
-        fetchedRecords.push({ id: doc.id, ...doc.data() });
-      });
-
-      setRecords(fetchedRecords);
+      if (error) throw error;
+      setRecords(data || []);
     } catch (error) {
       console.error("Error fetching records:", error);
     } finally {
