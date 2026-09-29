@@ -26,7 +26,7 @@ const [logoutPrompt, setLogoutPrompt] = useState(false);
   }, [userData, navigate]);
 
   const fetchSupervisorRecords = async () => {
-    if (!userData?.assignedSite || !userData?.assignedProject) return;
+    if (!userData?.assignedProject) return;
 
     try {
       const { data, error } = await supabase
