@@ -121,278 +121,6 @@ interface Props {
 //   trigger: React.ReactNode;
 // }
 
-// Shared Record Form Content Component
-interface RecordFormContentProps {
-  emp_id: string;
-  setEmployeeCode: (value: string) => void;
-  name: string;
-  setName: (value: string) => void;
-  DOJ: string;
-  setDateofJoin: (value: string) => void;
-  phone: string;
-  setContact: (value: string) => void;
-  CUG: string;
-  setCug: (value: string) => void;
-  email: string;
-  setEmail: (value: string) => void;
-  department: string;
-  setDepartment: (value: string) => void;
-  workerType: string;
-  setWorkerType: (value: string) => void;
-  nationality: string;
-  setNationality: (value: string) => void;
-  designation: string;
-  setDesignation: (value: string) => void;
-  project: string;
-  setProject: (value: string) => void;
-  ot_eligible: boolean;
-  setOtEligible: (value: boolean) => void;
-  company: string;
-  setCompanyName: (value: string) => void;
-  civil_id: string;
-  setCivilId: (value: string) => void;
-  empStatus: string;
-  setEmpStatus: (value: string) => void;
-  shift: string;
-  setShift: (value: string) => void;
-  loading: boolean;
-  onSave: () => void;
-  isEditMode?: boolean;
-}
-
-const RecordFormContent: React.FC<RecordFormContentProps> = ({
-  emp_id,
-  setEmployeeCode,
-  name,
-  setName,
-  DOJ,
-  setDateofJoin,
-  phone,
-  setContact,
-  CUG,
-  setCug,
-  email,
-  setEmail,
-  department,
-  setDepartment,
-  workerType,
-  setWorkerType,
-  nationality,
-  setNationality,
-  designation,
-  setDesignation,
-  project,
-  setProject,
-  ot_eligible,
-  setOtEligible,
-  company,
-  setCompanyName,
-  civil_id,
-  setCivilId,
-  empStatus,
-  setEmpStatus,
-  shift,
-  setShift,
-  loading,
-  onSave,
-  isEditMode = false,
-}) => {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", maxHeight: "75vh", width: "100%" }}>
-      {/* Fixed Header */}
-      <div style={{
-        paddingTop: "0rem",
-        padding: "1.5rem",
-        paddingBottom: "1rem",
-        borderBottom: "1px solid rgba(100, 100, 100, 0.1)",
-        background: "var(--background)",
-        boxSizing: "border-box",
-        width: "100%"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <FileArchive />
-          <p style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0 }}>
-            {isEditMode ? "Edit Record" : "Add Record"}
-          </p>
-        </div>
-      </div>
-
-      {/* Scrollable Content */}
-      <div style={{
-        flex: 1,
-        padding: "1.5rem",
-        paddingTop: "1.5rem",
-        paddingBottom: "0",
-        width: "100%",
-        boxSizing: "border-box",
-        overflowY: "auto",
-        minHeight: 0
-      }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", paddingBottom: "1.5rem" }}>
-          {/* Employee Code (Editable) */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Employee Code</label>
-            <input type="text" value={emp_id} onChange={(e) => setEmployeeCode(e.target.value)} placeholder="Employee Code" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Full Name */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Full Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter Full Name" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Date of Join */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Date of Join</label>
-            <input type="date" value={DOJ} onChange={(e) => setDateofJoin(e.target.value)} placeholder="YYYY-MM-DD" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Phone</label>
-            <input type="text" value={phone} onChange={(e) => setContact(e.target.value)} placeholder="Enter Phone Number" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* CUG */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>CUG</label>
-            <input type="number" value={CUG} onChange={(e) => setCug(e.target.value)} placeholder="Enter CUG Number" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter Email" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Department */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Department</label>
-            <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Enter Department" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Employee Type */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Employee Type</label>
-            <Select value={workerType} onValueChange={(value) => setWorkerType(value)}>
-              <SelectTrigger style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)", border: "1px solid rgba(100, 100, 100, 0.1)", justifyContent: "space-between" }}>
-                <span style={{ opacity: workerType ? 1 : 0.5 }}>
-                  {workerType || "Select Employee Type"}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="staff">Staff</SelectItem>
-                <SelectItem value="worker">Worker</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Nationality */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Nationality</label>
-            <input type="text" value={nationality} onChange={(e) => setNationality(e.target.value)} placeholder="Enter Nationality" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Designation */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Designation</label>
-            <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Enter Designation" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Project */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Project</label>
-            <ProjectSelect value={project} onChange={(value) => setProject(value)} />
-          </div>
-
-          {/* OT Eligible */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <input type="checkbox" id="ot_eligible" checked={ot_eligible} onChange={(e) => setOtEligible(e.target.checked)} style={{ width: "1.2rem", height: "1.2rem" }} />
-            <label htmlFor="ot_eligible" style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, cursor: "pointer" }}>OT Eligible</label>
-          </div>
-
-          {/* Company */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Company Name</label>
-            <CompanySelect value={company} onChange={(value) => setCompanyName(value)} />
-          </div>
-
-          {/* Civil ID */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Civil ID</label>
-            <input type="text" value={civil_id} onChange={(e) => setCivilId(e.target.value)} placeholder="Enter Civil ID" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-
-          {/* Status */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Status</label>
-            <Select value={empStatus} onValueChange={(value) => setEmpStatus(value)}>
-              <SelectTrigger style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)", border: "1px solid rgba(100, 100, 100, 0.1)" }}>
-                <span style={{ opacity: empStatus ? 1 : 0.5 }}>
-                  {empStatus || "Select Status"}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Shift */}
-          <div>
-            <label style={{ fontSize: "0.875rem", fontWeight: "600", opacity: 0.9, marginBottom: "0.5rem", display: "block" }}>Shift</label>
-            <input type="text" value={shift} onChange={(e) => setShift(e.target.value)} placeholder="Enter Shift" style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", fontWeight: "500", background: "rgba(100, 100, 100, 0.08)" }} />
-          </div>
-        </div>
-      </div>
-
-      {/* Fixed Footer */}
-      <div style={{
-        padding: "1rem 1rem",
-        borderTop: "1px solid rgba(100, 100, 100, 0.1)",
-        background: "var(--background)",
-        display: "flex",
-        paddingBottom: "2rem",
-        gap: "0.5rem",
-        boxSizing: "border-box",
-        width: "100%"
-      }}>
-        <button
-          onClick={onSave}
-          disabled={loading}
-          style={{
-            padding: "1rem 1rem",
-            background: "black",
-            color: "white",
-            borderRadius: "0.5rem",
-            border: "none",
-            cursor: loading ? "not-allowed" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            opacity: loading ? 0.5 : 1,
-            width: "100%"
-          }}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="animate-spin" width="1rem" />
-            </>
-          ) : (
-            <>
-              <Plus width="1rem" />
-              {isEditMode ? "Update Record" : "Add Record"}
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-};
-
 export default function DbComponent(props: Props) {
   const { windowName } = useCurrentUser();
   const { userData } = useAuth();
@@ -460,6 +188,14 @@ export default function DbComponent(props: Props) {
   const [exportLoading, setExportLoading] = useState(false);
   const [deleteMedicalIDdialog, setDeleteMedicalIDdialog] = useState(false);
 
+  // Record detail state variables
+  const [doc_id, _setDocId] = useState("");
+
+  const [name, setName] = useState("");
+  const [addDialog, setAddDialog] = useState(false);
+  const [addcivil, setAddcivil] = useState(false);
+  const [civil, setCivil] = useState(false);
+  const [vehicle, setVehicle] = useState(false);
 
 
   // CIVIL ID VARIABLES
@@ -583,8 +319,8 @@ export default function DbComponent(props: Props) {
   const [vt_car_9, setVtCar9] = useState<any>();
   const [vt_car_10, setVtCar10] = useState<any>();
 
-  const [imageUpload] = useState(null);
-  const [fileName, setFileName] = useState("");
+  // const [imageUpload] = useState(null);
+  // const [fileName, setFileName] = useState("");
 
 
 
