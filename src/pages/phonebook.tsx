@@ -42,20 +42,20 @@ export default function Phonebook() {
             const suffix = queryForNumbers.slice(1);
             if (suffix.length === 0) return true;
             return (
-                (record.contact && String(record.contact).endsWith(suffix)) ||
-                (record.cug && String(record.cug).endsWith(suffix))
+                (record.phone && String(record.phone).endsWith(suffix)) ||
+                (record.CUG && String(record.CUG).endsWith(suffix))
             );
         }
 
         return displayName.toLowerCase().includes(query) ||
             record.name.toLowerCase().includes(query) ||
             record.email.toLowerCase().includes(query) ||
-            (record.contact && String(record.contact).startsWith(queryForNumbers)) ||
-            (record.cug && String(record.cug).startsWith(queryForNumbers)) ||
+            (record.phone && String(record.phone).startsWith(queryForNumbers)) ||
+            (record.CUG && String(record.CUG).startsWith(queryForNumbers)) ||
             record.designation?.toLowerCase().includes(query);
     }).sort((a, b) => {
-        const cugA = a.cug || Number.MAX_SAFE_INTEGER;
-        const cugB = b.cug || Number.MAX_SAFE_INTEGER;
+        const cugA = a.CUG || Number.MAX_SAFE_INTEGER;
+        const cugB = b.CUG || Number.MAX_SAFE_INTEGER;
         return cugA - cugB;
     });
 
@@ -254,10 +254,10 @@ export default function Phonebook() {
 
                         <Directive onClick={() => { selectedRecord?.email && (location.href = "mailto:" + selectedRecord?.email); }} icon={<AtSign width={"1.25rem"} color="darkblue"/>} notName title={selectedRecord?.email||"No Email"} />
                         <div style={{display:"flex", gap:"0.75rem", width: "100%"}}>
-                            <Directive notName onClick={() => { selectedRecord?.contact && (location.href = "tel:" + selectedRecord?.contact); }} title={selectedRecord?.contact||"No Contact"} icon={<PhoneIcon width={"1.25rem"} color="darkblue"/>}/>
+                            <Directive notName onClick={() => { selectedRecord?.phone && (location.href = "tel:" + selectedRecord?.phone); }} title={selectedRecord?.phone||"No Contact"} icon={<PhoneIcon width={"1.25rem"} color="darkblue"/>}/>
                             {
-                                selectedRecord?.cug &&
-                                <Directive notName onClick={() => { selectedRecord?.cug && (location.href = "tel:" + selectedRecord?.cug); }} title={selectedRecord?.cug||"No CUG"} icon={<Building2 width={"1.25rem"} color="darkblue"/>}/>
+                                selectedRecord?.CUG &&
+                                <Directive notName onClick={() => { selectedRecord?.CUG && (location.href = "tel:" + selectedRecord?.CUG); }} title={selectedRecord?.CUG||"No CUG"} icon={<Building2 width={"1.25rem"} color="darkblue"/>}/>
                             }
                             
                         </div>
