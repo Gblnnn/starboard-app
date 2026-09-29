@@ -486,9 +486,6 @@ export default function RecordDetail() {
   //     return moment(dateStr, "DD/MM/YYYY").diff(today, "months") <= months;
   //   };
 
-  const handleEdit = () => {
-    setEditPrompt(true);
-  };
 
   const handleArchive = () => {
     setArchivePrompt(true);
