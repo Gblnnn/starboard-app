@@ -1,6 +1,5 @@
 // Fuel logs caching utilities
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 
 const FUEL_LOGS_CACHE_KEY = "cached_fuel_logs_data";
 const FUEL_LOGS_CACHE_TIMESTAMP_KEY = "cached_fuel_logs_timestamp";
@@ -82,7 +81,7 @@ export const cacheFuelLogsData = (logs: FuelLog[], userEmail: string): void => {
   }
 };
 
-// Fetch and cache fuel logs
+// Fetch and cache fuel logs from Supabase
 export const fetchAndCacheFuelLogs = async (userEmail: string): Promise<FuelLog[]> => {
   // If offline, return cached data
   if (!navigator.onLine) {
@@ -96,16 +95,25 @@ export const fetchAndCacheFuelLogs = async (userEmail: string): Promise<FuelLog[
   }
   
   try {
-    const q = query(
-      collection(db, "fuel log"),
-      where("email", "==", userEmail),
-      orderBy("created_at", "desc")
-    );
-    const querySnapshot = await getDocs(q);
-    const logs: FuelLog[] = [];
-    querySnapshot.forEach((doc) => {
-      logs.push({ id: doc.id, ...doc.data() } as FuelLog);
-    });
+    const { data, error } = await supabase
+      .from("fuel_log")
+      .select("*")
+      .eq("email", userEmail)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    const logs: FuelLog[] = (data || []).map(d => ({
+      id: d.id,
+      date: d.date,
+      odometer_reading: Number(d.odometer_reading) || 0,
+      amount_spent: Number(d.amount_spent) || 0,
+      litres: d.litres ? Number(d.litres) : undefined,
+      employee_name: d.employee_name || "",
+      vehicle_number: d.vehicle_number || "",
+      created_at: d.created_at,
+      isPending: false,
+    }));
     
     cacheFuelLogsData(logs, userEmail);
     return logs;
