@@ -713,10 +713,10 @@ export default function FuelLog() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [activeChart, setActiveChart] = useState(0);
   const { addProcess, updateProcess } = useBackgroundProcess();
+  // Vehicle number comes exclusively from vehicle_master.assigned_to via Supabase
+  // (never from cached userProfile.allocated_vehicle — that was Firebase-era data)
   const vehicleNumber: string | undefined =
-    (allocatedVehicles[selectedVehicleIndex]?.vehicle_number) ||
-    (userProfile?.allocated_vehicle) ||
-    undefined;
+    allocatedVehicles[selectedVehicleIndex]?.vehicle_number || undefined;
 
   // Calculate monthly fuel consumption and mileage
   const monthlyData = (() => {
@@ -1003,9 +1003,7 @@ export default function FuelLog() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const vehicleNumber = allocatedVehicles[selectedVehicleIndex]?.vehicle_number
-      || userProfile?.allocated_vehicle;
-
+    // vehicleNumber is the top-level derived value from allocatedVehicles (Supabase only)
     if (!vehicleNumber || !amountSpent) {
       toast.error("Please fill in all required fields");
       return;
@@ -1103,9 +1101,10 @@ export default function FuelLog() {
       setLitres("");
       setDrawerOpen(false);
       setEditingLog(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting fuel log:", error);
-      toast.error(editingLog ? "Failed to update fuel log" : "Failed to submit fuel log");
+      const msg = error?.message || error?.details || JSON.stringify(error);
+      toast.error(`${editingLog ? "Failed to update" : "Failed to submit"} fuel log: ${msg}`);
     } finally {
       setSubmitting(false);
     }
