@@ -1052,7 +1052,8 @@ export default function FuelLog() {
           litres: litres ? parseFloat(litres) : undefined,
           email: userData?.email || "",
           employee_name: userProfile.name || "",
-          employee_code: userProfile.employeeCode || "",
+          // Send null (not "") when emp code is missing — "" violates the FK constraint
+          employee_code: userProfile.employeeCode || userProfile.emp_id || null,
           vehicle_number: vehicleNumber,
           timestamp: Date.now(),
         };
