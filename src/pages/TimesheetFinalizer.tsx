@@ -2448,7 +2448,7 @@ export default function TimesheetFinalizer({
         updated.punch_out = '';
         updated.overtime = 0;
         updated.remarks = '';
-      } else if (statusVal === 'present' || statusVal === 'present with OT' || statusVal === 'holiday' || statusVal === 'weekend') {
+      } else if (statusVal === 'present' || statusVal === 'present with OT' || statusVal === 'holiday') {
         const emp = employeesMap[userId];
         const projCode = current.project_code || (emp ? employeeAssignedProjects[emp.emp_id] : '') || '';
         const targetProj = projects.find(p => p.project_code === projCode);
@@ -2462,6 +2462,10 @@ export default function TimesheetFinalizer({
         if (current.remarks === 'Absent') {
           updated.remarks = '';
         }
+      } else if (statusVal === 'weekend') {
+        updated.punch_in = '';
+        updated.punch_out = '';
+        updated.overtime = 0;
       }
        // Automatically verify records with 'weekend' or 'holiday' status
       if (statusVal === 'weekend' || statusVal === 'holiday') {
@@ -2651,9 +2655,17 @@ export default function TimesheetFinalizer({
                 updated.overtime = emp?.emp_type !== 'staff' ? 1.0 : 0;
               }
             }
-          } else if (statusVal === 'holiday' || statusVal === 'weekend') {
-          // Update remarks to match status for holiday/weekend
-          updated.remarks = statusVal === 'holiday' ? 'Holiday' : 'Weekend';
+          } else if (statusVal === 'holiday') {
+          // Update remarks to match status for holiday
+          updated.remarks = 'Holiday';
+          updated.isVerified = true;
+          updated.verified_by = userData?.email || 'System';
+          } else if (statusVal === 'weekend') {
+          // Weekend: clear punch times and OT, do not populate from project master
+          updated.punch_in = '';
+          updated.punch_out = '';
+          updated.overtime = 0;
+          updated.remarks = 'Weekend';
           updated.isVerified = true;
           updated.verified_by = userData?.email || 'System';
           }         
