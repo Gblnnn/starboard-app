@@ -1,6 +1,5 @@
 // Vehicle allocation caching utilities
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 
 const VEHICLE_CACHE_KEY = "cached_vehicle_data";
 const VEHICLE_CACHE_TIMESTAMP_KEY = "cached_vehicle_timestamp";
@@ -14,8 +13,9 @@ export interface VehicleData {
   type: string;
   status: string;
   registration_type?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  assigned_to?: string; // emp_id from employees table
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Check if vehicle cache is still valid
@@ -74,7 +74,7 @@ export const clearVehicleCache = (): void => {
   }
 };
 
-// Fetch and cache vehicle data from Firestore
+// Fetch and cache vehicle data from Supabase
 export const fetchAndCacheVehicle = async (vehicleNumber: string): Promise<VehicleData | null> => {
   try {
     if (!vehicleNumber) {
@@ -82,37 +82,41 @@ export const fetchAndCacheVehicle = async (vehicleNumber: string): Promise<Vehic
       return null;
     }
 
-    const vehicleQuery = query(
-      collection(db, "vehicle_master"),
-      where("vehicle_number", "==", vehicleNumber)
-    );
-    const vehicleSnapshot = await getDocs(vehicleQuery);
-    
-    if (!vehicleSnapshot.empty) {
-      const vehicleDoc = vehicleSnapshot.docs[0];
-      const vehicleData = vehicleDoc.data() as VehicleData;
-      
-      const fullVehicleData: VehicleData = {
-        vehicle_number: vehicleData.vehicle_number || '',
-        make: vehicleData.make || '',
-        model: vehicleData.model || '',
-        year: vehicleData.year || '',
-        type: vehicleData.type || '',
-        status: vehicleData.status || 'Active',
-        registration_type: vehicleData.registration_type || 'Private',
-        createdAt: vehicleData.createdAt,
-        updatedAt: vehicleData.updatedAt,
-      };
-      
-      cacheVehicleData(fullVehicleData);
-      return fullVehicleData;
-    } else {
-      console.log("Vehicle not found in vehicle_master");
-      clearVehicleCache();
-      return null;
+    const { data, error } = await supabase
+      .from("vehicle_master")
+      .select("*")
+      .eq("vehicle_number", vehicleNumber)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        // No rows found
+        console.log("Vehicle not found in vehicle_master");
+        clearVehicleCache();
+        return null;
+      }
+      throw error;
     }
+
+    const fullVehicleData: VehicleData = {
+      vehicle_number: data.vehicle_number || '',
+      make: data.make || '',
+      model: data.model || '',
+      year: data.year || '',
+      type: data.type || '',
+      status: data.status || 'Active',
+      registration_type: data.registration_type || 'Private',
+      assigned_to: data.assigned_to,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
+
+    cacheVehicleData(fullVehicleData);
+    return fullVehicleData;
   } catch (error) {
     console.error("Error fetching vehicle:", error);
     throw error;
   }
 };
+
+
