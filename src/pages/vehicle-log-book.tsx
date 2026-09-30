@@ -364,7 +364,7 @@ export default function VehicleLogBook() {
     if (!selectedVehicle) return;
     setSaving(true);
     try {
-      const oldAssigned = selectedVehicle.assigned_to;
+//      const oldAssigned = selectedVehicle.assigned_to;
       const { error } = await supabase
         .from("vehicle_master")
         .update({
