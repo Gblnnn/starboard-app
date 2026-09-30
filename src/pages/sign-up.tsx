@@ -1,6 +1,6 @@
 import Back from "@/components/back";
 import { message } from "antd";
-import { getAuth, sendPasswordResetEmail } from "firebase/auth";
+import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { LoadingOutlined } from "@ant-design/icons";
@@ -8,23 +8,22 @@ import { useNavigate } from "react-router-dom";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
-  const auth = getAuth();
   const [loading, setLoading] = useState(false);
   const usenavigate = useNavigate();
 
   const ResetPassword = async () => {
     setLoading(true);
-    await sendPasswordResetEmail(auth, email)
-      .then(() => {
-        message.success("Password recovery mail sent.");
-        setLoading(false);
-        usenavigate("/");
-      })
-      .catch((error) => {
-        setLoading(false);
-        console.log(error);
-        message.error(error.message);
-      });
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      message.success("Password recovery mail sent.");
+      usenavigate("/");
+    } catch (error: any) {
+      console.log(error);
+      message.error(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
