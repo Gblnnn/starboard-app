@@ -1,5 +1,4 @@
-import { addDoc, collection } from "firebase/firestore";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 
 export interface PendingFuelLog {
   id: string;
@@ -11,7 +10,7 @@ export interface PendingFuelLog {
     vehicle_number: string;
     email: string;
     employee_name: string;
-    employee_code: string;
+    employee_code: string; // references employees.emp_id
     timestamp: number;
   };
   createdAt: number;
@@ -115,13 +114,16 @@ export function incrementRetryCount(id: string): void {
   savePendingFuelLogs(updated);
 }
 
-// Sync a single pending fuel log to Firestore
+// Sync a single pending fuel log to Supabase
 export async function syncPendingFuelLog(log: PendingFuelLog): Promise<void> {
   try {
-    await addDoc(collection(db, "fuel log"), {
-      ...log.data,
-      created_at: new Date(),
-    });
+    const { error } = await supabase
+      .from("fuel_log")
+      .insert({
+        ...log.data,
+        created_at: new Date().toISOString(),
+      });
+    if (error) throw error;
     removePendingFuelLog(log.id);
   } catch (error) {
     incrementRetryCount(log.id);
