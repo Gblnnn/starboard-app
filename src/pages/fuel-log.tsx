@@ -1032,14 +1032,17 @@ export default function FuelLog() {
           amount_spent: parseFloat(amountSpent),
           litres: litres ? parseFloat(litres) : undefined,
           vehicle_number: vehicleNumber,
-          updated_at: new Date().toISOString(),
+          // updated_at not in fuel_log schema — omitted
         };
 
         const { error } = await supabase
           .from("fuel_log")
           .update(fuelLogData)
           .eq("id", editingLog.id);
-        if (error) throw error;
+        if (error) {
+          console.error("❌ fuel_log update error:", error);
+          throw error;
+        }
         toast.success("Fuel log updated successfully!");
         fetchFuelLogs();
       } else {
@@ -1060,11 +1063,11 @@ export default function FuelLog() {
           // Save directly to Supabase
           const { error } = await supabase
             .from("fuel_log")
-            .insert({
-              ...fuelLogData,
-              created_at: new Date().toISOString(),
-            });
-          if (error) throw error;
+            .insert(fuelLogData); // created_at uses DB default now()
+          if (error) {
+            console.error("❌ fuel_log insert error:", error);
+            throw error;
+          }
           toast.success("Fuel log submitted successfully!");
 
           // Refresh logs from Firestore
