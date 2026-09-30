@@ -10,17 +10,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { db } from "@/firebase";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Car,
@@ -43,9 +33,9 @@ interface Vehicle {
   type: string;
   status: string;
   registration_type: string;
-  assigned_to: string | null;
+  assigned_to: string | null; // stores emp_id from employees table
   notes: string;
-  createdAt?: string;
+  created_at?: string;
 }
 
 interface FuelLog {
@@ -92,18 +82,25 @@ const computeStats = (logs: FuelLog[]) => {
   };
 };
 
-const syncVehicleAllocationToRecord = async (
-  newRecordId: string | null | undefined,
-  oldRecordId: string | null | undefined,
+// Sync allocated_vehicle field on the employees table when assignment changes
+const syncVehicleAllocationToEmployee = async (
+  newEmpId: string | null | undefined,
+  oldEmpId: string | null | undefined,
   vehicleNumber: string,
 ) => {
-  const oldId = oldRecordId || null;
-  const newId = newRecordId || null;
+  const oldId = oldEmpId || null;
+  const newId = newEmpId || null;
   if (oldId && oldId !== newId) {
-    await updateDoc(doc(db, "records", oldId), { allocated_vehicle: null });
+    await supabase
+      .from("employees")
+      .update({ allocated_vehicle: null })
+      .eq("emp_id", oldId);
   }
   if (newId) {
-    await updateDoc(doc(db, "records", newId), { allocated_vehicle: vehicleNumber });
+    await supabase
+      .from("employees")
+      .update({ allocated_vehicle: vehicleNumber })
+      .eq("emp_id", newId);
   }
 };
 
@@ -114,6 +111,7 @@ const REG_TYPES = ["Private", "Commercial", "Government"];
 
 export default function VehicleLogBook() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  // employees list: id = emp_id, name = display name
   const [records, setRecords] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshCompleted, setRefreshCompleted] = useState(false);
@@ -155,31 +153,35 @@ export default function VehicleLogBook() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [vSnap, rSnap] = await Promise.all([
-        getDocs(collection(db, "vehicle_master")),
-        getDocs(collection(db, "records")),
+      const [vehiclesRes, employeesRes] = await Promise.all([
+        supabase.from("vehicle_master").select("*").order("vehicle_number"),
+        supabase.from("employees").select("emp_id, name").order("name"),
       ]);
 
+      if (vehiclesRes.error) throw vehiclesRes.error;
+      if (employeesRes.error) throw employeesRes.error;
+
       setVehicles(
-        vSnap.docs.map(d => ({
+        (vehiclesRes.data || []).map(d => ({
           id: d.id,
-          vehicle_number: d.data().vehicle_number || "",
-          make: d.data().make || "",
-          model: d.data().model || "",
-          year: d.data().year || "",
-          type: d.data().type || "",
-          status: d.data().status || "Good",
-          registration_type: d.data().registration_type || "Private",
-          assigned_to: d.data().assigned_to || null,
-          notes: d.data().notes || "",
-          createdAt: d.data().createdAt,
+          vehicle_number: d.vehicle_number || "",
+          make: d.make || "",
+          model: d.model || "",
+          year: d.year || "",
+          type: d.type || "",
+          status: d.status || "Good",
+          registration_type: d.registration_type || "Private",
+          assigned_to: d.assigned_to || null,  // emp_id value
+          notes: d.notes || "",
+          created_at: d.created_at,
         })),
       );
 
+      // Map emp_id → id, name → name so the rest of the component works unchanged
       setRecords(
-        rSnap.docs.map(d => ({
-          id: d.id,
-          name: d.data().name || d.data().full_name || "Unknown",
+        (employeesRes.data || []).map(e => ({
+          id: e.emp_id,
+          name: e.name || "Unknown",
         })),
       );
 
@@ -197,17 +199,22 @@ export default function VehicleLogBook() {
     setDetailLoading(true);
     setDetailLogs([]);
     try {
-      const snap = await getDocs(
-        query(collection(db, "fuel log"), where("vehicle_number", "==", vehicleNumber)),
-      );
+      const { data, error } = await supabase
+        .from("fuel_log")
+        .select("*")
+        .eq("vehicle_number", vehicleNumber)
+        .order("date", { ascending: true });
+
+      if (error) throw error;
+
       setDetailLogs(
-        snap.docs.map(d => ({
+        (data || []).map(d => ({
           id: d.id,
-          date: d.data().date || "",
-          odometer_reading: Number(d.data().odometer_reading) || 0,
-          amount_spent: Number(d.data().amount_spent) || 0,
-          litres: Number(d.data().litres) || 0,
-          vehicle_number: d.data().vehicle_number || "",
+          date: d.date || "",
+          odometer_reading: Number(d.odometer_reading) || 0,
+          amount_spent: Number(d.amount_spent) || 0,
+          litres: Number(d.litres) || 0,
+          vehicle_number: d.vehicle_number || "",
         })),
       );
     } catch (err) {
@@ -232,6 +239,7 @@ export default function VehicleLogBook() {
 
   // ── Derived state ─────────────────────────────────────────────────────────
 
+  // Map emp_id → employee name for display
   const recordNameMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of records) m.set(r.id, r.name);
@@ -301,41 +309,46 @@ export default function VehicleLogBook() {
     setSaving(true);
     try {
       if (editMode && selectedVehicle) {
-        await updateDoc(doc(db, "vehicle_master", selectedVehicle.id), {
-          vehicle_number: fPlate.trim(),
-          make: fMake.trim(),
-          model: fModel.trim(),
-          year: fYear.trim(),
-          type: fType.trim(),
-          registration_type: fRegType,
-          status: fCondition,
-          assigned_to: fAssignedTo,
-          notes: fNotes.trim(),
-          updatedAt: new Date().toISOString(),
-        });
+        const { error } = await supabase
+          .from("vehicle_master")
+          .update({
+            vehicle_number: fPlate.trim(),
+            make: fMake.trim(),
+            model: fModel.trim(),
+            year: fYear.trim(),
+            type: fType.trim(),
+            registration_type: fRegType,
+            status: fCondition,
+            assigned_to: fAssignedTo,  // emp_id
+            notes: fNotes.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", selectedVehicle.id);
+        if (error) throw error;
         try {
-          await syncVehicleAllocationToRecord(fAssignedTo, selectedVehicle.assigned_to, fPlate.trim());
+          await syncVehicleAllocationToEmployee(fAssignedTo, selectedVehicle.assigned_to, fPlate.trim());
         } catch (e) {
           console.warn("sync failed (non-critical):", e);
         }
         toast.success("Vehicle updated");
       } else {
-        await addDoc(collection(db, "vehicle_master"), {
-          vehicle_number: fPlate.trim(),
-          make: fMake.trim(),
-          model: fModel.trim(),
-          year: fYear.trim(),
-          type: fType.trim(),
-          registration_type: fRegType,
-          status: fCondition,
-          assigned_to: fAssignedTo,
-          notes: fNotes.trim(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
+        const { error } = await supabase
+          .from("vehicle_master")
+          .insert({
+            vehicle_number: fPlate.trim(),
+            make: fMake.trim(),
+            model: fModel.trim(),
+            year: fYear.trim(),
+            type: fType.trim(),
+            registration_type: fRegType,
+            status: fCondition,
+            assigned_to: fAssignedTo,  // emp_id
+            notes: fNotes.trim(),
+          });
+        if (error) throw error;
         if (fAssignedTo && fPlate.trim()) {
           try {
-            await syncVehicleAllocationToRecord(fAssignedTo, null, fPlate.trim());
+            await syncVehicleAllocationToEmployee(fAssignedTo, null, fPlate.trim());
           } catch (e) {
             console.warn("sync failed (non-critical):", e);
           }
@@ -356,10 +369,17 @@ export default function VehicleLogBook() {
     if (!selectedVehicle) return;
     setSaving(true);
     try {
-      await deleteDoc(doc(db, "vehicle_master", selectedVehicle.id));
+      const { error } = await supabase
+        .from("vehicle_master")
+        .delete()
+        .eq("id", selectedVehicle.id);
+      if (error) throw error;
       if (selectedVehicle.assigned_to) {
         try {
-          await updateDoc(doc(db, "records", selectedVehicle.assigned_to), { allocated_vehicle: null });
+          await supabase
+            .from("employees")
+            .update({ allocated_vehicle: null })
+            .eq("emp_id", selectedVehicle.assigned_to);
         } catch (e) {
           console.warn("Failed to clear allocation:", e);
         }
@@ -376,23 +396,27 @@ export default function VehicleLogBook() {
     }
   };
 
-  const directAssign = async (recordId: string | null) => {
+  const directAssign = async (empId: string | null) => {
     if (!selectedVehicle) return;
     setSaving(true);
     try {
       const oldAssigned = selectedVehicle.assigned_to;
-      await updateDoc(doc(db, "vehicle_master", selectedVehicle.id), {
-        assigned_to: recordId,
-        updatedAt: new Date().toISOString(),
-      });
+      const { error } = await supabase
+        .from("vehicle_master")
+        .update({
+          assigned_to: empId,  // emp_id
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedVehicle.id);
+      if (error) throw error;
       try {
-        await syncVehicleAllocationToRecord(recordId, oldAssigned, selectedVehicle.vehicle_number);
+        await syncVehicleAllocationToEmployee(empId, oldAssigned, selectedVehicle.vehicle_number);
       } catch (e) {
         console.warn("sync failed (non-critical):", e);
       }
-      toast.success(recordId ? "Vehicle assigned" : "Assignment cleared");
+      toast.success(empId ? "Vehicle assigned" : "Assignment cleared");
       setAssigneeOpen(false);
-      const updated = { ...selectedVehicle, assigned_to: recordId };
+      const updated = { ...selectedVehicle, assigned_to: empId };
       setSelectedVehicle(updated);
       setVehicles(prev => prev.map(v => v.id === selectedVehicle.id ? updated : v));
     } catch (err) {
@@ -536,13 +560,13 @@ export default function VehicleLogBook() {
               </div>
             </div>
 
-            {/* Assignment */}
+            {/* Assignment — displays employee name, stores emp_id */}
             <div style={{ background: "rgba(0,0,139,0.06)", borderRadius: "0.75rem", padding: "0.85rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: "0.62rem", fontWeight: 600, color: "rgba(0,0,0,0.38)", textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: "0.2rem" }}>Assigned To</div>
                 <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>
                   {selectedVehicle.assigned_to
-                    ? (recordNameMap.get(selectedVehicle.assigned_to) || "Unknown")
+                    ? (recordNameMap.get(selectedVehicle.assigned_to) || selectedVehicle.assigned_to)
                     : <span style={{ color: "rgba(0,0,0,0.32)", fontStyle: "italic", fontWeight: 500 }}>Unassigned</span>}
                 </div>
               </div>
@@ -666,6 +690,7 @@ export default function VehicleLogBook() {
               onClick={() => { setAssigneeTarget("form"); setAssigneeSearch(""); setAssigneeOpen(true); }}
               style={{ ...inputStyle, textAlign: "left", cursor: "pointer", color: fAssignedTo ? "inherit" : "rgba(0,0,0,0.32)" }}
             >
+              {/* Display employee name; fAssignedTo holds emp_id */}
               {fAssignedTo ? (recordNameMap.get(fAssignedTo) || fAssignedTo) : "Select person…"}
             </button>,
           )}
@@ -698,6 +723,7 @@ export default function VehicleLogBook() {
       </ResponsiveModal>
 
       {/* ─── Assignee Picker Dialog ─── */}
+      {/* Lists employees by name; clicking selects their emp_id */}
       <Dialog open={assigneeOpen} onOpenChange={setAssigneeOpen}>
         <DialogContent style={{ maxWidth: "380px", padding: 0, overflow: "hidden", borderRadius: "1rem" }}>
           {/* Header */}
@@ -725,7 +751,7 @@ export default function VehicleLogBook() {
             </div>
           </div>
 
-          {/* List */}
+          {/* List — displays name, selects emp_id */}
           <div style={{ maxHeight: "16rem", overflowY: "auto", padding: "0.5rem 0.75rem 0.75rem", display: "flex", flexDirection: "column", gap: "0.2rem", border:"", marginTop:"0" }}>
             {filteredRecords.length === 0 ? (
               <div style={{ textAlign: "center", opacity: 0.35, fontSize: "0.8rem", padding: "1.5rem 0" }}>No results</div>
@@ -734,19 +760,16 @@ export default function VehicleLogBook() {
                 key={record.id}
                 onClick={() => {
                   if (assigneeTarget === "form") {
-                    setFAssignedTo(record.id);
+                    setFAssignedTo(record.id); // stores emp_id
                     setAssigneeOpen(false);
                   } else {
-                    directAssign(record.id);
+                    directAssign(record.id); // passes emp_id
                   }
                 }}
                 style={{ display: "flex", alignItems: "", gap: "0.75rem", padding: "0.6rem 0.75rem", borderRadius: "0.65rem", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%", transition: "background 0.12s" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,139,0.06)")}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
-                {/* <div style={{ width: "2rem", height: "2rem", borderRadius: "50%", background: "rgba(0,0,139,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <User width="0.85rem" color="darkblue" />
-                </div> */}
                 <span style={{ fontSize: "0.875rem", fontWeight: 500 }}>{record.name}</span>
               </div>
             ))}
