@@ -155,11 +155,18 @@ export default function VehicleLogBook() {
       setLoading(true);
       const [vehiclesRes, employeesRes] = await Promise.all([
         supabase.from("vehicle_master").select("*").order("vehicle_number"),
-        supabase.from("employees").select("emp_id, name").order("name"),
+        supabase.from("employees").select("emp_id, name").not("emp_id", "is", null).order("name"),
       ]);
 
-      if (vehiclesRes.error) throw vehiclesRes.error;
-      if (employeesRes.error) throw employeesRes.error;
+      if (vehiclesRes.error) {
+        console.error("❌ vehicle_master error:", vehiclesRes.error);
+        throw vehiclesRes.error;
+      }
+      if (employeesRes.error) {
+        console.error("❌ employees error:", employeesRes.error);
+        throw employeesRes.error;
+      }
+      console.log(`✅ vehicles: ${vehiclesRes.data?.length ?? 0}, employees: ${employeesRes.data?.length ?? 0}`);
 
       setVehicles(
         (vehiclesRes.data || []).map(d => ({
