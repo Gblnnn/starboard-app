@@ -82,27 +82,6 @@ const computeStats = (logs: FuelLog[]) => {
   };
 };
 
-// Sync allocated_vehicle field on the employees table when assignment changes
-const syncVehicleAllocationToEmployee = async (
-  newEmpId: string | null | undefined,
-  oldEmpId: string | null | undefined,
-  vehicleNumber: string,
-) => {
-  const oldId = oldEmpId || null;
-  const newId = newEmpId || null;
-  if (oldId && oldId !== newId) {
-    await supabase
-      .from("employees")
-      .update({ allocated_vehicle: null })
-      .eq("emp_id", oldId);
-  }
-  if (newId) {
-    await supabase
-      .from("employees")
-      .update({ allocated_vehicle: vehicleNumber })
-      .eq("emp_id", newId);
-  }
-};
 
 const CONDITIONS = ["Excellent", "Good", "Fair", "Poor", "Needs Repair"];
 const REG_TYPES = ["Private", "Commercial", "Government"];
@@ -332,11 +311,6 @@ export default function VehicleLogBook() {
           })
           .eq("id", selectedVehicle.id);
         if (error) throw error;
-        try {
-          await syncVehicleAllocationToEmployee(fAssignedTo, selectedVehicle.assigned_to, fPlate.trim());
-        } catch (e) {
-          console.warn("sync failed (non-critical):", e);
-        }
         toast.success("Vehicle updated");
       } else {
         const { error } = await supabase
@@ -353,13 +327,6 @@ export default function VehicleLogBook() {
             notes: fNotes.trim(),
           });
         if (error) throw error;
-        if (fAssignedTo && fPlate.trim()) {
-          try {
-            await syncVehicleAllocationToEmployee(fAssignedTo, null, fPlate.trim());
-          } catch (e) {
-            console.warn("sync failed (non-critical):", e);
-          }
-        }
         toast.success("Vehicle added");
       }
       setFormOpen(false);
@@ -381,16 +348,6 @@ export default function VehicleLogBook() {
         .delete()
         .eq("id", selectedVehicle.id);
       if (error) throw error;
-      if (selectedVehicle.assigned_to) {
-        try {
-          await supabase
-            .from("employees")
-            .update({ allocated_vehicle: null })
-            .eq("emp_id", selectedVehicle.assigned_to);
-        } catch (e) {
-          console.warn("Failed to clear allocation:", e);
-        }
-      }
       toast.success("Vehicle deleted");
       setDetailOpen(false);
       setDeleteConfirm(false);
@@ -416,11 +373,6 @@ export default function VehicleLogBook() {
         })
         .eq("id", selectedVehicle.id);
       if (error) throw error;
-      try {
-        await syncVehicleAllocationToEmployee(empId, oldAssigned, selectedVehicle.vehicle_number);
-      } catch (e) {
-        console.warn("sync failed (non-critical):", e);
-      }
       toast.success(empId ? "Vehicle assigned" : "Assignment cleared");
       setAssigneeOpen(false);
       const updated = { ...selectedVehicle, assigned_to: empId };
