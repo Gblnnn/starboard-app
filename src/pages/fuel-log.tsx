@@ -10,12 +10,11 @@ import DefaultDialog from "@/components/ui/default-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { useBackgroundProcess } from "@/context/BackgroundProcessContext";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 import { fetchAndCacheFuelLogs, getCachedFuelLogs, type FuelLog as FuelLogType } from "@/utils/fuelLogsCache";
 import { addPendingFuelLog, getPendingFuelLogs, getPendingFuelLogsCount, syncAllPendingFuelLogs } from "@/utils/offlineFuelLogs";
 import { getCachedProfile } from "@/utils/profileCache";
-import { fetchAndCacheVehicle, getCachedVehicle, type VehicleData } from "@/utils/vehicleCache";
-import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { getCachedVehicle, type VehicleData } from "@/utils/vehicleCache";
 import { motion } from "framer-motion";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Calendar, ChevronLeft, ChevronRight, DollarSign, EllipsisVertical, Fuel, Gauge, Loader2, WifiOff } from "lucide-react";
@@ -768,58 +767,52 @@ export default function FuelLog() {
       setUserProfile(cachedProfile);
     }
 
-    // Live-fetch allocated_vehicle from the records document so changes made
-    // in asset master are reflected immediately (not just after next login).
-    // Then immediately fetch the vehicle's registration_type using the live number.
+    // Fetch employee by email → get emp_id → fetch assigned vehicles from vehicle_master
     const fetchAllocatedVehicleFromRecord = async () => {
       if (!userData?.email) return;
       try {
-        const snap = await getDocs(
-          query(collection(db, "records"), where("email", "==", userData.email))
-        );
-        if (!snap.empty) {
-          const recordDocId = snap.docs[0].id;
-          const recordData = snap.docs[0].data();
-          const liveVehicle = recordData.allocated_vehicle || null;
-          setUserProfile((prev: any) => ({
-            ...(prev || cachedProfile || {}),
-            allocated_vehicle: liveVehicle,
-          }));
-          // Fetch all vehicles assigned to this record
-          const vehiclesSnap = await getDocs(
-            query(collection(db, "vehicle_master"), where("assigned_to", "==", recordDocId))
-          );
-          const vehicles: VehicleData[] = vehiclesSnap.docs.map(d => ({
-            vehicle_number: d.data().vehicle_number || "",
-            make: d.data().make || "",
-            model: d.data().model || "",
-            year: d.data().year || "",
-            type: d.data().type || "",
-            status: d.data().status || "",
-            registration_type: d.data().registration_type,
-          }));
-          if (vehicles.length > 0) {
-            setAllocatedVehicles(vehicles);
-            // Position index at currently allocated vehicle
-            const idx = liveVehicle
-              ? vehicles.findIndex(v => v.vehicle_number === liveVehicle)
-              : 0;
-            const initIdx = idx >= 0 ? idx : 0;
-            setSelectedVehicleIndex(initIdx);
-            const initVehicle = vehicles[initIdx];
-            if (initVehicle?.registration_type) {
-              setVehicleRegistrationType(initVehicle.registration_type);
-            }
-          } else if (liveVehicle) {
-            // Fallback: single vehicle via cache
-            const vehicleData = await fetchAndCacheVehicle(liveVehicle);
-            if (vehicleData?.registration_type) {
-              setVehicleRegistrationType(vehicleData.registration_type);
-            }
+        // Look up emp_id by email
+        const { data: empData, error: empError } = await supabase
+          .from("employees")
+          .select("emp_id")
+          .eq("email", userData.email)
+          .single();
+
+        if (empError || !empData?.emp_id) {
+          console.warn("Employee not found for email:", userData.email);
+          return;
+        }
+
+        const empId = empData.emp_id;
+
+        // Fetch all vehicles assigned to this employee via vehicle_master.assigned_to
+        const { data: vehiclesData, error: vehiclesError } = await supabase
+          .from("vehicle_master")
+          .select("vehicle_number, make, model, year, type, status, registration_type")
+          .eq("assigned_to", empId);
+
+        if (vehiclesError) throw vehiclesError;
+
+        const vehicles: VehicleData[] = (vehiclesData || []).map(d => ({
+          vehicle_number: d.vehicle_number || "",
+          make: d.make || "",
+          model: d.model || "",
+          year: d.year || "",
+          type: d.type || "",
+          status: d.status || "",
+          registration_type: d.registration_type,
+        }));
+
+        if (vehicles.length > 0) {
+          setAllocatedVehicles(vehicles);
+          setSelectedVehicleIndex(0);
+          const initVehicle = vehicles[0];
+          if (initVehicle?.registration_type) {
+            setVehicleRegistrationType(initVehicle.registration_type);
           }
         }
       } catch (err) {
-        console.warn("Failed to live-fetch allocated_vehicle from records:", err);
+        console.warn("Failed to fetch allocated vehicle from employees:", err);
       }
     };
     fetchAllocatedVehicleFromRecord();
@@ -1039,10 +1032,14 @@ export default function FuelLog() {
           amount_spent: parseFloat(amountSpent),
           litres: litres ? parseFloat(litres) : undefined,
           vehicle_number: vehicleNumber,
-          updated_at: new Date(),
+          updated_at: new Date().toISOString(),
         };
 
-        await updateDoc(doc(db, "fuel log", editingLog.id), fuelLogData);
+        const { error } = await supabase
+          .from("fuel_log")
+          .update(fuelLogData)
+          .eq("id", editingLog.id);
+        if (error) throw error;
         toast.success("Fuel log updated successfully!");
         fetchFuelLogs();
       } else {
@@ -1060,11 +1057,14 @@ export default function FuelLog() {
         };
 
         if (isOnline) {
-          // Save directly to Firestore
-          await addDoc(collection(db, "fuel log"), {
-            ...fuelLogData,
-            created_at: new Date(),
-          });
+          // Save directly to Supabase
+          const { error } = await supabase
+            .from("fuel_log")
+            .insert({
+              ...fuelLogData,
+              created_at: new Date().toISOString(),
+            });
+          if (error) throw error;
           toast.success("Fuel log submitted successfully!");
 
           // Refresh logs from Firestore
@@ -1117,7 +1117,11 @@ export default function FuelLog() {
 
     try {
       setDeleting(true);
-      await deleteDoc(doc(db, "fuel log", selectedLog.id));
+      const { error } = await supabase
+        .from("fuel_log")
+        .delete()
+        .eq("id", selectedLog.id);
+      if (error) throw error;
       toast.success("Fuel log deleted successfully!");
       setDeleteConfirmDialog(false);
       setDrawerDetailOpen(false);
