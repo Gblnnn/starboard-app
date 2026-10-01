@@ -85,7 +85,11 @@ export default function ShiftLogs() {
       setLogs(mapped);
     } catch (error) {
       console.error("Error fetching mobile punch logs:", error);
-      toast.error("Failed to fetch mobile punching logs");
+      const message =
+        typeof error === "object" && error !== null && "message" in error
+          ? String(error.message)
+          : String(error);
+      toast.error(`Failed to fetch mobile punching logs: ${message}`);
     } finally {
       setLoading(false);
     }
