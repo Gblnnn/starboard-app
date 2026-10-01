@@ -1,95 +1,97 @@
 import Back from "@/components/back";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { db } from "@/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 import { Clock3, Loader2, MapPinned } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-type ShiftLogItem = {
+type PunchLogItem = {
   id: string;
+  user_id: string;
+  punch_time: string;
+  punch_type: number; // 0 = In, 1 = Out
+  device_serial: string;
+  mobile_location?: string;
+  // joined from employees
   employee_name?: string;
   employee_code?: string;
   email?: string;
-  shift_start_time?: any;
-  shift_start_time_iso?: string;
-  shift_end_time?: any;
-  shift_end_time_iso?: string;
-  shift_start_coordinate?: {
-    latitude?: number;
-    longitude?: number;
-    accuracy?: number;
-  };
-  shift_end_coordinate?: {
-    latitude?: number;
-    longitude?: number;
-    accuracy?: number;
-  };
-  location?: {
-    latitude?: number;
-    longitude?: number;
-    accuracy?: number;
-  };
-  created_at?: any;
 };
 
-const getDateFromUnknown = (value: any): Date | null => {
-  if (!value) return null;
+const getMapUrl = (locationStr?: string): string | null => {
+  if (!locationStr) return null;
+  // Location may be "lat, lng" or "lat, lng @ Place Name"
+  const coordPart = locationStr.split("@")[0].trim();
+  const parts = coordPart.split(",");
+  if (parts.length < 2) return null;
+  const lat = parseFloat(parts[0].trim());
+  const lng = parseFloat(parts[1].trim());
+  if (isNaN(lat) || isNaN(lng)) return null;
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+};
 
-  if (value?.toDate) {
-    const converted = value.toDate();
-    return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null;
-  }
-
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  return null;
+const formatLocation = (locationStr?: string): string | null => {
+  if (!locationStr) return null;
+  // If it contains " @ Place", show that
+  const atIdx = locationStr.indexOf("@");
+  if (atIdx !== -1) return locationStr.substring(atIdx + 1).trim();
+  return locationStr.trim();
 };
 
 export default function ShiftLogs() {
-  const [logs, setLogs] = useState<ShiftLogItem[]>([]);
+  const [logs, setLogs] = useState<PunchLogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
-  const fetchShiftLogs = async () => {
+  const fetchPunchLogs = async () => {
     try {
       setLoading(true);
-      const snap = await getDocs(collection(db, "shift-logs"));
 
-      const mapped = snap.docs.map((doc) => ({ ...(doc.data() as ShiftLogItem), id: doc.id }));
+      // Fetch punches joined with employees via device_user_id = user_id
+      const { data, error } = await supabase
+        .from("punches")
+        .select(`
+          id,
+          user_id,
+          punch_time,
+          punch_type,
+          device_serial,
+          mobile_location,
+          employees!inner (
+            name,
+            emp_id,
+            email
+          )
+        `)
+        .order("punch_time", { ascending: false })
+        .limit(500);
 
-      mapped.sort((a, b) => {
-        const aDate =
-          getDateFromUnknown(a.shift_start_time) ||
-          getDateFromUnknown(a.shift_start_time_iso) ||
-          getDateFromUnknown(a.created_at);
-        const bDate =
-          getDateFromUnknown(b.shift_start_time) ||
-          getDateFromUnknown(b.shift_start_time_iso) ||
-          getDateFromUnknown(b.created_at);
+      if (error) throw error;
 
-        return (bDate?.getTime() || 0) - (aDate?.getTime() || 0);
-      });
+      const mapped: PunchLogItem[] = (data || []).map((row: any) => ({
+        id: row.id,
+        user_id: row.user_id,
+        punch_time: row.punch_time,
+        punch_type: row.punch_type,
+        device_serial: row.device_serial,
+        mobile_location: row.mobile_location,
+        employee_name: row.employees?.name || "Unknown",
+        employee_code: row.employees?.emp_id || row.user_id,
+        email: row.employees?.email || "-",
+      }));
 
       setLogs(mapped);
     } catch (error) {
-      console.error("Error fetching shift logs:", error);
-      toast.error("Failed to fetch shift logs");
+      console.error("Error fetching mobile punch logs:", error);
+      toast.error("Failed to fetch mobile punching logs");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchShiftLogs();
+    fetchPunchLogs();
   }, []);
 
   useEffect(() => {
@@ -101,25 +103,25 @@ export default function ShiftLogs() {
     return () => mediaQuery.removeEventListener("change", applyMatch);
   }, []);
 
-  const getCoordinateText = (coordinate?: { latitude?: number; longitude?: number; accuracy?: number }) => {
-    if (typeof coordinate?.latitude !== "number" || typeof coordinate?.longitude !== "number") {
-      return null;
-    }
-
-    const lat = coordinate.latitude.toFixed(6);
-    const lng = coordinate.longitude.toFixed(6);
-    const accuracy =
-      typeof coordinate.accuracy === "number" ? ` (±${Math.round(coordinate.accuracy)}m)` : "";
-
-    return `${lat}, ${lng}${accuracy}`;
+  const thStyle: React.CSSProperties = {
+    textAlign: "left",
+    padding: "0.75rem",
+    fontWeight: 600,
+    fontSize: "0.8rem",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    position: isDesktop ? "sticky" : "static",
+    top: 0,
+    zIndex: 5,
+    background: "#f1f3f5",
+    borderBottom: "1px solid rgba(100,100,100,0.2)",
+    whiteSpace: "nowrap",
   };
 
-  const getMapUrl = (coordinate?: { latitude?: number; longitude?: number }) => {
-    if (typeof coordinate?.latitude !== "number" || typeof coordinate?.longitude !== "number") {
-      return null;
-    }
-
-    return `https://www.google.com/maps?q=${coordinate.latitude},${coordinate.longitude}`;
+  const tdStyle: React.CSSProperties = {
+    padding: "0.75rem",
+    verticalAlign: "middle",
+    fontSize: "0.875rem",
   };
 
   return (
@@ -127,12 +129,10 @@ export default function ShiftLogs() {
       <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}>
         <div style={{ padding: "", position: "fixed", zIndex: 20 }}>
           <Back
-            
             blurBG
             fixed
-            title="Shift Logs"
+            title="Mobile Punching Logs"
             subtitle={logs.length}
-            // icon={<Clock3 color="mediumslateblue" />}
           />
         </div>
 
@@ -159,8 +159,8 @@ export default function ShiftLogs() {
                   <EmptyMedia>
                     <Clock3 />
                   </EmptyMedia>
-                  <EmptyTitle>No Shift Logs</EmptyTitle>
-                  <EmptyDescription>You do not have any shift logs yet.</EmptyDescription>
+                  <EmptyTitle>No Mobile Punching Logs</EmptyTitle>
+                  <EmptyDescription>No mobile punch records found.</EmptyDescription>
                 </EmptyHeader>
               </Empty>
             </div>
@@ -185,101 +185,85 @@ export default function ShiftLogs() {
                   flex: 1,
                 }}
               >
-              <table style={{ width: "100%", minWidth: "1180px", borderCollapse: "separate", borderSpacing: 0, background: "#fff" }}>
-                <thead>
-                  <tr style={{ background: "rgba(100,100,100,0.12)" }}>
-                    <th style={{ textAlign: "left", padding: "0.75rem", fontWeight: 600, position: isDesktop ? "sticky" : "static", top: 0, zIndex: 5, background: "#f1f3f5", borderBottom: "1px solid rgba(100,100,100,0.2)" }}>Employee</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", fontWeight: 600, position: isDesktop ? "sticky" : "static", top: 0, zIndex: 5, background: "#f1f3f5", borderBottom: "1px solid rgba(100,100,100,0.2)" }}>Code</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", fontWeight: 600, position: isDesktop ? "sticky" : "static", top: 0, zIndex: 5, background: "#f1f3f5", borderBottom: "1px solid rgba(100,100,100,0.2)" }}>Email</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", fontWeight: 600, position: isDesktop ? "sticky" : "static", top: 0, zIndex: 5, background: "#f1f3f5", borderBottom: "1px solid rgba(100,100,100,0.2)" }}>Start Time</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", fontWeight: 600, position: isDesktop ? "sticky" : "static", top: 0, zIndex: 5, background: "#f1f3f5", borderBottom: "1px solid rgba(100,100,100,0.2)" }}>End Time</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", fontWeight: 600, position: isDesktop ? "sticky" : "static", top: 0, zIndex: 5, background: "#f1f3f5", borderBottom: "1px solid rgba(100,100,100,0.2)" }}>Start Coordinates</th>
-                    <th style={{ textAlign: "left", padding: "0.75rem", fontWeight: 600, position: isDesktop ? "sticky" : "static", top: 0, zIndex: 5, background: "#f1f3f5", borderBottom: "1px solid rgba(100,100,100,0.2)" }}>End Coordinates</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log) => {
-                    const shiftStartTime =
-                      getDateFromUnknown(log.shift_start_time) ||
-                      getDateFromUnknown(log.shift_start_time_iso) ||
-                      getDateFromUnknown(log.created_at);
-                    const shiftEndTime =
-                      getDateFromUnknown(log.shift_end_time) ||
-                      getDateFromUnknown(log.shift_end_time_iso);
+                <table style={{ width: "100%", minWidth: "900px", borderCollapse: "separate", borderSpacing: 0, background: "#fff" }}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Employee</th>
+                      <th style={thStyle}>Emp ID</th>
+                      <th style={thStyle}>Email</th>
+                      <th style={thStyle}>Punch Time</th>
+                      <th style={thStyle}>Type</th>
+                      <th style={thStyle}>Device</th>
+                      <th style={thStyle}>Location</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.map((log) => {
+                      const punchDate = log.punch_time ? new Date(log.punch_time) : null;
+                      const mapUrl = getMapUrl(log.mobile_location);
+                      const locationLabel = formatLocation(log.mobile_location);
+                      const isIn = log.punch_type === 0;
 
-                    const startCoordinate = log.shift_start_coordinate || log.location;
-                    const endCoordinate = log.shift_end_coordinate;
-                    const startCoordinateText = getCoordinateText(startCoordinate);
-                    const endCoordinateText = getCoordinateText(endCoordinate);
-                    const startMapUrl = getMapUrl(startCoordinate);
-                    const endMapUrl = getMapUrl(endCoordinate);
-
-                    return (
-                      <tr key={log.id} style={{ borderTop: "1px solid rgba(100,100,100,0.15)" }}>
-                        <td style={{ padding: "0.75rem", verticalAlign: "top" }}>
-                          {log.employee_name || "Unknown Employee"}
-                        </td>
-                        <td style={{ padding: "0.75rem", verticalAlign: "top", opacity: 0.9 }}>
-                          {log.employee_code || "-"}
-                        </td>
-                        <td style={{ padding: "0.75rem", verticalAlign: "top", opacity: 0.9 }}>
-                          {log.email || "-"}
-                        </td>
-                        <td style={{ padding: "0.75rem", verticalAlign: "top" }}>
-                          {shiftStartTime ? shiftStartTime.toLocaleString() : "-"}
-                        </td>
-                        <td style={{ padding: "0.75rem", verticalAlign: "top" }}>
-                          {shiftEndTime ? shiftEndTime.toLocaleString() : "-"}
-                        </td>
-                        <td style={{ padding: "0.75rem", verticalAlign: "top" }}>
-                          {startMapUrl && startCoordinateText ? (
-                            <a
-                              href={startMapUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                color: "mediumslateblue",
-                                textDecoration: "underline",
-                                fontSize: "0.9rem",
-                              }}
-                            >
-                              <MapPinned width={14} height={14} />
-                              {startCoordinateText}
-                            </a>
-                          ) : (
-                            <span style={{ opacity: 0.7 }}>Location not available</span>
-                          )}
-                        </td>
-                        <td style={{ padding: "0.75rem", verticalAlign: "top" }}>
-                          {endMapUrl && endCoordinateText ? (
-                            <a
-                              href={endMapUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                color: "mediumslateblue",
-                                textDecoration: "underline",
-                                fontSize: "0.9rem",
-                              }}
-                            >
-                              <MapPinned width={14} height={14} />
-                              {endCoordinateText}
-                            </a>
-                          ) : (
-                            <span style={{ opacity: 0.7 }}>Location not available</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      return (
+                        <tr key={log.id} style={{ borderTop: "1px solid rgba(100,100,100,0.1)" }}>
+                          <td style={{ ...tdStyle, fontWeight: 600 }}>
+                            {log.employee_name}
+                          </td>
+                          <td style={{ ...tdStyle, opacity: 0.75 }}>
+                            {log.employee_code || "-"}
+                          </td>
+                          <td style={{ ...tdStyle, opacity: 0.75 }}>
+                            {log.email || "-"}
+                          </td>
+                          <td style={tdStyle}>
+                            {punchDate ? punchDate.toLocaleString("en-GB", {
+                              day: "2-digit", month: "short", year: "numeric",
+                              hour: "2-digit", minute: "2-digit", second: "2-digit",
+                            }) : "-"}
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{
+                              display: "inline-block",
+                              padding: "0.2rem 0.6rem",
+                              borderRadius: "0.4rem",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              background: isIn ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)",
+                              color: isIn ? "rgb(22,163,74)" : "rgb(220,38,38)",
+                            }}>
+                              {isIn ? "IN" : "OUT"}
+                            </span>
+                          </td>
+                          <td style={{ ...tdStyle, opacity: 0.6, fontSize: "0.8rem" }}>
+                            {log.device_serial || "-"}
+                          </td>
+                          <td style={tdStyle}>
+                            {mapUrl && locationLabel ? (
+                              <a
+                                href={mapUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.35rem",
+                                  color: "mediumslateblue",
+                                  textDecoration: "underline",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                <MapPinned width={14} height={14} />
+                                {locationLabel}
+                              </a>
+                            ) : (
+                              <span style={{ opacity: 0.4, fontSize: "0.85rem" }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
