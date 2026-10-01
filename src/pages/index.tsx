@@ -639,10 +639,10 @@ export default function Index() {
 
                   {hasModuleAccess('shift_logs') && (
                     <GridTile
-                      title="Shift Logs"
-                      description="Daily shifts and duty entries"
+                      title="Mobile Punching Logs"
+                      description="Mobile punch-in and punch-out records"
                       icon={<Clock3 width="2.5rem" />}
-                      onClick={() => authenticateModule('shift_logs', '/shift-logs', 'Shift Logs')}
+                      onClick={() => authenticateModule('shift_logs', '/shift-logs', 'Mobile Punching Logs')}
                     />
                   )}
 
