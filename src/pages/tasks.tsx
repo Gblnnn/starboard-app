@@ -179,7 +179,7 @@ export default function Tasks() {
         if (!hasStartedShift) return false;
 
         if (!activeShiftLogId) {
-            toast.error("Shift log is not synced yet. Connect to internet and refresh before ending shift.");
+            toast.error("Mobile punch record is not synced yet. Connect to internet and refresh before ending shift.");
             return false;
         }
 
