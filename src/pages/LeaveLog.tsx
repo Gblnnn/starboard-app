@@ -37,6 +37,7 @@ interface LeaveRecord {
   status: string;
   created_at: string;
   employee_name?: string;
+  employee_code?: string;
   actual_return: string | null;
 }
 
@@ -64,6 +65,8 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
   // Search & Filter
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [fromDateFilter, setFromDateFilter] = useState('');
+  const [fromMonthFilter, setFromMonthFilter] = useState('');
 
   // Add Log Dialog
   const [isAdding, setIsAdding] = useState(false);
@@ -71,6 +74,7 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
     emp_id: '',
     from: '',
     till: '',
+    actual_return: '',
     status: 'Annual Leave'
   });
   const [addError, setAddError] = useState<string | null>(null);
@@ -124,10 +128,15 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
       if (empErr) throw empErr;
       if (leaveErr) throw leaveErr;
 
-      const empMap = new Map((empData || []).map(e => [e.device_user_id, e.name]));
+      const employeeMap = new Map<string, Employee>();
+      (empData || []).forEach(employee => {
+        employeeMap.set(employee.device_user_id, employee);
+        employeeMap.set(employee.emp_id, employee);
+      });
       const resolvedLeaves = (leaveData || []).map((l: any) => ({
         ...l,
-        employee_name: empMap.get(l.emp_id) || 'Unknown'
+        employee_name: employeeMap.get(l.emp_id)?.name || 'Unknown',
+        employee_code: employeeMap.get(l.emp_id)?.emp_id || ''
       }));
 
       setLeaves(resolvedLeaves);
@@ -159,6 +168,29 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
     };
   }, [openEmpSelect]);
 
+  const getTimesheetConflictDates = async (employeeCode: string, fromDate: string, actualReturnDate: string) => {
+    const conflictDates = new Set<string>();
+    let rangeStart = 0;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from('timesheet')
+        .select('date')
+        .eq('employee_code', employeeCode)
+        .gte('date', fromDate)
+        .lte('date', actualReturnDate)
+        .order('date')
+        .range(rangeStart, rangeStart + 999);
+
+      if (error) throw error;
+      (data || []).forEach(row => conflictDates.add(String(row.date).slice(0, 10)));
+      if (!data || data.length < 1000) break;
+      rangeStart += 1000;
+    }
+
+    return [...conflictDates].sort();
+  };
+
   const handleAdd = async () => {
     if (!canEditLeaves) {
       toast.error('You do not have permission to log leaves.');
@@ -176,14 +208,33 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
       setAddError('Return date cannot be earlier than start date.');
       return;
     }
+    if (addForm.status !== 'Cancel' && addForm.actual_return && addForm.actual_return < addForm.from) {
+      setAddError('Actual return date cannot be earlier than start date.');
+      return;
+    }
 
     setSaving(true);
     setAddError(null);
     try {
+      const actualReturnDate = addForm.status === 'Cancel' ? '' : addForm.actual_return;
+      const selectedEmployee = employees.find(e => e.device_user_id === addForm.emp_id || e.emp_id === addForm.emp_id);
+      if (actualReturnDate && !selectedEmployee?.emp_id) {
+        setAddError('Unable to find the employee code for this leave log.');
+        return;
+      }
+      if (actualReturnDate && selectedEmployee?.emp_id) {
+        const conflictDates = await getTimesheetConflictDates(selectedEmployee.emp_id, addForm.from, actualReturnDate);
+        if (conflictDates.length > 0) {
+          setAddError(`Cannot save actual return date. Timesheet entries exist on: ${conflictDates.join(', ')}`);
+          return;
+        }
+      }
+
       const payload = {
         emp_id: addForm.emp_id,
         from: addForm.from,
-        till: addForm.till || null,
+        till: addForm.status === 'Cancel' ? null : addForm.till || null,
+        actual_return: actualReturnDate || null,
         status: addForm.status
       };
 
@@ -194,10 +245,9 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
       if (insErr) throw insErr;
 
       // Update employee status
-      const employee = employees.find(e => e.device_user_id === addForm.emp_id || e.emp_id === addForm.emp_id);
+      const employee = selectedEmployee;
       if (employee) {
-        //const nextStatus = 'Leave';
-          const nextStatus = addForm.status.trim() === 'Cancel' ? 'Cancel' : 'Leave';
+        const nextStatus = actualReturnDate ? 'Active' : addForm.status.trim() === 'Cancel' ? 'Cancel' : 'Leave';
         await supabase
           .from('employees')
           .update({ status: nextStatus })
@@ -206,7 +256,7 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
 
       toast.success('Leave log recorded successfully.');
       setIsAdding(false);
-      setAddForm({ emp_id: '', from: '', till: '', status: 'Annual Leave' });
+      setAddForm({ emp_id: '', from: '', till: '', actual_return: '', status: 'Annual Leave' });
       loadData();
     } catch (err: any) {
       console.error(err);
@@ -274,47 +324,67 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
     }
   };
 
-  const handleSetActualReturnDate = async (id: number, empId: string, actualReturnDate: string) => {
+  const handleSetActualReturnDate = async (record: LeaveRecord, actualReturnDate: string) => {
     if (!canEditLeaves) {
       toast.error('You do not have permission to edit leave logs.');
       return;
     }
-    toast.loading('Setting actual return date...', { id: `actual-return-${id}` });
+    if (record.status === 'Cancel') return;
+    const employee = employees.find(e => e.device_user_id === record.emp_id || e.emp_id === record.emp_id);
+    const employeeCode = employee?.emp_id || record.employee_code;
+    if (actualReturnDate && actualReturnDate < record.from) {
+      toast.error('Actual return date cannot be earlier than start date.');
+      return;
+    }
+    toast.loading('Saving actual return date...', { id: `actual-return-${record.id}` });
     try {
-      // 1. Update the leave log entry with the actual return date
+      if (actualReturnDate) {
+        if (!employeeCode) throw new Error('Unable to find the employee code for this leave log.');
+        const conflictDates = await getTimesheetConflictDates(employeeCode, record.from, actualReturnDate);
+        if (conflictDates.length > 0) {
+          toast.error(`Cannot save actual return date. Timesheet entries exist on: ${conflictDates.join(', ')}`, { id: `actual-return-${record.id}` });
+          return;
+        }
+      }
+
       const { error: updErr } = await supabase
         .from('leave_log')
-        .update({ actual_return: actualReturnDate })
-        .eq('id', id);
+        .update({ actual_return: actualReturnDate || null })
+        .eq('id', record.id);
 
       if (updErr) throw updErr;
 
-      // 2. Set employee status to Active
-      const employee = employees.find(e => e.device_user_id === empId || e.emp_id === empId);
       if (employee) {
         const { error: empErr } = await supabase
           .from('employees')
-          .update({ status: 'Active' })
+          .update({ status: actualReturnDate ? 'Active' : 'Leave' })
           .eq('id', employee.id);
         if (empErr) throw empErr;
       }
 
-      toast.success('Actual return date set successfully. Employee status updated to Active.', { id: `actual-return-${id}` });
+      toast.success('Actual return date saved successfully.', { id: `actual-return-${record.id}` });
       loadData();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Failed to set actual return date.', { id: `actual-return-${id}` });
+      toast.error(err.message || 'Failed to save actual return date.', { id: `actual-return-${record.id}` });
     }
   };
 
   const filteredLeaves = useMemo(() => {
     return leaves.filter(l => {
       const matchesSearch = l.employee_name?.toLowerCase().includes(search.toLowerCase()) ||
+        l.employee_code?.toLowerCase().includes(search.toLowerCase()) ||
         l.emp_id.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = !statusFilter || statusFilter === 'ALL_TYPES' || l.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesStatus = statusFilter === 'ALL_TYPES'
+        ? true
+        : statusFilter
+          ? l.status === statusFilter
+          : l.status !== 'Cancel' && !l.actual_return;
+      const matchesFromDate = !fromDateFilter || l.from === fromDateFilter;
+      const matchesFromMonth = !fromMonthFilter || l.from.startsWith(fromMonthFilter);
+      return matchesSearch && matchesStatus && matchesFromDate && matchesFromMonth;
     });
-  }, [leaves, search, statusFilter]);
+  }, [leaves, search, statusFilter, fromDateFilter, fromMonthFilter]);
 
   const selectableEmployees = useMemo(() => {
     const activeEmps = employees.filter(emp => {
@@ -379,11 +449,40 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
           />
         </div>
 
+        <Input
+          type="date"
+          aria-label="Filter by from date"
+          title="Filter by from date"
+          value={fromDateFilter}
+          onChange={(e) => setFromDateFilter(e.target.value)}
+          className="w-[150px] h-9"
+        />
+        <Input
+          type="month"
+          aria-label="Filter by from month"
+          title="Filter by from month"
+          value={fromMonthFilter}
+          onChange={(e) => setFromMonthFilter(e.target.value)}
+          className="w-[150px] h-9"
+        />
+        {(fromDateFilter || fromMonthFilter) && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setFromDateFilter('');
+              setFromMonthFilter('');
+            }}
+            className="h-9"
+          >
+            All dates
+          </Button>
+        )}
 
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[120px] h-9">
-            <SelectValue placeholder="All" />
+            <SelectValue placeholder="Open leaves" />
           </SelectTrigger>
           <SelectContent className="bg-white border border-slate-200">
             <SelectItem value="ALL_TYPES">All</SelectItem>
@@ -466,7 +565,7 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                       </div>
                       <div className="text-left">
                         <div className="font-medium text-slate-900 text-left">{record.employee_name}</div>
-                        <div className="text-xs text-slate-500 font-mono text-left">{record.emp_id}</div>
+                        <div className="text-xs text-slate-500 font-mono text-left">{record.employee_code}</div>
                       </div>
                     </div>
                   </TableCell>
@@ -481,7 +580,9 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                   </TableCell>
                   <TableCell className="py-3 text-slate-600">{record.from}</TableCell>
                   <TableCell className="py-3">
-                    {record.till ? (
+                    {record.status === 'Cancel' ? (
+                      <span className="text-slate-600">{record.till || '—'}</span>
+                    ) : record.till ? (
                       <span className="text-slate-600">{record.till}</span>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -505,25 +606,23 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                     )}
                   </TableCell>
                   <TableCell className="py-3">
-                    {record.actual_return ? (
-                      <span className="text-slate-600 font-medium">{record.actual_return}</span>
+                    {record.status === 'Cancel' ? (
+                      <span className="text-slate-600">{record.actual_return || '—'}</span>
                     ) : (
                       <div>
                         {canEditLeaves ? (
                           <input
                             type="date"
+                            key={`${record.id}-${record.actual_return || 'none'}`}
+                            defaultValue={record.actual_return || ''}
                             onChange={async (e) => {
                               const dateVal = e.target.value;
-                              if (dateVal) {
-                                await handleSetActualReturnDate(record.id, record.emp_id, dateVal);
-                              }
+                              await handleSetActualReturnDate(record, dateVal);
                             }}
                             className="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-600 cursor-pointer hover:border-slate-300 focus:outline-none"
                             title="Set actual return date"
                           />
-                        ) : (
-                          <span className="text-slate-400 text-xs italic">Not returned yet</span>
-                        )}
+                        ) : <span className="text-slate-600 font-medium">{record.actual_return || 'Not returned yet'}</span>}
                       </div>
                     )}
                   </TableCell>
@@ -676,10 +775,14 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">
                   Leave Type <span className="text-rose-500">*</span>
                 </label>
-                <Select
-                  value={addForm.status}
-                  onValueChange={(val) => setAddForm(f => ({ ...f, status: val }))}
-                >
+                        <Select
+                          value={addForm.status}
+                          onValueChange={(val) => setAddForm(f => ({
+                            ...f,
+                            status: val,
+                            ...(val === 'Cancel' ? { till: '', actual_return: '' } : {})
+                          }))}
+                        >
                   <SelectTrigger className="h-10 w-full rounded-lg border-slate-200 bg-white text-sm shadow-sm">
                     <SelectValue placeholder="Select leave type" />
                   </SelectTrigger>
@@ -711,11 +814,24 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                     type="date"
                     value={addForm.till}
                     onChange={(e) => setAddForm(f => ({ ...f, till: e.target.value }))}
+                    disabled={addForm.status === 'Cancel'}
                     className="h-10 rounded-lg border-slate-200 text-sm shadow-sm"
                   />
                   <span className="mt-1.5 block text-[10px] leading-none text-slate-400">
-                    Leave blank if the employee is on open-ended leave.
+                    {addForm.status === 'Cancel' ? 'Not available for cancelled leave.' : 'Leave blank if the employee is on open-ended leave.'}
                   </span>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                    Actual Return Date <span className="text-slate-400">(Optional)</span>
+                  </label>
+                  <Input
+                    type="date"
+                    value={addForm.actual_return}
+                    onChange={(e) => setAddForm(f => ({ ...f, actual_return: e.target.value }))}
+                    disabled={addForm.status === 'Cancel'}
+                    className="h-10 rounded-lg border-slate-200 text-sm shadow-sm"
+                  />
                 </div>
               </div>
             </div>
