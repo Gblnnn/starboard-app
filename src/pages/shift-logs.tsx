@@ -39,79 +39,158 @@ const formatLocation = (locationStr?: string): string | null => {
   return locationStr.trim();
 };
 
+const getMuscatDateKey = (dateValue: string | Date): string => {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Muscat",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(dateValue));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const getCurrentMonthKey = (): string => getMuscatDateKey(new Date()).slice(0, 7);
+
+const getMonthRange = (monthKey: string) => {
+  const [year, month] = monthKey.split("-").map(Number);
+  const muscatOffsetMs = 4 * 60 * 60 * 1000;
+  return {
+    start: new Date(Date.UTC(year, month - 1, 1) - muscatOffsetMs).toISOString(),
+    end: new Date(Date.UTC(year, month, 1) - muscatOffsetMs).toISOString(),
+  };
+};
+
+const getRecentMonths = (count: number): { value: string; label: string }[] => {
+  const [year, month] = getCurrentMonthKey().split("-").map(Number);
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(Date.UTC(year, month - 1 - index, 1));
+    const value = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    return {
+      value,
+      label: date.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }),
+    };
+  });
+};
+
 export default function ShiftLogs() {
   const [logs, setLogs] = useState<PunchLogItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
+  const [selectedDate, setSelectedDate] = useState("all");
+  const monthOptions = getRecentMonths(24);
 
-  const fetchPunchLogs = async () => {
-    try {
-      setLoading(true);
+  const filteredLogs = logs.filter((log) =>
+    (selectedUserId === "all" || log.user_id === selectedUserId) &&
+    (selectedDate === "all" || getMuscatDateKey(log.punch_time) === selectedDate)
+  );
 
-      const { data: punchRows, error: punchesError } = await supabase
-        .from("punches")
-        .select(`
-          id,
-          user_id,
-          punch_time,
-          punch_type,
-          device_serial,
-          mobile_location
-        `)
-        .eq("verify_type", 5)
-        .order("punch_time", { ascending: false })
-        .limit(500);
+  const employeeOptions = Array.from(
+    new Map(logs.map((log) => [log.user_id, log])).values()
+  ).sort((a, b) => (a.employee_name || "").localeCompare(b.employee_name || ""));
 
-      if (punchesError) throw punchesError;
-
-      const rows = punchRows || [];
-      const userIds = Array.from(new Set(rows.map((row: any) => row.user_id).filter(Boolean)));
-      const employeesByUserId: Record<string, any> = {};
-
-      if (userIds.length > 0) {
-        const { data: employees, error: employeesError } = await supabase
-          .from("employees")
-          .select("device_user_id, name, emp_id, email")
-          .in("device_user_id", userIds);
-
-        if (employeesError) throw employeesError;
-
-        for (const employee of employees || []) {
-          employeesByUserId[employee.device_user_id] = employee;
-        }
-      }
-
-      const mapped: PunchLogItem[] = rows.map((row: any) => {
-        const employee = employeesByUserId[row.user_id];
-        return {
-          id: row.id,
-          user_id: row.user_id,
-          punch_time: row.punch_time,
-          punch_type: row.punch_type,
-          device_serial: row.device_serial,
-          mobile_location: row.mobile_location,
-          employee_name: employee?.name || "Unknown",
-          employee_code: employee?.emp_id || row.user_id,
-          email: employee?.email || "-",
-        };
-      });
-
-      setLogs(mapped);
-    } catch (error) {
-      console.error("Error fetching mobile punch logs:", error);
-      const message =
-        typeof error === "object" && error !== null && "message" in error
-          ? String(error.message)
-          : String(error);
-      toast.error(`Failed to fetch mobile punching logs: ${message}`);
-    } finally {
-      setLoading(false);
-    }
+  const dateOptions = Array.from(new Set(logs.map((log) => getMuscatDateKey(log.punch_time)))).sort(
+    (a, b) => b.localeCompare(a)
+  );
+  const filterSelectStyle: React.CSSProperties = {
+    maxWidth: "100%",
+    padding: "0.25rem",
+    border: "1px solid rgba(100,100,100,0.25)",
+    borderRadius: "0.25rem",
+    background: "#fff",
+    fontSize: "0.75rem",
+    fontWeight: 400,
+    textTransform: "none",
   };
 
   useEffect(() => {
-    fetchPunchLogs();
-  }, []);
+    let cancelled = false;
+
+    const fetchPunchLogs = async () => {
+      try {
+        setLoading(true);
+
+        const pageSize = 500;
+        const rows: any[] = [];
+        const monthRange = selectedMonth === "all" ? null : getMonthRange(selectedMonth);
+        let offset = 0;
+
+        while (!cancelled) {
+          let query = supabase
+            .from("punches")
+            .select("id, user_id, punch_time, punch_type, device_serial, mobile_location")
+            .eq("verify_type", 5)
+            .order("punch_time", { ascending: false })
+            .range(offset, offset + pageSize - 1);
+
+          if (monthRange) {
+            query = query.gte("punch_time", monthRange.start).lt("punch_time", monthRange.end);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          const page = data || [];
+          rows.push(...page);
+          if (page.length < pageSize) break;
+          offset += pageSize;
+        }
+
+        if (cancelled) return;
+
+        const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+        const employeesByUserId: Record<string, any> = {};
+        const employeeBatchSize = 500;
+
+        for (let index = 0; index < userIds.length; index += employeeBatchSize) {
+          const { data: employees, error: employeesError } = await supabase
+            .from("employees")
+            .select("device_user_id, name, emp_id, email")
+            .in("device_user_id", userIds.slice(index, index + employeeBatchSize));
+
+          if (employeesError) throw employeesError;
+
+          for (const employee of employees || []) {
+            employeesByUserId[employee.device_user_id] = employee;
+          }
+        }
+
+        if (cancelled) return;
+
+        setLogs(rows.map((row) => {
+          const employee = employeesByUserId[row.user_id];
+          return {
+            id: row.id,
+            user_id: row.user_id,
+            punch_time: row.punch_time,
+            punch_type: row.punch_type,
+            device_serial: row.device_serial,
+            mobile_location: row.mobile_location,
+            employee_name: employee?.name || "Unknown",
+            employee_code: employee?.emp_id || row.user_id,
+            email: employee?.email || "-",
+          };
+        }));
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Error fetching mobile punch logs:", error);
+        const message =
+          typeof error === "object" && error !== null && "message" in error
+            ? String(error.message)
+            : String(error);
+        toast.error(`Failed to fetch mobile punching logs: ${message}`);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void fetchPunchLogs();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMonth]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -151,7 +230,7 @@ export default function ShiftLogs() {
             blurBG
             fixed
             title="Mobile Punching Logs"
-            subtitle={logs.length}
+            subtitle={filteredLogs.length}
           />
         </div>
 
@@ -171,15 +250,17 @@ export default function ShiftLogs() {
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "70vh" }}>
               <Loader2 className="animate-spin" />
             </div>
-          ) : logs.length === 0 ? (
+          ) : filteredLogs.length === 0 ? (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "70vh" }}>
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia>
                     <Clock3 />
                   </EmptyMedia>
-                  <EmptyTitle>No Mobile Punching Logs</EmptyTitle>
-                  <EmptyDescription>No mobile punch records found.</EmptyDescription>
+                  <EmptyTitle>{logs.length === 0 ? "No Mobile Punching Logs" : "No Matching Punches"}</EmptyTitle>
+                  <EmptyDescription>
+                    {logs.length === 0 ? "No mobile punch records found for this month." : "Try changing the selected filters."}
+                  </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             </div>
@@ -207,17 +288,64 @@ export default function ShiftLogs() {
                 <table style={{ width: "100%", minWidth: "900px", borderCollapse: "separate", borderSpacing: 0, background: "#fff" }}>
                   <thead>
                     <tr>
-                      <th style={thStyle}>Employee</th>
+                      <th style={thStyle}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: "flex-start" }}>
+                          <span>Employee</span>
+                          <select
+                            aria-label="Filter by employee"
+                            value={selectedUserId}
+                            onChange={(event) => setSelectedUserId(event.target.value)}
+                            style={filterSelectStyle}
+                          >
+                            <option value="all">All employees</option>
+                            {employeeOptions.map((employee) => (
+                              <option key={employee.user_id} value={employee.user_id}>
+                                {employee.employee_name} ({employee.employee_code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </th>
                       <th style={thStyle}>Emp ID</th>
                       <th style={thStyle}>Email</th>
-                      <th style={thStyle}>Punch Time</th>
+                      <th style={thStyle}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: "flex-start" }}>
+                          <span>Punch Time</span>
+                          <div style={{ display: "flex", gap: "0.35rem" }}>
+                            <select
+                              aria-label="Filter by month"
+                              value={selectedMonth}
+                              onChange={(event) => {
+                                setSelectedMonth(event.target.value);
+                                setSelectedUserId("all");
+                                setSelectedDate("all");
+                              }}
+                              style={filterSelectStyle}
+                            >
+                              <option value="all">All months</option>
+                              {monthOptions.map((month) => (
+                                <option key={month.value} value={month.value}>{month.label}</option>
+                              ))}
+                            </select>
+                            <select
+                              aria-label="Filter by date"
+                              value={selectedDate}
+                              onChange={(event) => setSelectedDate(event.target.value)}
+                              style={filterSelectStyle}
+                            >
+                              <option value="all">All dates</option>
+                              {dateOptions.map((date) => <option key={date} value={date}>{date}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      </th>
                       <th style={thStyle}>Type</th>
                       <th style={thStyle}>Device</th>
                       <th style={thStyle}>Location</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {logs.map((log) => {
+                    {filteredLogs.map((log) => {
                       const punchDate = log.punch_time ? new Date(log.punch_time) : null;
                       const mapUrl = getMapUrl(log.mobile_location);
                       const locationLabel = formatLocation(log.mobile_location);
