@@ -61,7 +61,7 @@ const MODULES = [
   { id: 'asset_master', name: 'Devices', icon: Laptop2 },
   { id: 'projects', name: 'Projects', icon: Package },
   { id: 'attendance', name: 'Attendance', icon: Clock3 },
-  { id: 'shift_logs', name: 'Shift Logs', icon: Clock3 },
+  { id: 'shift_logs', name: 'Mobile Punching Logs', icon: Clock3 },
   { id: 'vehicle_log_book', name: 'Vehicles', icon: Car },
   { id: 'petty_cash', name: 'Petty Cash', icon: Wallet },
   { id: 'offer_letters', name: 'Offer Letters', icon: FileText },
