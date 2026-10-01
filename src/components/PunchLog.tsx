@@ -424,7 +424,7 @@ export function PunchLog({ punches, employees, onFilteredPunchesChange, onEmploy
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {punch.device_serial === 'MOBILE' || !!punch.mobile_location || (punch.raw && punch.raw.includes('MOBILE'))
+                      {punch.verify_type === 5
                         ? 'Mobile'
                         : VERIFY_LABELS[punch.verify_type] ?? punch.verify_type}
                     </td>
