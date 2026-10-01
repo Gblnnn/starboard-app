@@ -64,6 +64,7 @@ export default function ShiftLogs() {
             email
           )
         `)
+        .eq("verify_type", 5)
         .order("punch_time", { ascending: false })
         .limit(500);
 
