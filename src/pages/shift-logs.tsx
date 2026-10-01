@@ -246,6 +246,66 @@ export default function ShiftLogs() {
             gap: "0.85rem",
           }}
         >
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "flex-end",
+              gap: "0.75rem",
+              padding: "0.75rem",
+              border: "1px solid rgba(100,100,100,0.2)",
+              borderRadius: "0.5rem",
+              background: "#fff",
+            }}
+          >
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.75rem", fontWeight: 600 }}>
+              Employee
+              <select
+                aria-label="Filter by employee"
+                value={selectedUserId}
+                onChange={(event) => setSelectedUserId(event.target.value)}
+                style={filterSelectStyle}
+              >
+                <option value="all">All employees</option>
+                {employeeOptions.map((employee) => (
+                  <option key={employee.user_id} value={employee.user_id}>
+                    {employee.employee_name} ({employee.employee_code})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.75rem", fontWeight: 600 }}>
+              Month
+              <select
+                aria-label="Filter by month"
+                value={selectedMonth}
+                onChange={(event) => {
+                  setSelectedMonth(event.target.value);
+                  setSelectedUserId("all");
+                  setSelectedDate("all");
+                }}
+                style={filterSelectStyle}
+              >
+                <option value="all">All months</option>
+                {monthOptions.map((month) => (
+                  <option key={month.value} value={month.value}>{month.label}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.75rem", fontWeight: 600 }}>
+              Date
+              <select
+                aria-label="Filter by date"
+                value={selectedDate}
+                onChange={(event) => setSelectedDate(event.target.value)}
+                style={filterSelectStyle}
+              >
+                <option value="all">All dates</option>
+                {dateOptions.map((date) => <option key={date} value={date}>{date}</option>)}
+              </select>
+            </label>
+          </div>
+
           {loading ? (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "70vh" }}>
               <Loader2 className="animate-spin" />
@@ -288,57 +348,10 @@ export default function ShiftLogs() {
                 <table style={{ width: "100%", minWidth: "900px", borderCollapse: "separate", borderSpacing: 0, background: "#fff" }}>
                   <thead>
                     <tr>
-                      <th style={thStyle}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: "flex-start" }}>
-                          <span>Employee</span>
-                          <select
-                            aria-label="Filter by employee"
-                            value={selectedUserId}
-                            onChange={(event) => setSelectedUserId(event.target.value)}
-                            style={filterSelectStyle}
-                          >
-                            <option value="all">All employees</option>
-                            {employeeOptions.map((employee) => (
-                              <option key={employee.user_id} value={employee.user_id}>
-                                {employee.employee_name} ({employee.employee_code})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </th>
+                      <th style={thStyle}>Employee</th>
                       <th style={thStyle}>Emp ID</th>
                       <th style={thStyle}>Email</th>
-                      <th style={thStyle}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: "flex-start" }}>
-                          <span>Punch Time</span>
-                          <div style={{ display: "flex", gap: "0.35rem" }}>
-                            <select
-                              aria-label="Filter by month"
-                              value={selectedMonth}
-                              onChange={(event) => {
-                                setSelectedMonth(event.target.value);
-                                setSelectedUserId("all");
-                                setSelectedDate("all");
-                              }}
-                              style={filterSelectStyle}
-                            >
-                              <option value="all">All months</option>
-                              {monthOptions.map((month) => (
-                                <option key={month.value} value={month.value}>{month.label}</option>
-                              ))}
-                            </select>
-                            <select
-                              aria-label="Filter by date"
-                              value={selectedDate}
-                              onChange={(event) => setSelectedDate(event.target.value)}
-                              style={filterSelectStyle}
-                            >
-                              <option value="all">All dates</option>
-                              {dateOptions.map((date) => <option key={date} value={date}>{date}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                      </th>
+                      <th style={thStyle}>Punch Time</th>
                       <th style={thStyle}>Type</th>
                       <th style={thStyle}>Device</th>
                       <th style={thStyle}>Location</th>
