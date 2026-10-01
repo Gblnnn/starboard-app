@@ -48,8 +48,7 @@ export default function ShiftLogs() {
     try {
       setLoading(true);
 
-      // Fetch punches joined with employees via device_user_id = user_id
-      const { data, error } = await supabase
+      const { data: punchRows, error: punchesError } = await supabase
         .from("punches")
         .select(`
           id,
@@ -57,30 +56,45 @@ export default function ShiftLogs() {
           punch_time,
           punch_type,
           device_serial,
-          mobile_location,
-          employees!inner (
-            name,
-            emp_id,
-            email
-          )
+          mobile_location
         `)
         .eq("verify_type", 5)
         .order("punch_time", { ascending: false })
         .limit(500);
 
-      if (error) throw error;
+      if (punchesError) throw punchesError;
 
-      const mapped: PunchLogItem[] = (data || []).map((row: any) => ({
-        id: row.id,
-        user_id: row.user_id,
-        punch_time: row.punch_time,
-        punch_type: row.punch_type,
-        device_serial: row.device_serial,
-        mobile_location: row.mobile_location,
-        employee_name: row.employees?.name || "Unknown",
-        employee_code: row.employees?.emp_id || row.user_id,
-        email: row.employees?.email || "-",
-      }));
+      const rows = punchRows || [];
+      const userIds = Array.from(new Set(rows.map((row: any) => row.user_id).filter(Boolean)));
+      const employeesByUserId: Record<string, any> = {};
+
+      if (userIds.length > 0) {
+        const { data: employees, error: employeesError } = await supabase
+          .from("employees")
+          .select("device_user_id, name, emp_id, email")
+          .in("device_user_id", userIds);
+
+        if (employeesError) throw employeesError;
+
+        for (const employee of employees || []) {
+          employeesByUserId[employee.device_user_id] = employee;
+        }
+      }
+
+      const mapped: PunchLogItem[] = rows.map((row: any) => {
+        const employee = employeesByUserId[row.user_id];
+        return {
+          id: row.id,
+          user_id: row.user_id,
+          punch_time: row.punch_time,
+          punch_type: row.punch_type,
+          device_serial: row.device_serial,
+          mobile_location: row.mobile_location,
+          employee_name: employee?.name || "Unknown",
+          employee_code: employee?.emp_id || row.user_id,
+          email: employee?.email || "-",
+        };
+      });
 
       setLogs(mapped);
     } catch (error) {
