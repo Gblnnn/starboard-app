@@ -60,11 +60,13 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingRowId, setSavingRowId] = useState<number | null>(null);
+  const [dateDrafts, setDateDrafts] = useState<Record<number, { till: string; actual_return: string }>>({});
   const [error, setError] = useState<string | null>(null);
 
   // Search & Filter
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('OPEN_LEAVES');
   const [fromDateFilter, setFromDateFilter] = useState('');
   const [fromMonthFilter, setFromMonthFilter] = useState('');
 
@@ -171,8 +173,9 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
   const getTimesheetConflictDates = async (employeeCode: string, fromDate: string, actualReturnDate: string) => {
     const conflictDates = new Set<string>();
     let rangeStart = 0;
+    let hasMore = true;
 
-    while (true) {
+    while (hasMore) {
       const { data, error } = await supabase
         .from('timesheet')
         .select('date')
@@ -184,7 +187,7 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
 
       if (error) throw error;
       (data || []).forEach(row => conflictDates.add(String(row.date).slice(0, 10)));
-      if (!data || data.length < 1000) break;
+      hasMore = Boolean(data && data.length === 1000);
       rangeStart += 1000;
     }
 
@@ -301,73 +304,87 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
     }
   };
 
-  const handleSetReturnDate = async (id: number, returnDate: string) => {
-    if (!canEditLeaves) {
-      toast.error('You do not have permission to edit leave logs.');
-      return;
-    }
-    toast.loading('Setting expected return date...', { id: `return-leave-${id}` });
-    try {
-      // 1. Update the leave log entry with the expected return date (till)
-      const { error: updErr } = await supabase
-        .from('leave_log')
-        .update({ till: returnDate })
-        .eq('id', id);
-
-      if (updErr) throw updErr;
-
-      toast.success('Expected return date set successfully.', { id: `return-leave-${id}` });
-      loadData();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || 'Failed to set expected return date.', { id: `return-leave-${id}` });
-    }
-  };
-
-  const handleSetActualReturnDate = async (record: LeaveRecord, actualReturnDate: string) => {
+  const handleSaveRowDates = async (record: LeaveRecord) => {
     if (!canEditLeaves) {
       toast.error('You do not have permission to edit leave logs.');
       return;
     }
     if (record.status === 'Cancel') return;
-    const employee = employees.find(e => e.device_user_id === record.emp_id || e.emp_id === record.emp_id);
-    const employeeCode = employee?.emp_id || record.employee_code;
+
+    const draft = dateDrafts[record.id];
+    const till = draft?.till ?? record.till ?? '';
+    const actualReturnDate = draft?.actual_return ?? record.actual_return ?? '';
+    const tillChanged = till !== (record.till || '');
+    const actualReturnChanged = actualReturnDate !== (record.actual_return || '');
+    if (!tillChanged && !actualReturnChanged) return;
+    if (till && till < record.from) {
+      toast.error('Expected return date cannot be earlier than start date.');
+      return;
+    }
     if (actualReturnDate && actualReturnDate < record.from) {
       toast.error('Actual return date cannot be earlier than start date.');
       return;
     }
-    toast.loading('Saving actual return date...', { id: `actual-return-${record.id}` });
+
+    setSavingRowId(record.id);
+    toast.loading('Saving leave dates...', { id: `save-leave-${record.id}` });
     try {
-      if (actualReturnDate) {
+      if (actualReturnChanged && actualReturnDate) {
+        const employee = employees.find(e => e.device_user_id === record.emp_id || e.emp_id === record.emp_id);
+        const employeeCode = employee?.emp_id || record.employee_code;
         if (!employeeCode) throw new Error('Unable to find the employee code for this leave log.');
         const conflictDates = await getTimesheetConflictDates(employeeCode, record.from, actualReturnDate);
         if (conflictDates.length > 0) {
-          toast.error(`Cannot save actual return date. Timesheet entries exist on: ${conflictDates.join(', ')}`, { id: `actual-return-${record.id}` });
+          toast.error(`Cannot save actual return date. Timesheet entries exist on: ${conflictDates.join(', ')}`, { id: `save-leave-${record.id}` });
           return;
         }
       }
 
+      const updates: Partial<LeaveRecord> = {};
+      if (tillChanged) updates.till = till || null;
+      if (actualReturnChanged) updates.actual_return = actualReturnDate || null;
+
       const { error: updErr } = await supabase
         .from('leave_log')
-        .update({ actual_return: actualReturnDate || null })
+        .update(updates)
         .eq('id', record.id);
 
       if (updErr) throw updErr;
 
-      if (employee) {
-        const { error: empErr } = await supabase
-          .from('employees')
-          .update({ status: actualReturnDate ? 'Active' : 'Leave' })
-          .eq('id', employee.id);
-        if (empErr) throw empErr;
+      if (actualReturnChanged) {
+        const employee = employees.find(e => e.device_user_id === record.emp_id || e.emp_id === record.emp_id);
+        if (employee) {
+          const { error: employeeError } = await supabase
+            .from('employees')
+            .update({ status: actualReturnDate ? 'Active' : 'Leave' })
+            .eq('id', employee.id);
+          if (employeeError) throw employeeError;
+        }
       }
 
-      toast.success('Actual return date saved successfully.', { id: `actual-return-${record.id}` });
+      setDateDrafts(current => {
+        const remainingDrafts = { ...current };
+        delete remainingDrafts[record.id];
+        return remainingDrafts;
+      });
+      toast.success('Leave dates saved successfully.', { id: `save-leave-${record.id}` });
       loadData();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Failed to save actual return date.', { id: `actual-return-${record.id}` });
+      toast.error(err.message || 'Failed to save leave dates.', { id: `save-leave-${record.id}` });
+    } finally {
+      setSavingRowId(null);
     }
+  };
+
+  const updateRowDateDraft = (record: LeaveRecord, field: 'till' | 'actual_return', value: string) => {
+    setDateDrafts(current => {
+      const rowDraft = current[record.id] || {
+        till: record.till || '',
+        actual_return: record.actual_return || ''
+      };
+      return { ...current, [record.id]: { ...rowDraft, [field]: value } };
+    });
   };
 
   const filteredLeaves = useMemo(() => {
@@ -377,9 +394,11 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
         l.emp_id.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === 'ALL_TYPES'
         ? true
-        : statusFilter
+        : statusFilter === 'OPEN_LEAVES'
+          ? l.status !== 'Cancel' && !l.actual_return
+          : statusFilter
           ? l.status === statusFilter
-          : l.status !== 'Cancel' && !l.actual_return;
+          : true;
       const matchesFromDate = !fromDateFilter || l.from === fromDateFilter;
       const matchesFromMonth = !fromMonthFilter || l.from.startsWith(fromMonthFilter);
       return matchesSearch && matchesStatus && matchesFromDate && matchesFromMonth;
@@ -482,9 +501,10 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[120px] h-9">
-            <SelectValue placeholder="Open leaves" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-white border border-slate-200">
+            <SelectItem value="OPEN_LEAVES">Open</SelectItem>
             <SelectItem value="ALL_TYPES">All</SelectItem>
             {leaveTypes.map(t => (
               <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -534,7 +554,12 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLeaves.map(record => (
+              {filteredLeaves.map(record => {
+                const rowDraft = dateDrafts[record.id];
+                const tillValue = rowDraft?.till ?? record.till ?? '';
+                const actualReturnValue = rowDraft?.actual_return ?? record.actual_return ?? '';
+                const hasDateChanges = tillValue !== (record.till || '') || actualReturnValue !== (record.actual_return || '');
+                return (
                 <TableRow key={record.id} className="hover:bg-slate-50/50">
                   <TableCell className="py-3 text-left">
                     <div style={{ justifyContent: "flex-start" }} className="flex items-center justify-start text-left gap-3">
@@ -582,27 +607,27 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                   <TableCell className="py-3">
                     {record.status === 'Cancel' ? (
                       <span className="text-slate-600">{record.till || '—'}</span>
+                    ) : canEditLeaves ? (
+                      <div className="flex items-center gap-2">
+                        {!tillValue && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-orange-50 text-orange-800 text-[10px] font-semibold border border-orange-100">
+                            Perpetual
+                          </span>
+                        )}
+                        <input
+                          type="date"
+                          value={tillValue}
+                          onChange={(e) => updateRowDateDraft(record, 'till', e.target.value)}
+                          className="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-600 cursor-pointer hover:border-slate-300 focus:outline-none"
+                          title="Edit expected return date"
+                        />
+                      </div>
                     ) : record.till ? (
                       <span className="text-slate-600">{record.till}</span>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-orange-50 text-orange-800 text-[10px] font-semibold border border-orange-100">
-                          Perpetual
-                        </span>
-                        {canEditLeaves && (
-                          <input
-                            type="date"
-                            onChange={async (e) => {
-                              const dateVal = e.target.value;
-                              if (dateVal) {
-                                await handleSetReturnDate(record.id, dateVal);
-                              }
-                            }}
-                            className="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-600 cursor-pointer hover:border-slate-300 focus:outline-none"
-                            title="Set expected return date"
-                          />
-                        )}
-                      </div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-orange-50 text-orange-800 text-[10px] font-semibold border border-orange-100">
+                        Perpetual
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="py-3">
@@ -613,14 +638,10 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                         {canEditLeaves ? (
                           <input
                             type="date"
-                            key={`${record.id}-${record.actual_return || 'none'}`}
-                            defaultValue={record.actual_return || ''}
-                            onChange={async (e) => {
-                              const dateVal = e.target.value;
-                              await handleSetActualReturnDate(record, dateVal);
-                            }}
+                            value={actualReturnValue}
+                            onChange={(e) => updateRowDateDraft(record, 'actual_return', e.target.value)}
                             className="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white text-slate-600 cursor-pointer hover:border-slate-300 focus:outline-none"
-                            title="Set actual return date"
+                            title="Edit actual return date"
                           />
                         ) : <span className="text-slate-600 font-medium">{record.actual_return || 'Not returned yet'}</span>}
                       </div>
@@ -628,6 +649,17 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                   </TableCell>
                   {canEditLeaves && (
                     <TableCell className="py-3 text-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleSaveRowDates(record)}
+                        disabled={!hasDateChanges || savingRowId === record.id || record.status === 'Cancel'}
+                        className="h-8 w-8 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-40"
+                        title="Save row changes"
+                        aria-label="Save row changes"
+                      >
+                        {savingRowId === record.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -640,7 +672,8 @@ export default function LeaveLog({ refreshTrigger, onLoadingChange }: LeaveLogPr
                     </TableCell>
                   )}
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
