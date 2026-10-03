@@ -310,27 +310,21 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
   }, [monthlyPrintOpen]);
 
   useEffect(() => {
-    setMonthlyPrintEmployeeId('ALL');
     setMonthlyPrintProjectEmployeeIds([]);
     setMonthlyPrintEmployeesLoading(false);
-    if (!monthlyPrintOpen || (!monthlyPrintProject && !monthlyPrintCompany) || !monthlyPrintMonth) return;
+    if (!monthlyPrintOpen || (!monthlyPrintProject && !monthlyPrintCompany)) return;
 
     let cancelled = false;
     const loadProjectEmployees = async () => {
       setMonthlyPrintEmployeesLoading(true);
       try {
-        const [year, month] = monthlyPrintMonth.split('-').map(Number);
-        const startDate = `${monthlyPrintMonth}-01`;
-        const endDate = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
         let offset = 0;
         let pageRows: Array<{ emp_id: string | number | null }>;
         const employeeIds = new Set<string>();
         do {
           let query = supabase
             .from('v_employee_timesheet_summary')
-            .select('emp_id')
-            .gte('date', `${startDate}T00:00:00Z`)
-            .lt('date', `${endDate}T00:00:00Z`);
+            .select('emp_id');
           if (monthlyPrintProject) query = query.eq('project_code', monthlyPrintProject);
           else if (monthlyPrintCompany) query = query.eq('company_name', monthlyPrintCompany);
           const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
@@ -351,7 +345,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
 
     void loadProjectEmployees();
     return () => { cancelled = true; };
-  }, [monthlyPrintCompany, monthlyPrintMonth, monthlyPrintOpen, monthlyPrintProject]);
+  }, [monthlyPrintCompany, monthlyPrintOpen, monthlyPrintProject]);
 
   const canViewReport = useMemo(() => {
     if (userData?.role === 'admin' || userData?.role === 'site_admin') return true;
@@ -850,9 +844,10 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
         body.employee-monthly-timesheet-print #employee-monthly-timesheet,
         body.employee-monthly-timesheet-print #employee-monthly-timesheet * { visibility: visible !important; }
         body.employee-monthly-timesheet-print .employee-timesheet-summary-root { height: auto !important; overflow: visible !important; }
-        body.employee-monthly-timesheet-print #timesheet-summary-report { visibility: hidden !important; }
+        body.employee-monthly-timesheet-print .employee-timesheet-summary-root > :not(style):not(#employee-monthly-timesheet) { display: none !important; }
+        body.employee-monthly-timesheet-print #timesheet-summary-report { display: none !important; }
         #employee-monthly-timesheet { display: none; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet { display: block; position: absolute; inset: 0; width: 100%; color: #000; font-family: Arial, sans-serif; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet { display: block; position: absolute; top: 0; left: 0; right: 0; width: auto; margin: 0; padding: 0; color: #000; font-family: Arial, sans-serif; }
         body.employee-monthly-timesheet-print .monthly-print-sheet { page: employee-monthly-timesheet-page; break-inside: avoid; page-break-inside: avoid; }
         body.employee-monthly-timesheet-print .monthly-print-sheet + .monthly-print-sheet { break-before: page; page-break-before: always; }
         body.employee-monthly-timesheet-print #employee-monthly-timesheet h1 { margin: 0 0 0.8mm; padding: 0; border: 0; font-size: 14pt; line-height: 1; font-weight: 700; }
@@ -932,10 +927,10 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
       {monthlyPrintOpen && <div className="report-no-print fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="monthly-print-title">
         <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
           <div className="mb-4 flex items-center justify-between"><h2 id="monthly-print-title" className="text-base font-semibold text-slate-900">Print employee timesheet</h2><button type="button" onClick={() => setMonthlyPrintOpen(false)} aria-label="Close" className="rounded p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
-          <label className="mb-3 block text-xs font-medium text-slate-700">Company<select value={monthlyPrintCompany} disabled={Boolean(monthlyPrintProject) || monthlyPrintOptionsLoading} onChange={(event) => { setMonthlyPrintCompany(event.target.value); setMonthlyPrintProject(''); }} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="">All companies</option>{monthlyPrintCompanies.map((company) => <option key={company.code || company.name} value={company.name}>{company.name}{company.code ? ` [${company.code}]` : ''}</option>)}</select></label>
-          <label className="mb-3 block text-xs font-medium text-slate-700">Project<select value={monthlyPrintProject} disabled={Boolean(monthlyPrintCompany) || monthlyPrintOptionsLoading} onChange={(event) => { setMonthlyPrintProject(event.target.value); setMonthlyPrintCompany(''); }} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="">All projects</option>{monthlyPrintProjects.map((project) => <option key={project.code} value={project.code}>{project.code}{project.name ? ` - ${project.name}` : ''}</option>)}</select></label>
+          <label className="mb-3 block text-xs font-medium text-slate-700">Company<select value={monthlyPrintCompany} disabled={Boolean(monthlyPrintProject) || monthlyPrintOptionsLoading} onChange={(event) => { setMonthlyPrintCompany(event.target.value); setMonthlyPrintProject(''); setMonthlyPrintEmployeeId('ALL'); }} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="">All companies</option>{monthlyPrintCompanies.map((company) => <option key={company.code || company.name} value={company.name}>{company.name}{company.code ? ` [${company.code}]` : ''}</option>)}</select></label>
+          <label className="mb-3 block text-xs font-medium text-slate-700">Project<select value={monthlyPrintProject} disabled={Boolean(monthlyPrintCompany) || monthlyPrintOptionsLoading} onChange={(event) => { setMonthlyPrintProject(event.target.value); setMonthlyPrintCompany(''); setMonthlyPrintEmployeeId('ALL'); }} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="">All projects</option>{monthlyPrintProjects.map((project) => <option key={project.code} value={project.code}>{project.code}{project.name ? ` - ${project.name}` : ''}</option>)}</select></label>
+          <label className="mb-3 block text-xs font-medium text-slate-700">Month<input type="month" value={monthlyPrintMonth} onChange={(event) => setMonthlyPrintMonth(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm" /></label>
           <label className="mb-3 block text-xs font-medium text-slate-700">Employee<select value={monthlyPrintEmployeeId} onChange={(event) => setMonthlyPrintEmployeeId(event.target.value)} disabled={monthlyPrintEmployeesLoading} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"><option value="ALL">All employees</option>{monthlyPrintEmployeeOptions.filter((employee) => employee.empId).map((employee) => <option key={employee.empId} value={employee.empId}>{employee.name} [{employee.empId}]</option>)}</select></label>
-          <label className="block text-xs font-medium text-slate-700">Month<input type="month" value={monthlyPrintMonth} onChange={(event) => setMonthlyPrintMonth(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm" /></label>
           <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setMonthlyPrintOpen(false)} className="h-9 rounded-md border border-slate-200 px-3 text-sm text-slate-700">Cancel</button><button type="button" onClick={() => void printEmployeeMonth()} disabled={!monthlyPrintMonth || monthlyPrintLoading || monthlyPrintEmployeesLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-medium text-white disabled:opacity-50">{monthlyPrintLoading && <Loader2 className="h-4 w-4 animate-spin" />}Print</button></div>
         </div>
       </div>}
