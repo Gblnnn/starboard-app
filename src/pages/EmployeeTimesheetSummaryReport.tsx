@@ -822,7 +822,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
         #timesheet-summary-report th.print-rotated-header button { display: inline-flex; width: 100%; height: 15mm; max-height: 15mm; align-items: center; justify-content: center; padding: 0; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-size: 5.8pt; color: #000; overflow: hidden; }
         #timesheet-summary-report th.print-rotated-header button svg { display: none; }
         #timesheet-summary-report tbody tr { height: 5.5mm; break-inside: avoid; page-break-inside: avoid; }
-        #timesheet-summary-report tbody tr:nth-child(32n) { break-after: page; page-break-after: always; }
+        #timesheet-summary-report tbody tr:nth-child(32n):not(:last-child) { break-after: page; page-break-after: always; }
         #timesheet-summary-report td { height: 5.5mm; max-height: 5.5mm; padding: 1mm; white-space: normal; overflow: hidden; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
         #timesheet-summary-report .print-only-row { display: table-row !important; }
         #timesheet-summary-report .report-total-row { font-weight: 700; background: #fff !important; }
