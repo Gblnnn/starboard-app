@@ -733,14 +733,12 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
         body.employee-monthly-timesheet-print #employee-monthly-timesheet th { text-align: left; font-weight: 700; }
         body.employee-monthly-timesheet-print #employee-monthly-timesheet th,
         body.employee-monthly-timesheet-print #employee-monthly-timesheet td { border: 1px solid #000; padding: 1.5mm 1mm; vertical-align: top; overflow-wrap: anywhere; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet th { height: 15mm; max-height: 15mm; padding: 0; vertical-align: middle; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-serial { width: 2ch; max-width: 2ch; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-date { width: 10ch; max-width: 10ch; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-time { width: 5ch; max-width: 5ch; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-project { width: 28mm; max-width: 28mm; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-remarks { width: 50mm; max-width: 50mm; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-verified { width: 10ch; max-width: 10ch; }
-        body.employee-monthly-timesheet-print #employee-monthly-timesheet tbody td:nth-child(-n+7) { white-space: nowrap; overflow-wrap: normal; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet th { height: 15mm; max-height: 15mm; padding: 0; vertical-align: middle; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet th > span { display: inline-block; width: 100%; height: 15mm; max-height: 15mm; overflow: hidden; text-align: left; writing-mode: vertical-rl; transform: rotate(180deg); }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-serial { width: 2ch; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-date { width: 10ch; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-time { width: 5ch; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-verified { width: 10ch; }
         body.employee-monthly-timesheet-print #employee-monthly-timesheet tr { break-inside: avoid; page-break-inside: avoid; }
         body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-print-footer { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; margin-top: 12mm; font-size: 8pt; }
         body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-print-footer > :nth-child(2) { text-align: center; }
@@ -810,8 +808,8 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
       {monthlyPrintData && <section id="employee-monthly-timesheet" aria-hidden="true">
         <h1>Timesheet for the month of - {format(new Date(`${monthlyPrintData.month}-01T00:00:00`), 'MMMM yyyy')}</h1>
         <p className="monthly-print-subtitle">{monthlyPrintData.employee.name} [{monthlyPrintData.employee.empId}] [{monthlyPrintData.rows[0]?.company_name || monthlyPrintData.employee.company || ''}]</p>
-        <table><thead><tr><th className="monthly-serial"><span>S.No.</span></th><th className="monthly-date"><span>Date</span></th><th className="monthly-time"><span>Punch<br />In</span></th><th className="monthly-time"><span>Punch<br />Out</span></th><th className="monthly-time"><span>OT</span></th><th className="monthly-time"><span>Holiday<br />OT</span></th><th className="monthly-time"><span>Total<br />Hours</span></th><th><span>Project</span></th><th><span>Remarks</span></th><th className="monthly-verified"><span>Verified</span></th></tr></thead><tbody>{monthlyPrintData.rows.map((row, index) => <tr key={`${row.emp_id}-${row.date}-${index}`}><td>{index + 1}</td><td>{row.displayDate}</td><td>{row.displayPunchIn}</td><td>{row.displayPunchOut}</td><td>{row.displayOvertime}</td><td>{row.displayHolidayOvertime}</td><td>{row.displayHours}</td><td>{row.project_code || ''}</td><td>{row.remarks || ''}</td><td>&nbsp;</td></tr>)}</tbody></table>        
-        <footer className="monthly-print-footer"><span>{userData?.emp_id ? ${userData.emp_id} | ` : ''}{format(new Date(), 'dd/MM/yyyy HH:mm')}</span><span>Verified by</span><span>{monthlyPrintData.employee.name} [{monthlyPrintData.employee.empId}]</span></footer>
+        <table><thead><tr><th className="monthly-serial"><span>S.No.</span></th><th className="monthly-date"><span>Date</span></th><th className="monthly-time"><span>Punch<br />In</span></th><th className="monthly-time"><span>Punch<br />Out</span></th><th className="monthly-time"><span>OT</span></th><th className="monthly-time"><span>Holiday<br />OT</span></th><th className="monthly-time"><span>Total<br />Hours</span></th><th><span>Project</span></th><th><span>Remarks</span></th><th className="monthly-verified"><span>Verified</span></th></tr></thead><tbody>{monthlyPrintData.rows.map((row, index) => <tr key={`${row.emp_id}-${row.date}-${index}`}><td>{index + 1}</td><td>{row.displayDate}</td><td>{row.displayPunchIn}</td><td>{row.displayPunchOut}</td><td>{row.displayOvertime}</td><td>{row.displayHolidayOvertime}</td><td>{row.displayHours}</td><td>{row.project_code || ''}</td><td>{row.remarks || ''}</td><td>&nbsp;</td></tr>)}</tbody></table>
+        <footer className="monthly-print-footer"><span>{userData?.emp_id ? `Emp ID: ${userData.emp_id} | ` : ''}{format(new Date(), 'dd/MM/yyyy HH:mm')}</span><span>Verified by</span><span>{monthlyPrintData.employee.name} [{monthlyPrintData.employee.empId}]</span></footer>
       </section>}
     </div>
   );
