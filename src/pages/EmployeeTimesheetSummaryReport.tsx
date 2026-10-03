@@ -233,12 +233,33 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
   const [visibleColumns, setVisibleColumns] = useState(defaultVisibleColumns);
   const [hasMore, setHasMore] = useState(true);
   const [loadingAll, setLoadingAll] = useState(false);  
+  const [monthlyPrintOpen, setMonthlyPrintOpen] = useState(false);
+  const [monthlyPrintEmployeeId, setMonthlyPrintEmployeeId] = useState('');
+  const [monthlyPrintMonth, setMonthlyPrintMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [monthlyPrintLoading, setMonthlyPrintLoading] = useState(false);
+  const [monthlyPrintData, setMonthlyPrintData] = useState<{ employee: EmployeeOption; month: string; rows: DisplayRow[] } | null>(null);
   const [sortColumn, setSortColumn] = useState<SortableColumnKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ companies: [], projects: [], statuses: [] });  
   const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!monthlyPrintData) return;
+    const handleAfterPrint = () => {
+      document.body.classList.remove('employee-monthly-timesheet-print');
+      setMonthlyPrintData(null);
+    };
+    document.body.classList.add('employee-monthly-timesheet-print');
+    window.addEventListener('afterprint', handleAfterPrint);
+    const printTimeout = window.setTimeout(() => window.print(), 100);
+    return () => {
+      window.clearTimeout(printTimeout);
+      window.removeEventListener('afterprint', handleAfterPrint);
+      document.body.classList.remove('employee-monthly-timesheet-print');
+    };
+  }, [monthlyPrintData]);
 
   const canViewReport = useMemo(() => {
     if (userData?.role === 'admin' || userData?.role === 'site_admin') return true;
@@ -496,6 +517,47 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
     XLSX.writeFile(workbook, `employee_timesheet_summary_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
   };
 
+  const printEmployeeMonth = async () => {
+    const employee = employeeOptions.find((option) => option.empId === monthlyPrintEmployeeId);
+    if (!employee || !monthlyPrintMonth) {
+      toast.error('Select an employee and month to print.');
+      return;
+    }
+    setMonthlyPrintLoading(true);
+    try {
+      const [year, month] = monthlyPrintMonth.split('-').map(Number);
+      const startDate = `${monthlyPrintMonth}-01`;
+      const endDate = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+      let offset = 0;
+      const monthRows: DisplayRow[] = [];
+      let pageRows: SummaryRow[];
+      do {
+        const { data, error } = await supabase
+          .from('v_employee_timesheet_summary')
+          .select('*')
+          .eq('emp_id', employee.empId)
+          .gte('date', `${startDate}T00:00:00Z`)
+          .lt('date', `${endDate}T00:00:00Z`)
+          .order('date', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        pageRows = (data || []) as SummaryRow[];
+        monthRows.push(...pageRows.map(toDisplayRow));
+        offset += PAGE_SIZE;
+      } while (pageRows.length === PAGE_SIZE);
+      if (!monthRows.length) {
+        toast.error('No timesheet records were found for that employee and month.');
+        return;
+      }
+      setMonthlyPrintData({ employee, month: monthlyPrintMonth, rows: monthRows });
+      setMonthlyPrintOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to load the employee timesheet.');
+    } finally {
+      setMonthlyPrintLoading(false);
+    }
+  };
+
   const downloadPdf = async () => {
     if (!filteredRows.length) return;
     setExportingPdf(true);
@@ -614,7 +676,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
   };
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-white">
+    <div className="employee-timesheet-summary-root flex h-full w-full flex-col overflow-hidden bg-white">
       <style>{`@media print {
         @page { margin: 12mm; }
         body * { visibility: hidden; }
@@ -658,12 +720,34 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
         #timesheet-summary-report .overflow-auto { overflow: visible; }
         #timesheet-summary-report .report-print-footer { display: none !important; }
         .report-no-print { display: none !important; }
+        body.employee-monthly-timesheet-print * { visibility: hidden !important; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet,
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet * { visibility: visible !important; }
+        body.employee-monthly-timesheet-print .employee-timesheet-summary-root { height: auto !important; overflow: visible !important; }
+        body.employee-monthly-timesheet-print #timesheet-summary-report { visibility: hidden !important; }
+        #employee-monthly-timesheet { display: none; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet { display: block; position: absolute; inset: 0; width: 100%; color: #000; font-family: Arial, sans-serif; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet h1 { margin: 0 0 2mm; font-size: 14pt; font-weight: 700; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-print-subtitle { margin: 0 0 5mm; font-size: 10pt; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 8pt; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet th { text-align: left; font-weight: 700; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet th,
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet td { border: 1px solid #000; padding: 1.5mm 1mm; vertical-align: top; overflow-wrap: anywhere; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-serial { width: 2ch; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-date { width: 10ch; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-time { width: 5ch; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-verified { width: 10ch; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet tr { break-inside: avoid; page-break-inside: avoid; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-print-footer { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; margin-top: 12mm; font-size: 8pt; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-print-footer > :nth-child(2) { text-align: center; }
+        body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-print-footer > :nth-child(3) { text-align: right; }
       }`}</style>
       <div className="report-no-print flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
         <Back title="Employee Timesheet Summary" noback={embedMode} />
         <div className="flex items-center gap-2">
           <button onClick={() => void fetchRows()} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50" title="Refresh report"><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
           <button onClick={() => window.print()} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><Printer className="h-3.5 w-3.5" />Print</button>
+          <button onClick={() => setMonthlyPrintOpen(true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><Printer className="h-3.5 w-3.5" />Employee Print</button>
           <button onClick={downloadExcel} disabled={loading || !filteredRows.length} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-40"><Download className="h-3.5 w-3.5" />Excel</button>
           <button onClick={() => void downloadPdf()} disabled={loading || !filteredRows.length || exportingPdf} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-teal-700 px-3 text-xs font-medium text-white hover:bg-teal-600 disabled:opacity-40">{exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}PDF</button>
         </div>
@@ -711,6 +795,20 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false }: { 
         </>}
         {selectedEmployeeLabel && <div className="report-print-footer hidden text-xs font-medium text-slate-600">{selectedEmployeeLabel}</div>}
       </div>
+      {monthlyPrintOpen && <div className="report-no-print fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="monthly-print-title">
+        <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+          <div className="mb-4 flex items-center justify-between"><h2 id="monthly-print-title" className="text-base font-semibold text-slate-900">Print employee timesheet</h2><button type="button" onClick={() => setMonthlyPrintOpen(false)} aria-label="Close" className="rounded p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+          <label className="mb-3 block text-xs font-medium text-slate-700">Employee<select value={monthlyPrintEmployeeId} onChange={(event) => setMonthlyPrintEmployeeId(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"><option value="">Select employee</option>{employeeOptions.filter((employee) => employee.empId).map((employee) => <option key={employee.empId} value={employee.empId}>{employee.name} [{employee.empId}]</option>)}</select></label>
+          <label className="block text-xs font-medium text-slate-700">Month<input type="month" value={monthlyPrintMonth} onChange={(event) => setMonthlyPrintMonth(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm" /></label>
+          <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setMonthlyPrintOpen(false)} className="h-9 rounded-md border border-slate-200 px-3 text-sm text-slate-700">Cancel</button><button type="button" onClick={() => void printEmployeeMonth()} disabled={!monthlyPrintEmployeeId || !monthlyPrintMonth || monthlyPrintLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-medium text-white disabled:opacity-50">{monthlyPrintLoading && <Loader2 className="h-4 w-4 animate-spin" />}Print</button></div>
+        </div>
+      </div>}
+      {monthlyPrintData && <section id="employee-monthly-timesheet" aria-hidden="true">
+        <h1>Timesheet for the month of - {format(new Date(`${monthlyPrintData.month}-01T00:00:00`), 'MMMM yyyy')}</h1>
+        <p className="monthly-print-subtitle">{monthlyPrintData.employee.name} [{monthlyPrintData.employee.empId}] [{monthlyPrintData.rows[0]?.company_name || monthlyPrintData.employee.company || ''}]</p>
+        <table><thead><tr><th className="monthly-serial">S.No.</th><th className="monthly-date">Date</th><th className="monthly-time">Punch In</th><th className="monthly-time">Punch Out</th><th className="monthly-time">OT</th><th className="monthly-time">Holiday OT</th><th className="monthly-time">Total Hours</th><th>Project</th><th>Remarks</th><th className="monthly-verified">Verified</th></tr></thead><tbody>{monthlyPrintData.rows.map((row, index) => <tr key={`${row.emp_id}-${row.date}-${index}`}><td>{index + 1}</td><td>{row.displayDate}</td><td>{row.displayPunchIn}</td><td>{row.displayPunchOut}</td><td>{row.displayOvertime}</td><td>{row.displayHolidayOvertime}</td><td>{row.displayHours}</td><td>{row.project_code || ''}</td><td>{row.remarks || ''}</td><td>&nbsp;</td></tr>)}</tbody></table>
+        <footer className="monthly-print-footer"><span>{userData?.emp_id ? `Emp ID: ${userData.emp_id} | ` : ''}{format(new Date(), 'dd/MM/yyyy HH:mm')}</span><span>Verified by</span><span>{monthlyPrintData.employee.name} [{monthlyPrintData.employee.empId}]</span></footer>
+      </section>}
     </div>
   );
 }
