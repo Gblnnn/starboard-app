@@ -17,10 +17,102 @@ import { getCachedProfile } from "@/utils/profileCache";
 import { getCachedVehicle, type VehicleData } from "@/utils/vehicleCache";
 import { motion } from "framer-motion";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Calendar, ChevronLeft, ChevronRight, DollarSign, EllipsisVertical, Fuel, Gauge, Loader2, WifiOff } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, DollarSign, EllipsisVertical, Fuel, Gauge, Loader2, Printer, WifiOff } from "lucide-react";
 import moment from "moment";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
+interface FuelProjectOption {
+  key: string;
+  name: string;
+}
+
+interface FuelReportEmployee {
+  empId: string;
+  name: string;
+}
+
+interface FuelReportRow {
+  id: string | number;
+  date: string;
+  employee_code: string | null;
+  employee_name: string | null;
+  project: string | null;
+  vehicle_number: string | null;
+  litres: number | string | null;
+  odometer_reading: number | string | null;
+  amount_spent: number | string | null;
+}
+
+const FuelLogPrintableReport = ({
+  rows,
+  employees,
+  fromDate,
+  toDate,
+  printOnly = false,
+}: {
+  rows: FuelReportRow[];
+  employees: FuelReportEmployee[];
+  fromDate: string;
+  toDate: string;
+  printOnly?: boolean;
+}) => {
+  const employeeNames = new Map(employees.map((employee) => [employee.empId, employee.name]));
+  const totalAmount = rows.reduce((total, row) => total + (Number(row.amount_spent) || 0), 0);
+  const totalLitres = rows.reduce((total, row) => total + (Number(row.litres) || 0), 0);
+  const projects = Array.from(new Set(rows.map((row) => String(row.project || "").trim()).filter(Boolean)));
+  const blankRows = Math.max(0, 20 - rows.length);
+  const dateLabel = fromDate === toDate
+    ? moment(fromDate).format("DD MMMM YYYY")
+    : `${moment(fromDate).format("DD MMM YYYY")} - ${moment(toDate).format("DD MMM YYYY")}`;
+
+  return (
+    <section className={`fuel-report-document ${printOnly ? "fuel-report-print-only" : ""}`} aria-label="Fuel reimbursement report">
+      <header className="fuel-report-heading">
+        <img src="/sohar_star_logo.png" alt="Sohar Star logo" />
+        <div>
+          <h1>Sohar Star United LLC</h1>
+          <p>PB No:153, Falaj Al Qabail, Sohar, Sultanate of Oman</p>
+          <h2>Fuel Bills Reimbursement Form (to be settled weekly)</h2>
+        </div>
+      </header>
+      <div className="fuel-report-summary">
+        <div><span>Date</span><strong>{dateLabel}</strong></div>
+        <div><span>Project</span><strong>{projects.length ? projects.join(", ") : ""}</strong></div>
+        <div><span>Total Amount (OMR)</span><strong>OMR {totalAmount.toFixed(3)}</strong></div>
+      </div>
+      <table className="fuel-report-table">
+        <thead><tr>
+          <th>S.No.</th><th>Date</th><th>Employee ID / Name</th><th>Project</th>
+          <th>Vehicle #</th><th>Qty in L</th><th>Odometer Reading</th><th>Amount (OMR)</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((row, index) => {
+            const empId = String(row.employee_code || "");
+            return <tr key={`${empId}-${row.date}-${index}`}>
+              <td>{index + 1}</td>
+              <td>{moment(row.date).format("DD-MMM-YY")}</td>
+              <td>{[empId, employeeNames.get(empId) || row.employee_name || ""].filter(Boolean).join(" ")}</td>
+              <td>{String(row.project || "").trim()}</td>
+              <td>{row.vehicle_number || ""}</td>
+              <td>{row.litres === null ? "" : Number(row.litres).toFixed(3)}</td>
+              <td>{row.odometer_reading ?? ""}</td>
+              <td>{Number(row.amount_spent || 0).toFixed(3)}</td>
+            </tr>;
+          })}
+          {Array.from({ length: blankRows }, (_, index) => <tr key={`blank-${index}`} className="fuel-report-blank-row">{Array.from({ length: 8 }, (_, column) => <td key={column}>&nbsp;</td>)}</tr>)}
+          <tr className="fuel-report-total-row">
+            <td colSpan={5}>Total</td><td>{totalLitres.toFixed(3)}</td><td></td><td>OMR {totalAmount.toFixed(3)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <footer className="fuel-report-signatures">
+        <div><span>Prepared By</span><strong>(Site In Charge / Admin)</strong></div>
+        <div><span>Approved By</span><strong>Project Manager / HOD</strong></div>
+      </footer>
+    </section>
+  );
+};
 
 // Shared Fuel Log Form Component
 interface FuelLogFormContentProps {
@@ -36,6 +128,10 @@ interface FuelLogFormContentProps {
   setAmountSpent: (amount: string) => void;
   litres: string;
   setLitres: (litres: string) => void;
+  project: string;
+  setProject: (project: string) => void;
+  projects: FuelProjectOption[];
+  projectsLoading: boolean;
   setShowDatePicker: (show: boolean) => void;
   dateSectionRef: React.RefObject<HTMLDivElement>;
   editingLog: FuelLogType | null;
@@ -57,6 +153,10 @@ const FuelLogFormContent: React.FC<FuelLogFormContentProps> = ({
   setAmountSpent,
   litres,
   setLitres,
+  project,
+  setProject,
+  projects,
+  projectsLoading,
   setShowDatePicker,
   dateSectionRef,
   editingLog,
@@ -211,6 +311,20 @@ const FuelLogFormContent: React.FC<FuelLogFormContentProps> = ({
                 </motion.div>
               </div>
             </motion.div>
+
+            <div style={{ padding: "1rem", borderRadius: "1rem", background: "rgba(100, 100, 100, 0.05)" }}>
+              <label htmlFor="fuel-project" style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.75rem" }}>Project</label>
+              <select
+                id="fuel-project"
+                value={project}
+                onChange={(event) => setProject(event.target.value)}
+                disabled={projectsLoading}
+                style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", background: "rgba(100, 100, 100, 0.08)" }}
+              >
+                <option value="">Select a project</option>
+                {projects.map((option) => <option key={option.key} value={option.name}>{option.name}</option>)}
+              </select>
+            </div>
 
             {/* Odometer Reading Input */}
             <motion.div
@@ -543,6 +657,11 @@ const FuelLogDetailContent: React.FC<FuelLogDetailContentProps> = ({
             <div style={{ fontSize: "0.7rem", opacity: 0.6, marginBottom: "0.25rem" }}>Odometer</div>
             <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>{selectedLog.odometer_reading ? `${selectedLog.odometer_reading} km` : "-"}</div>
           </div>
+
+          <div style={{ background: "rgba(100, 100, 100, 0.05)", borderRadius: "0.75rem", padding: "0.75rem" }}>
+            <div style={{ fontSize: "0.7rem", opacity: 0.6, marginBottom: "0.25rem" }}>Project</div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>{String(selectedLog.project || "").trim() || "-"}</div>
+          </div>
         </div>
       </div>
 
@@ -690,6 +809,9 @@ export default function FuelLog() {
   const [odometerReading, setOdometerReading] = useState("");
   const [amountSpent, setAmountSpent] = useState("");
   const [litres, setLitres] = useState("");
+  const [selectedProject, setSelectedProject] = useState("");
+  const [projectOptions, setProjectOptions] = useState<FuelProjectOption[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -712,11 +834,125 @@ export default function FuelLog() {
   const [noVehicleModal, setNoVehicleModal] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [activeChart, setActiveChart] = useState(0);
+  const [fuelReportOpen, setFuelReportOpen] = useState(false);
+  const [fuelReportEmployees, setFuelReportEmployees] = useState<FuelReportEmployee[]>([]);
+  const [fuelReportEmployeesLoading, setFuelReportEmployeesLoading] = useState(false);
+  const [fuelReportEmployeeId, setFuelReportEmployeeId] = useState(userData?.role === "admin" ? "ALL" : "");
+  const [fuelReportFromDate, setFuelReportFromDate] = useState(moment().startOf("month").format("YYYY-MM-DD"));
+  const [fuelReportToDate, setFuelReportToDate] = useState(moment().format("YYYY-MM-DD"));
+  const [fuelReportRows, setFuelReportRows] = useState<FuelReportRow[] | null>(null);
+  const [fuelReportLoading, setFuelReportLoading] = useState(false);
   const { addProcess, updateProcess } = useBackgroundProcess();
   // Vehicle number comes exclusively from vehicle_master.assigned_to via Supabase
   // (never from cached userProfile.allocated_vehicle — that was Firebase-era data)
   const vehicleNumber: string | undefined =
     allocatedVehicles[selectedVehicleIndex]?.vehicle_number || undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadProjectOptions = async () => {
+      setProjectsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("projects")
+          .select("project_name")
+          .order("project_name", { ascending: true });
+        if (error) throw error;
+        if (cancelled) return;
+        const projectsByName = new Map<string, FuelProjectOption>();
+        (data || []).forEach((row) => {
+          const name = String(row.project_name || "").trim();
+          const key = name.toLocaleLowerCase();
+          if (name && !projectsByName.has(key)) projectsByName.set(key, { key, name });
+        });
+        setProjectOptions(Array.from(projectsByName.values()));
+      } catch (error) {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "Unable to load projects.");
+      } finally {
+        if (!cancelled) setProjectsLoading(false);
+      }
+    };
+    void loadProjectOptions();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!drawerOpen || projectsLoading) return;
+    setSelectedProject("");
+    if (editingLog) {
+      const savedProject = String(editingLog.project || "").trim();
+      const matchingSavedProject = projectOptions.find((option) => option.name.toLocaleLowerCase() === savedProject.toLocaleLowerCase());
+      setSelectedProject(matchingSavedProject?.name || "");
+      return;
+    }
+
+    const empId = userData?.emp_id ? String(userData.emp_id) : "";
+    if (!empId) return;
+    let cancelled = false;
+    const loadCurrentProject = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("v_employee_latest_project")
+          .select("current_project")
+          .eq("emp_id", empId)
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        if (cancelled) return;
+        const currentProject = String(data?.current_project || "").trim();
+        if (!currentProject || currentProject.toLocaleLowerCase() === "unassigned") return;
+        const matchingProject = projectOptions.find((option) => option.name.toLocaleLowerCase() === currentProject.toLocaleLowerCase());
+        if (matchingProject) setSelectedProject(matchingProject.name);
+      } catch (error) {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "Unable to load your current project.");
+      }
+    };
+    void loadCurrentProject();
+    return () => { cancelled = true; };
+  }, [drawerOpen, editingLog, projectOptions, projectsLoading, userData?.emp_id]);
+
+  useEffect(() => {
+    if (!fuelReportOpen) return;
+    let cancelled = false;
+    const isAdmin = userData?.role === "admin";
+    const loadFuelReportEmployees = async () => {
+      setFuelReportEmployeesLoading(true);
+      try {
+        let query = supabase
+          .from("employees")
+          .select("emp_id, name")
+          .not("emp_id", "is", null)
+          .not("name", "is", null)
+          .order("name", { ascending: true });
+        if (!isAdmin) {
+          if (userData?.emp_id) query = query.eq("emp_id", String(userData.emp_id));
+          else if (userData?.email) query = query.eq("email", userData.email);
+          else throw new Error("Your employee ID could not be identified.");
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        if (cancelled) return;
+        const employees = (data || [])
+          .filter((employee) => employee.emp_id !== null && employee.name)
+          .map((employee) => ({ empId: String(employee.emp_id), name: String(employee.name) }));
+        setFuelReportEmployees(employees);
+        if (isAdmin) {
+          setFuelReportEmployeeId((current) => current || "ALL");
+        } else if (employees[0]) {
+          setFuelReportEmployeeId(employees[0].empId);
+        } else {
+          setFuelReportEmployeeId("");
+          toast.error("No employee record was found for your account.");
+        }
+      } catch (error) {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "Unable to load employees for the report.");
+      } finally {
+        if (!cancelled) setFuelReportEmployeesLoading(false);
+      }
+    };
+    void loadFuelReportEmployees();
+    return () => { cancelled = true; };
+  }, [fuelReportOpen, userData?.email, userData?.emp_id, userData?.role]);
 
   // Calculate monthly fuel consumption and mileage
   const monthlyData = (() => {
@@ -878,6 +1114,7 @@ export default function FuelLog() {
         odometer_reading: log.data.odometer_reading,
         amount_spent: log.data.amount_spent,
         employee_name: log.data.employee_name,
+        project: log.data.project || null,
         vehicle_number: log.data.vehicle_number,
         created_at: new Date(log.createdAt),
         isPending: true,
@@ -905,6 +1142,7 @@ export default function FuelLog() {
         odometer_reading: log.data.odometer_reading,
         amount_spent: log.data.amount_spent,
         employee_name: log.data.employee_name,
+        project: log.data.project || null,
         vehicle_number: log.data.vehicle_number,
         created_at: new Date(log.createdAt),
         isPending: true,
@@ -1029,6 +1267,7 @@ export default function FuelLog() {
           odometer_reading: odometerReading ? parseFloat(odometerReading) : 0,
           amount_spent: parseFloat(amountSpent),
           litres: litres ? parseFloat(litres) : undefined,
+          project: selectedProject.trim() || null,
           vehicle_number: vehicleNumber,
           // updated_at not in fuel_log schema — omitted
         };
@@ -1054,6 +1293,7 @@ export default function FuelLog() {
           employee_name: userProfile.name || "",
           // Send null (not "") when emp code is missing — "" violates the FK constraint
           employee_code: userProfile.employeeCode || userProfile.emp_id || null,
+          project: selectedProject.trim() || null,
           vehicle_number: vehicleNumber,
           timestamp: Date.now(),
         };
@@ -1086,6 +1326,7 @@ export default function FuelLog() {
             odometer_reading: odometerReading ? parseFloat(odometerReading) : 0,
             amount_spent: parseFloat(amountSpent),
             employee_name: userProfile.name || "",
+            project: selectedProject.trim() || null,
             vehicle_number: vehicleNumber,
             created_at: new Date(),
             isPending: true,
@@ -1100,6 +1341,7 @@ export default function FuelLog() {
       setOdometerReading("");
       setAmountSpent("");
       setLitres("");
+      setSelectedProject("");
       setDrawerOpen(false);
       setEditingLog(null);
     } catch (error: any) {
@@ -1109,6 +1351,64 @@ export default function FuelLog() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const loadFuelReport = async () => {
+    if (!fuelReportFromDate || !fuelReportToDate || fuelReportFromDate > fuelReportToDate) {
+      toast.error("Select a valid date range.");
+      return;
+    }
+    const isAdmin = userData?.role === "admin";
+    const selectedEmployee = fuelReportEmployees.find((employee) => employee.empId === fuelReportEmployeeId);
+    if (!isAdmin && !selectedEmployee) {
+      toast.error("Your employee record could not be found.");
+      return;
+    }
+    if (isAdmin && fuelReportEmployeeId !== "ALL" && !selectedEmployee) {
+      toast.error("Select an employee from the list.");
+      return;
+    }
+
+    setFuelReportLoading(true);
+    try {
+      const reportEmployeeId = isAdmin ? selectedEmployee?.empId : fuelReportEmployees[0]?.empId;
+      const reportRows: FuelReportRow[] = [];
+      let offset = 0;
+      let pageRows: FuelReportRow[];
+      do {
+        let query = supabase
+          .from("fuel_log")
+          .select("id, date, employee_code, employee_name, project, vehicle_number, litres, odometer_reading, amount_spent")
+          .gte("date", fuelReportFromDate)
+          .lt("date", moment(fuelReportToDate).add(1, "day").format("YYYY-MM-DD"))
+          .order("date", { ascending: true })
+          .order("employee_code", { ascending: true })
+          .order("id", { ascending: true });
+        if (!isAdmin || fuelReportEmployeeId !== "ALL") {
+          query = query.eq("employee_code", reportEmployeeId);
+        }
+        const { data, error } = await query.range(offset, offset + 499);
+        if (error) throw error;
+        pageRows = (data || []) as FuelReportRow[];
+        reportRows.push(...pageRows);
+        offset += 500;
+      } while (pageRows.length === 500);
+      setFuelReportRows(reportRows);
+      if (!reportRows.length) toast.info("No fuel log records were found for the selected filters.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to load the fuel report.");
+      setFuelReportRows(null);
+    } finally {
+      setFuelReportLoading(false);
+    }
+  };
+
+  const printFuelReport = () => {
+    if (!fuelReportRows?.length) return;
+    const cleanup = () => document.body.classList.remove("fuel-log-report-print");
+    document.body.classList.add("fuel-log-report-print");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    window.print();
   };
 
   const showDeleteConfirmation = () => {
@@ -1147,6 +1447,7 @@ export default function FuelLog() {
     setOdometerReading(selectedLog.odometer_reading ? String(selectedLog.odometer_reading) : "");
     setAmountSpent(String(selectedLog.amount_spent));
     setLitres(selectedLog.litres ? String(selectedLog.litres) : "");
+    setSelectedProject(String(selectedLog.project || "").trim());
     setEditingLog(selectedLog);
 
     // Close detail drawer and open edit drawer
@@ -1154,8 +1455,69 @@ export default function FuelLog() {
     setDrawerOpen(true);
   };
 
+  const reportEmployeesForCurrentUser = userData?.role === "admin"
+    ? fuelReportEmployees
+    : fuelReportEmployees.slice(0, 1);
+
   return (
     <>
+      <style>{`
+        .fuel-report-document { box-sizing: border-box; width: 100%; padding: 1rem; color: #000; background: #fff; font-family: Arial, sans-serif; }
+        .fuel-report-heading { position: relative; text-align: center; }
+        .fuel-report-heading img { position: absolute; top: 0; left: 1rem; width: 42px; height: 42px; object-fit: contain; }
+        .fuel-report-heading h1 { margin: 0; font-size: 15px; font-weight: 700; }
+        .fuel-report-heading p { margin: 3px 0 12px; font-size: 11px; font-weight: 600; }
+        .fuel-report-heading h2 { display: inline-block; margin: 0 0 10px; font-size: 12px; font-weight: 700; text-decoration: underline; }
+        .fuel-report-summary { display: grid; grid-template-columns: 1fr 1.5fr 1fr; border: 1px solid #111; border-bottom: 0; font-size: 11px; }
+        .fuel-report-summary > div { display: flex; flex-direction: column; min-height: 34px; padding: 3px 5px; border-right: 1px solid #111; }
+        .fuel-report-summary > div:last-child { align-items: flex-end; border-right: 0; }
+        .fuel-report-summary strong { font-weight: 500; }
+        .fuel-report-summary > div:last-child strong { font-weight: 700; }
+        .fuel-report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
+        .fuel-report-table th, .fuel-report-table td { border: 1px solid #111; padding: 3px 4px; text-align: center; overflow-wrap: anywhere; }
+        .fuel-report-table th { height: 29px; font-weight: 700; }
+        .fuel-report-table tbody tr { height: 19px; }
+        .fuel-report-table tbody tr:nth-child(even) { background: #c3e8f2; }
+        .fuel-report-table th:nth-child(1), .fuel-report-table td:nth-child(1) { width: 7%; }
+        .fuel-report-table th:nth-child(2), .fuel-report-table td:nth-child(2) { width: 11%; }
+        .fuel-report-table th:nth-child(3), .fuel-report-table td:nth-child(3) { width: 22%; }
+        .fuel-report-table th:nth-child(4), .fuel-report-table td:nth-child(4) { width: 15%; }
+        .fuel-report-table th:nth-child(5), .fuel-report-table td:nth-child(5) { width: 11%; }
+        .fuel-report-table th:nth-child(6), .fuel-report-table td:nth-child(6) { width: 8%; }
+        .fuel-report-table th:nth-child(7), .fuel-report-table td:nth-child(7) { width: 12%; }
+        .fuel-report-table th:nth-child(8), .fuel-report-table td:nth-child(8) { width: 14%; }
+        .fuel-report-total-row { font-weight: 700; }
+        .fuel-report-signatures { display: flex; justify-content: space-between; margin-top: 38px; font-size: 10px; }
+        .fuel-report-signatures > div { display: flex; min-width: 40%; flex-direction: column; justify-content: space-between; min-height: 95px; }
+        .fuel-report-signatures > div:last-child { align-items: flex-end; text-align: right; }
+        .fuel-report-signatures strong { border-top: 1px dotted #111; padding-top: 4px; font-weight: 400; }
+        .fuel-report-print-only { display: none; }
+        .fuel-report-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+        .fuel-report-filters label { display: flex; min-width: 150px; flex-direction: column; gap: 0.3rem; font-size: 0.75rem; font-weight: 600; }
+        .fuel-report-filters select, .fuel-report-filters input { height: 2.25rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; background: #fff; padding: 0 0.5rem; font: inherit; }
+        .fuel-report-filters button { display: inline-flex; height: 2.25rem; align-items: center; justify-content: center; gap: 0.4rem; border: 0; border-radius: 0.375rem; background: #0f172a; padding: 0 0.75rem; color: #fff; font-size: 0.8rem; cursor: pointer; }
+        .fuel-report-filters button:disabled { cursor: not-allowed; opacity: 0.5; }
+        .fuel-report-filters .fuel-report-print-button { background: #0f766e; }
+        .fuel-report-empty { padding: 1.5rem 0; color: #64748b; font-size: 0.875rem; text-align: center; }
+        @media print {
+          @page { size: A4 portrait; margin: 8mm; }
+          body.fuel-log-report-print * { visibility: hidden !important; }
+          body.fuel-log-report-print .fuel-report-print-only,
+          body.fuel-log-report-print .fuel-report-print-only * { visibility: visible !important; }
+          body.fuel-log-report-print .fuel-report-print-only { display: block !important; position: fixed; inset: 0; width: 100%; padding: 0; }
+          body.fuel-log-report-print .fuel-report-heading h1 { font-size: 12px; }
+          body.fuel-log-report-print .fuel-report-heading p { margin-bottom: 8px; font-size: 9px; }
+          body.fuel-log-report-print .fuel-report-heading h2 { margin-bottom: 7px; font-size: 10px; }
+          body.fuel-log-report-print .fuel-report-summary { font-size: 8px; }
+          body.fuel-log-report-print .fuel-report-summary > div { min-height: 27px; }
+          body.fuel-log-report-print .fuel-report-table { font-size: 7px; }
+          body.fuel-log-report-print .fuel-report-table th, body.fuel-log-report-print .fuel-report-table td { padding: 2px; }
+          body.fuel-log-report-print .fuel-report-table th { height: 25px; }
+          body.fuel-log-report-print .fuel-report-table tbody tr { height: 17px; }
+          body.fuel-log-report-print .fuel-report-signatures { margin-top: 30px; font-size: 8px; }
+          body.fuel-log-report-print .fuel-report-signatures > div { min-height: 75px; }
+        }
+      `}</style>
       <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}>
         <Back
           fixed
@@ -1164,6 +1526,16 @@ export default function FuelLog() {
           subtitle={fuelLogs.length}
           extra={
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setFuelReportRows(null);
+                  setFuelReportOpen(true);
+                }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", border: "1px solid rgba(100, 100, 100, 0.2)", borderRadius: "0.5rem", padding: "0.45rem 0.65rem", background: "white", fontSize: "0.8rem", cursor: "pointer" }}
+              >
+                <Printer width="1rem" />Report
+              </button>
               {/* {!isOnline && (
                   <div style={{
                     padding: "0.5rem 1rem",
@@ -1363,7 +1735,7 @@ export default function FuelLog() {
               ) : (
                 fuelLogs.map((log) => (
                   <Directive
-                    subtext={"Vehicle - " + log.vehicle_number}
+                    subtext={`${log.project ? `Project - ${String(log.project).trim()} · ` : ""}Vehicle - ${log.vehicle_number}`}
                     id_subtitle={moment(log.created_at.todayISO).format("LL")}
                     noArrow
                     tag={log.amount_spent.toFixed(3)}
@@ -1557,6 +1929,10 @@ export default function FuelLog() {
           setAmountSpent={setAmountSpent}
           litres={litres}
           setLitres={setLitres}
+          project={selectedProject}
+          setProject={setSelectedProject}
+          projects={projectOptions}
+          projectsLoading={projectsLoading}
           setShowDatePicker={setShowDatePicker}
           dateSectionRef={dateSectionRef}
           editingLog={editingLog}
@@ -1763,6 +2139,51 @@ export default function FuelLog() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={fuelReportOpen} onOpenChange={setFuelReportOpen}>
+        <DialogContent style={{ width: "min(96vw, 1200px)", maxWidth: "96vw", maxHeight: "92vh", overflowY: "auto", padding: "1rem" }}>
+          <DialogHeader>
+            <DialogTitle>Fuel Log Report</DialogTitle>
+            <DialogDescription>Select an employee and date range to preview and print the reimbursement report.</DialogDescription>
+          </DialogHeader>
+          <div className="fuel-report-filters">
+            <label>Employee
+              <select
+                value={fuelReportEmployeeId}
+                onChange={(event) => { setFuelReportEmployeeId(event.target.value); setFuelReportRows(null); }}
+                disabled={fuelReportEmployeesLoading || (userData?.role !== "admin" && !fuelReportEmployees.length)}
+              >
+                {userData?.role === "admin" && <option value="ALL">All employees</option>}
+                {reportEmployeesForCurrentUser.map((employee) => <option key={employee.empId} value={employee.empId}>{employee.name}</option>)}
+              </select>
+            </label>
+            <label>From date
+              <input type="date" value={fuelReportFromDate} onChange={(event) => { setFuelReportFromDate(event.target.value); setFuelReportRows(null); }} />
+            </label>
+            <label>To date
+              <input type="date" value={fuelReportToDate} onChange={(event) => { setFuelReportToDate(event.target.value); setFuelReportRows(null); }} />
+            </label>
+            <button type="button" onClick={() => void loadFuelReport()} disabled={fuelReportLoading || fuelReportEmployeesLoading || (userData?.role !== "admin" && !fuelReportEmployees.length)}>
+              {fuelReportLoading ? <Loader2 className="animate-spin" width="1rem" /> : null}View Report
+            </button>
+            <button type="button" onClick={printFuelReport} disabled={!fuelReportRows?.length} className="fuel-report-print-button">
+              <Printer width="1rem" />Print
+            </button>
+          </div>
+          {fuelReportRows === null ? (
+            <p className="fuel-report-empty">Choose the filters and select View Report.</p>
+          ) : fuelReportRows.length ? (
+            <FuelLogPrintableReport
+              rows={fuelReportRows}
+              employees={fuelReportEmployees}
+              fromDate={fuelReportFromDate}
+              toDate={fuelReportToDate}
+            />
+          ) : (
+            <p className="fuel-report-empty">No fuel log records were found for the selected filters.</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <DefaultDialog
         open={deleteConfirmDialog}
         onCancel={() => setDeleteConfirmDialog(false)}
@@ -1774,6 +2195,15 @@ export default function FuelLog() {
         updating={deleting}
         disabled={deleting}
       />
+      {fuelReportRows?.length ? (
+        <FuelLogPrintableReport
+          rows={fuelReportRows}
+          employees={fuelReportEmployees}
+          fromDate={fuelReportFromDate}
+          toDate={fuelReportToDate}
+          printOnly
+        />
+      ) : null}
     </>
   );
 }
