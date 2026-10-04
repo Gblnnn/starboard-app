@@ -12,6 +12,7 @@ export interface FuelLog {
   amount_spent: number;
   litres?: number;
   employee_name: string;
+  project?: string | null;
   vehicle_number: string;
   created_at: any;
   isPending?: boolean;
@@ -110,6 +111,7 @@ export const fetchAndCacheFuelLogs = async (userEmail: string): Promise<FuelLog[
       amount_spent: Number(d.amount_spent) || 0,
       litres: d.litres ? Number(d.litres) : undefined,
       employee_name: d.employee_name || "",
+      project: typeof d.project === "string" ? d.project.trim() : null,
       vehicle_number: d.vehicle_number || "",
       created_at: d.created_at,
       isPending: false,
