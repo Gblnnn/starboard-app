@@ -11,6 +11,7 @@ export interface PendingFuelLog {
     email: string;
     employee_name: string;
     employee_code: string; // references employees.emp_id
+    project?: string | null;
     timestamp: number;
   };
   createdAt: number;
