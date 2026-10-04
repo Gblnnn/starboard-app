@@ -5,6 +5,7 @@ import RefreshButton from '@/components/refresh-button';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRightLeft, BarChart3, Calendar, ChartLine, Check, Database, FileCheck, FolderKanban, Laptop2, LayoutGrid, List, Loader2, PenLine, Sidebar, Table, Terminal as TerminalIcon, TrendingUp, UserCog, UserPlus, Zap, FileSpreadsheet, Pointer, PlaneTakeoff, Clock3 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 //import { useNavigate } from 'react-router-dom';
 import { EmployeeTable } from '../components/EmployeeTable';
 import { PunchLog } from '../components/PunchLog';
@@ -42,7 +43,7 @@ const formatSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'attendance-book' | 'summary-report' | 'timesheet-edit' | 'project-timing-break';
+type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'attendance-book' | 'summary-report' | 'timesheet-print' | 'timesheet-edit' | 'project-timing-break';
 
 export default function AttendanceDashboard() {
 //  const navigate = useNavigate();
@@ -59,6 +60,34 @@ export default function AttendanceDashboard() {
   const [biometricsSpace, setBiometricsSpace] = useState<number>(0);
   const [isFocalPoint, setIsFocalPoint] = useState(false);
   const [isTimesheetApprover, setIsTimesheetApprover] = useState(false);
+  const [hasAssignedTimesheetProjects, setHasAssignedTimesheetProjects] = useState(false);
+
+  useEffect(() => {
+    const empId = userData?.emp_id ? String(userData.emp_id) : '';
+    setHasAssignedTimesheetProjects(false);
+    if (!empId) return;
+
+    let cancelled = false;
+    const checkAssignedTimesheetProjects = async () => {
+      try {
+        const [focalResult, approverResult] = await Promise.all([
+          supabase.from('projects').select('project_code').eq('focal_point_id', empId),
+          supabase.from('projects').select('project_code').eq('approver_id', empId),
+        ]);
+        if (focalResult.error) throw focalResult.error;
+        if (approverResult.error) throw approverResult.error;
+        if (!cancelled) {
+          setHasAssignedTimesheetProjects(
+            [...(focalResult.data || []), ...(approverResult.data || [])].some((project) => project.project_code),
+          );
+        }
+      } catch (error) {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : 'Unable to check assigned projects.');
+      }
+    };
+    void checkAssignedTimesheetProjects();
+    return () => { cancelled = true; };
+  }, [userData?.emp_id]);
 
   useEffect(() => {
     const checkFocalPointAndApprover = async () => {
@@ -210,6 +239,7 @@ export default function AttendanceDashboard() {
       { value: 'timesheets', label: 'Timesheets', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
       { value: 'attendance-book', label: 'Attendance Book', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },      
       { value: 'summary-report', label: 'Summary Report', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
+      ...(hasAssignedTimesheetProjects ? [{ value: 'timesheet-print', label: 'Timesheet Print', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> }] : []),
       { value: 'timesheet-edit', label: 'Edit Timesheet', icon: <PenLine color="darkblue" className="w-4 h-4" /> },
       { value: 'project-timing-break', label: 'Project Break Timings', icon: <Clock3 color="darkblue" className="w-4 h-4" /> },      
       { value: 'leave-log', label: 'Leave Log', icon: <Calendar color="darkblue" className="w-4 h-4" /> },
@@ -250,7 +280,7 @@ export default function AttendanceDashboard() {
     }
     
     return finalOptions;
-  }, [canEditAttendance, userData?.clearance, isFocalPoint, isTimesheetApprover, userData?.role]);
+  }, [canEditAttendance, hasAssignedTimesheetProjects, userData?.clearance, isFocalPoint, isTimesheetApprover, userData?.role]);
     
 
   const isAllowed = (tabValue: Tab) => {
@@ -418,6 +448,9 @@ export default function AttendanceDashboard() {
                   
                   {isAllowed('summary-report') && (
                     <Directive bg={tab === 'summary-report' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('summary-report')} title="Summary Report" icon={<FileSpreadsheet size={16} />} />
+                  )}
+                  {isAllowed('timesheet-print') && (
+                    <Directive bg={tab === 'timesheet-print' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('timesheet-print')} title="Timesheet Print" icon={<FileSpreadsheet size={16} />} />
                   )}
                   {isAllowed('timesheet-edit') && (
                     <Directive bg={tab === 'timesheet-edit' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('timesheet-edit')} title="Edit Timesheet" icon={<PenLine size={16} />} />
@@ -670,6 +703,8 @@ export default function AttendanceDashboard() {
               <AttendanceBook refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} />            
             ) : tab === 'summary-report' ? (
               <EmployeeTimesheetSummaryReport embedMode={true} />
+            ) : tab === 'timesheet-print' ? (
+              <EmployeeTimesheetSummaryReport embedMode={true} timesheetPrintMode={true} />
             ) : tab === 'timesheet-edit' ? (
               <TimesheetEdit embedMode={true} />
             ) : tab === 'project-timing-break' ? (
