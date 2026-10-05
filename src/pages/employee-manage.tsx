@@ -103,6 +103,9 @@ interface ManageEmployee {
     project?: string | null;
     company?: string | null;
     civil_id?: string | null;
+    doj?: string | null;
+    phone?: string | null;
+    cug?: string | null;
     status?: EmployeeStatus | null;
 }
 
@@ -231,6 +234,9 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
     const [editStatus, setEditStatus] = useState<EmployeeStatus>('Active');
     const [editNationality, setEditNationality] = useState('');
     const [editCivilId, setEditCivilId] = useState('');
+    const [editDoj, setEditDoj] = useState('');
+    const [editPhone, setEditPhone] = useState('');
+    const [editCug, setEditCug] = useState('');
     const [editDesignation, setEditDesignation] = useState('');
     const [editCompany, setEditCompany] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -722,6 +728,9 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
     const [addStatus, setAddStatus] = useState<EmployeeStatus>('Active');
     const [addNationality, setAddNationality] = useState('');
     const [addCivilId, setAddCivilId] = useState('');
+    const [addDoj, setAddDoj] = useState('');
+    const [addPhone, setAddPhone] = useState('');
+    const [addCug, setAddCug] = useState('');
     const [addDesignation, setAddDesignation] = useState('');
     const [addCompany, setAddCompany] = useState('');
     const [devices, setDevices] = useState<Device[]>([]);
@@ -1061,6 +1070,9 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                     status: normalizeEmployeeStatus(addStatus),
                     nationality: addNationality || null,
                     civil_id: addCivilId.trim() || null,
+                    doj: addDoj || null,
+                    phone: addPhone.trim() || null,
+                    cug: addCug.trim() || null,
                     designation: addDesignation.trim() || null,
                     company: addCompany.trim() || null,
                 })
@@ -1098,6 +1110,9 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
             setAddStatus('Active');
             setAddNationality('');
             setAddCivilId('');
+            setAddDoj('');
+            setAddPhone('');
+            setAddCug('');
             setAddDesignation('');
             setAddCompany('');
             setSelectedDevices(new Set());
@@ -1176,6 +1191,9 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                     status: normalizeEmployeeStatus(editStatus),
                     nationality: editNationality || null,
                     civil_id: editCivilId.trim() || null,
+                    doj: editDoj || null,
+                    phone: editPhone.trim() || null,
+                    cug: editCug.trim() || null,
                     designation: editDesignation.trim() || null,
                     company: editCompany.trim() || null,
                 })
@@ -1832,7 +1850,12 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                             setAddEmpId('');
                             setAddEmpType('staff');
                             setAddShift('day');
+                            setAddStatus('Active');
                             setAddNationality('');
+                            setAddCivilId('');
+                            setAddDoj('');
+                            setAddPhone('');
+                            setAddCug('');
                             setAddDesignation('');
                             setAddCompany('');
                             setSelectedDevices(new Set());
@@ -2645,6 +2668,9 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                                             setEditStatus(normalizeEmployeeStatus(emp.status));
                                             setEditNationality(emp.nationality || '');
                                             setEditCivilId(emp.civil_id || '');
+                                            setEditDoj(emp.doj || '');
+                                            setEditPhone(emp.phone || '');
+                                            setEditCug(emp.cug || '');
                                             setEditDesignation(emp.designation || '');
                                             setEditCompany(emp.company || '');
                                         }
@@ -2895,6 +2921,37 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                                             value={editCivilId}
                                             onChange={(e) => setEditCivilId(e.target.value)}
                                             placeholder="Enter Civil ID"
+                                            className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-gray-555 block">Date of Joining</label>
+                                            <Input
+                                                type="date"
+                                                value={editDoj}
+                                                onChange={(e) => setEditDoj(e.target.value)}
+                                                className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-gray-555 block">Phone</label>
+                                            <Input
+                                                type="tel"
+                                                value={editPhone}
+                                                onChange={(e) => setEditPhone(e.target.value)}
+                                                placeholder="Enter phone number"
+                                                className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-gray-555 block">CUG</label>
+                                        <Input
+                                            type="tel"
+                                            value={editCug}
+                                            onChange={(e) => setEditCug(e.target.value)}
+                                            placeholder="Enter CUG number"
                                             className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl"
                                         />
                                     </div>
@@ -3310,6 +3367,37 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                                             value={addCivilId}
                                             onChange={(e) => setAddCivilId(e.target.value)}
                                             placeholder="Enter Civil ID"
+                                            className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl h-10 w-full"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-gray-555 block">Date of Joining</label>
+                                            <Input
+                                                type="date"
+                                                value={addDoj}
+                                                onChange={(e) => setAddDoj(e.target.value)}
+                                                className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl h-10 w-full"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-gray-555 block">Phone</label>
+                                            <Input
+                                                type="tel"
+                                                value={addPhone}
+                                                onChange={(e) => setAddPhone(e.target.value)}
+                                                placeholder="Enter phone number"
+                                                className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl h-10 w-full"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-gray-555 block">CUG</label>
+                                        <Input
+                                            type="tel"
+                                            value={addCug}
+                                            onChange={(e) => setAddCug(e.target.value)}
+                                            placeholder="Enter CUG number"
                                             className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl h-10 w-full"
                                         />
                                     </div>
