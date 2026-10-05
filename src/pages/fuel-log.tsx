@@ -932,9 +932,33 @@ export default function FuelLog() {
         const { data, error } = await query;
         if (error) throw error;
         if (cancelled) return;
-        const employees = (data || [])
+        const employeeOptions = (data || [])
           .filter((employee) => employee.emp_id !== null && employee.name)
           .map((employee) => ({ empId: String(employee.emp_id), name: String(employee.name) }));
+        if (!isAdmin && !employeeOptions.length) {
+          setFuelReportEmployees([]);
+          setFuelReportEmployeeId("");
+          toast.error("No employee record was found for your account.");
+          return;
+        }
+        const employeeCodesWithLogs = new Set<string>();
+        let offset = 0;
+        let logPage: Array<{ employee_code: string | null }>;
+        do {
+          if (cancelled) return;
+          let logsQuery = supabase.from("fuel_log").select("employee_code");
+          if (!isAdmin) logsQuery = logsQuery.eq("employee_code", employeeOptions[0]?.empId || "");
+          const { data: logData, error: logError } = await logsQuery.range(offset, offset + 499);
+          if (logError) throw logError;
+          if (cancelled) return;
+          logPage = (logData || []) as Array<{ employee_code: string | null }>;
+          logPage.forEach((log) => {
+            if (log.employee_code) employeeCodesWithLogs.add(String(log.employee_code));
+          });
+          offset += 500;
+        } while (logPage.length === 500);
+        if (cancelled) return;
+        const employees = employeeOptions.filter((employee) => employeeCodesWithLogs.has(employee.empId));
         setFuelReportEmployees(employees);
         if (isAdmin) {
           setFuelReportEmployeeId((current) => current || "ALL");
@@ -942,7 +966,7 @@ export default function FuelLog() {
           setFuelReportEmployeeId(employees[0].empId);
         } else {
           setFuelReportEmployeeId("");
-          toast.error("No employee record was found for your account.");
+          toast.error("No fuel logs were found for your employee record.");
         }
       } catch (error) {
         if (!cancelled) toast.error(error instanceof Error ? error.message : "Unable to load employees for the report.");
@@ -1505,16 +1529,16 @@ export default function FuelLog() {
           body.fuel-log-report-print .fuel-report-print-only,
           body.fuel-log-report-print .fuel-report-print-only * { visibility: visible !important; }
           body.fuel-log-report-print .fuel-report-print-only { display: block !important; position: fixed; inset: 0; width: 100%; padding: 0; }
-          body.fuel-log-report-print .fuel-report-heading h1 { font-size: 12px; }
-          body.fuel-log-report-print .fuel-report-heading p { margin-bottom: 8px; font-size: 9px; }
-          body.fuel-log-report-print .fuel-report-heading h2 { margin-bottom: 7px; font-size: 10px; }
-          body.fuel-log-report-print .fuel-report-summary { font-size: 8px; }
+          body.fuel-log-report-print .fuel-report-heading h1 { font-size: 14px; }
+          body.fuel-log-report-print .fuel-report-heading p { margin-bottom: 8px; font-size: 11px; }
+          body.fuel-log-report-print .fuel-report-heading h2 { margin-bottom: 7px; font-size: 12px; }
+          body.fuel-log-report-print .fuel-report-summary { font-size: 10px; }
           body.fuel-log-report-print .fuel-report-summary > div { min-height: 27px; }
-          body.fuel-log-report-print .fuel-report-table { font-size: 7px; }
+          body.fuel-log-report-print .fuel-report-table { font-size: 9px; }
           body.fuel-log-report-print .fuel-report-table th, body.fuel-log-report-print .fuel-report-table td { padding: 2px; }
           body.fuel-log-report-print .fuel-report-table th { height: 25px; }
           body.fuel-log-report-print .fuel-report-table tbody tr { height: 17px; }
-          body.fuel-log-report-print .fuel-report-signatures { margin-top: 30px; font-size: 8px; }
+          body.fuel-log-report-print .fuel-report-signatures { margin-top: 30px; font-size: 10px; }
           body.fuel-log-report-print .fuel-report-signatures > div { min-height: 75px; }
         }
       `}</style>
