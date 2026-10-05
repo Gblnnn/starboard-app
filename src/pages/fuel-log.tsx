@@ -24,6 +24,7 @@ import { toast } from "sonner";
 
 interface FuelProjectOption {
   key: string;
+  code: string;
   name: string;
 }
 
@@ -322,7 +323,7 @@ const FuelLogFormContent: React.FC<FuelLogFormContentProps> = ({
                 style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", background: "rgba(100, 100, 100, 0.08)" }}
               >
                 <option value="">Select a project</option>
-                {projects.map((option) => <option key={option.key} value={option.name}>{option.name}</option>)}
+                {projects.map((option) => <option key={option.key} value={option.code}>{option.code}</option>)}
               </select>
             </div>
 
@@ -855,15 +856,16 @@ export default function FuelLog() {
       try {
         const { data, error } = await supabase
           .from("projects")
-          .select("project_name")
-          .order("project_name", { ascending: true });
+          .select("project_code, project_name")
+          .order("project_code", { ascending: true });
         if (error) throw error;
         if (cancelled) return;
         const projectsByName = new Map<string, FuelProjectOption>();
         (data || []).forEach((row) => {
           const name = String(row.project_name || "").trim();
+          const code = String(row.project_code || "").trim();
           const key = name.toLocaleLowerCase();
-          if (name && !projectsByName.has(key)) projectsByName.set(key, { key, name });
+          if (name && code && !projectsByName.has(key)) projectsByName.set(key, { key, code, name });
         });
         setProjectOptions(Array.from(projectsByName.values()));
       } catch (error) {
@@ -881,8 +883,8 @@ export default function FuelLog() {
     setSelectedProject("");
     if (editingLog) {
       const savedProject = String(editingLog.project || "").trim();
-      const matchingSavedProject = projectOptions.find((option) => option.name.toLocaleLowerCase() === savedProject.toLocaleLowerCase());
-      setSelectedProject(matchingSavedProject?.name || "");
+      const matchingSavedProject = projectOptions.find((option) => option.code.trim().toLocaleLowerCase() === savedProject.toLocaleLowerCase());
+      setSelectedProject(matchingSavedProject?.code || savedProject);
       return;
     }
 
@@ -902,7 +904,7 @@ export default function FuelLog() {
         const currentProject = String(data?.current_project || "").trim();
         if (!currentProject || currentProject.toLocaleLowerCase() === "unassigned") return;
         const matchingProject = projectOptions.find((option) => option.name.toLocaleLowerCase() === currentProject.toLocaleLowerCase());
-        if (matchingProject) setSelectedProject(matchingProject.name);
+        if (matchingProject) setSelectedProject(matchingProject.code);
       } catch (error) {
         if (!cancelled) toast.error(error instanceof Error ? error.message : "Unable to load your current project.");
       }
