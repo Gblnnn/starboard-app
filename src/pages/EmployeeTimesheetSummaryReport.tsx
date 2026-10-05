@@ -226,6 +226,75 @@ function SearchableSelect({ label, value, options, onChange }: {
   );
 }
 
+function SearchableEmployeeSelect({ employees, value, onChange, disabled, className = '' }: {
+  employees: EmployeeOption[];
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const selectedEmployee = employees.find((employee) => employee.empId === value);
+  const filteredEmployees = employees.filter((employee) =>
+    `${employee.empId} ${employee.name}`.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
+  const selectEmployee = (empId: string) => {
+    onChange(empId);
+    setOpen(false);
+    setQuery('');
+  };
+
+  return (
+    <div className={`relative ${className}`}>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => { setOpen((current) => !current); setQuery(''); }}
+        className="inline-flex h-9 w-full min-w-56 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 text-left text-sm text-slate-700 disabled:bg-slate-100"
+      >
+        <span className="truncate">{selectedEmployee ? `${selectedEmployee.name} [${selectedEmployee.empId}]` : value === 'ALL' ? 'All employees' : 'Select an employee'}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-10 z-50 w-full min-w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+          <div className="flex items-center gap-1 rounded border border-slate-200 px-2">
+            <Search className="h-3 w-3 shrink-0 text-slate-400" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search name or employee ID..."
+              aria-label="Search employees by name or employee ID"
+              className="h-8 w-full text-xs outline-none"
+            />
+            {query && <button type="button" onClick={() => setQuery('')} aria-label="Clear employee search"><X className="h-3 w-3 text-slate-400" /></button>}
+          </div>
+          <div className="mt-1 max-h-48 overflow-y-auto" role="listbox">
+            <button type="button" role="option" aria-selected={value === 'ALL'} onClick={() => selectEmployee('ALL')} className={`w-full rounded px-2 py-1.5 text-left text-xs hover:bg-slate-50 ${value === 'ALL' ? 'font-semibold text-teal-700' : ''}`}>All employees</button>
+            {filteredEmployees.map((employee) => (
+              <button
+                key={employee.empId}
+                type="button"
+                role="option"
+                aria-selected={value === employee.empId}
+                onClick={() => selectEmployee(employee.empId)}
+                className={`w-full truncate rounded px-2 py-1.5 text-left text-xs hover:bg-slate-50 ${value === employee.empId ? 'font-semibold text-teal-700' : ''}`}
+              >
+                {employee.name} [{employee.empId}]
+              </button>
+            ))}
+            {!filteredEmployees.length && <p className="px-2 py-2 text-xs text-slate-400">No matching employees.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EmployeeTimesheetSummaryReport({ embedMode = false, timesheetPrintMode = false }: { embedMode?: boolean; timesheetPrintMode?: boolean } = {}) {
   const { userData } = useAuth();
   const navigate = useNavigate();
@@ -1066,7 +1135,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
         <div className="report-no-print flex shrink-0 flex-wrap items-end gap-3 border-b border-slate-100 bg-slate-50/70 px-3 py-3">
           <label className="block text-xs font-medium text-slate-700">Project<select value={assignedPrintProject} disabled={assignedPrintProjectsLoading} onChange={(event) => { assignedPrintRequestIdRef.current += 1; setMonthlyPrintLoading(false); setAssignedPrintProject(event.target.value); setMonthlyPrintData(null); }} className="mt-1 h-9 min-w-64 rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="">Select a project</option>{assignedPrintProjects.map((project) => <option key={project.code} value={project.code}>{project.code}{project.name ? ` - ${project.name}` : ''}</option>)}</select></label>
           <label className="block text-xs font-medium text-slate-700">Month<input type="month" value={assignedPrintMonth} onChange={(event) => { assignedPrintRequestIdRef.current += 1; setMonthlyPrintLoading(false); setAssignedPrintMonth(event.target.value); setMonthlyPrintData(null); }} className="mt-1 h-9 rounded-md border border-slate-200 bg-white px-2 text-sm" /></label>
-          <label className="block text-xs font-medium text-slate-700">Employee<select value={assignedPrintEmployeeId} disabled={!assignedPrintProject || assignedPrintEmployeesLoading} onChange={(event) => { assignedPrintRequestIdRef.current += 1; setMonthlyPrintLoading(false); setAssignedPrintEmployeeId(event.target.value); setMonthlyPrintData(null); }} className="mt-1 h-9 min-w-56 rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="ALL">All employees</option>{assignedPrintEmployees.map((employee) => <option key={employee.empId} value={employee.empId}>{employee.name} [{employee.empId}]</option>)}</select></label>
+          <div className="text-xs font-medium text-slate-700"><span>Employee</span><SearchableEmployeeSelect className="mt-1" employees={assignedPrintEmployees} value={assignedPrintEmployeeId} disabled={!assignedPrintProject || assignedPrintEmployeesLoading} onChange={(value) => { assignedPrintRequestIdRef.current += 1; setMonthlyPrintLoading(false); setAssignedPrintEmployeeId(value); setMonthlyPrintData(null); }} /></div>
           <button type="button" onClick={() => void loadAssignedProjectTimesheets()} disabled={!assignedPrintProject || !assignedPrintMonth || monthlyPrintLoading || assignedPrintEmployeesLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50">{monthlyPrintLoading && <Loader2 className="h-4 w-4 animate-spin" />}View Report</button>
           {assignedPrintProjectsLoading || assignedPrintEmployeesLoading ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : null}
           {!assignedPrintProjectsLoading && !assignedPrintProjects.length && <p className="text-sm text-slate-500">No projects are assigned to your employee ID.</p>}
@@ -1212,7 +1281,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
           <label className="mb-3 block text-xs font-medium text-slate-700">Company<select value={monthlyPrintCompany} disabled={Boolean(monthlyPrintProject) || monthlyPrintOptionsLoading} onChange={(event) => { setMonthlyPrintCompany(event.target.value); setMonthlyPrintProject(''); setMonthlyPrintEmployeeId('ALL'); }} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="">All companies</option>{monthlyPrintCompanies.map((company) => <option key={company.code || company.name} value={company.name}>{company.name}{company.code ? ` [${company.code}]` : ''}</option>)}</select></label>
           <label className="mb-3 block text-xs font-medium text-slate-700">Project<select value={monthlyPrintProject} disabled={Boolean(monthlyPrintCompany) || monthlyPrintOptionsLoading} onChange={(event) => { setMonthlyPrintProject(event.target.value); setMonthlyPrintCompany(''); setMonthlyPrintEmployeeId('ALL'); }} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm disabled:bg-slate-100"><option value="">All projects</option>{monthlyPrintProjects.map((project) => <option key={project.code} value={project.code}>{project.code}{project.name ? ` - ${project.name}` : ''}</option>)}</select></label>
           <label className="mb-3 block text-xs font-medium text-slate-700">Month<input type="month" value={monthlyPrintMonth} onChange={(event) => setMonthlyPrintMonth(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm" /></label>
-          <label className="mb-3 block text-xs font-medium text-slate-700">Employee<select value={monthlyPrintEmployeeId} onChange={(event) => setMonthlyPrintEmployeeId(event.target.value)} disabled={monthlyPrintEmployeesLoading} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"><option value="ALL">All employees</option>{monthlyPrintEmployeeOptions.filter((employee) => employee.empId).map((employee) => <option key={employee.empId} value={employee.empId}>{employee.name} [{employee.empId}]</option>)}</select></label>
+          <div className="mb-3 text-xs font-medium text-slate-700"><span>Employee</span><SearchableEmployeeSelect className="mt-1" employees={monthlyPrintEmployeeOptions.filter((employee) => employee.empId)} value={monthlyPrintEmployeeId} onChange={setMonthlyPrintEmployeeId} disabled={monthlyPrintEmployeesLoading} /></div>
           <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setMonthlyPrintOpen(false)} className="h-9 rounded-md border border-slate-200 px-3 text-sm text-slate-700">Cancel</button><button type="button" onClick={() => void printEmployeeMonth()} disabled={!monthlyPrintMonth || monthlyPrintLoading || monthlyPrintEmployeesLoading} className="inline-flex h-9 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-medium text-white disabled:opacity-50">{monthlyPrintLoading && <Loader2 className="h-4 w-4 animate-spin" />}Print</button></div>
         </div>
       </div>}
