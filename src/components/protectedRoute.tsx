@@ -16,7 +16,6 @@ const ROLE_RESTRICTED_ROUTES = {
   profile: ["/profile", "/records", "/phonebook", "/attendance"] // Basic profile access
 };
 
-// Module-level clearance can explicitly grant route access regardless of role list.
 const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
   records_master: ["/records", "/record-list", "/record/", "/vale-records", "/movement-register"],
   user_management: ["/users", "/user", "/admin", "/access-control", "/access-requests"],
@@ -80,12 +79,8 @@ export default function ProtectedRoutes() {
   const { user, userData, loading } = useAuth();
   const location = useLocation();
 
-  // DEBUG LOGGING
   const currentPath = location.pathname;
   const modulePermissions = getModulePermissions(userData?.clearance);
-  console.log("[ProtectedRoutes] userData:", userData);
-  console.log("[ProtectedRoutes] modulePermissions:", modulePermissions);
-  console.log("[ProtectedRoutes] currentPath:", currentPath);
 
   if (loading) {
     return (
@@ -103,12 +98,10 @@ export default function ProtectedRoutes() {
     );
   }
 
-  // First check if user is authenticated
   if (!user || !userData) {
     return <Navigate to="/" />;
   }
 
-  // Check role-based route restrictions
   const allowedRoutes = ROLE_RESTRICTED_ROUTES[userData.role as keyof typeof ROLE_RESTRICTED_ROUTES];
   const hasModuleRouteAccess = hasRoutePermissionFromModules(currentPath, modulePermissions);
   const hasShiftManagementAccess = currentPath === "/shift-management" && (
@@ -117,55 +110,42 @@ export default function ProtectedRoutes() {
     modulePermissions.shift_management === true
   );
 
-  // Helper function to check if a path matches allowed routes (including dynamic routes)
-  const isPathAllowed = (path: string, allowedRoutes: string[]): boolean => {
-    // Check for wildcard access
-    if (allowedRoutes.includes("*")) return true;
+  const isPathAllowed = (path: string, routes: string[]): boolean => {
+    if (routes.includes("*")) return true;
+    if (routes.includes(path)) return true;
 
-    // Check exact match
-    if (allowedRoutes.includes(path)) return true;
-
-    // Check if path starts with any allowed route (for dynamic routes like /record/:id)
-    return allowedRoutes.some(() => {
-      // Special handling for dynamic routes
-      if (path.startsWith('/record/') && allowedRoutes.includes('/records')) {
+    return routes.some(() => {
+      if (path.startsWith("/record/") && routes.includes("/records")) {
         return true;
       }
       return false;
     });
   };
 
-  // If route is module-protected, allow access if EITHER role-based or module clearance is present
-  const isModuleProtected = Object.values(MODULE_ROUTE_PERMISSIONS).some(routes => routes.includes(currentPath));
+  const isModuleProtected = Object.values(MODULE_ROUTE_PERMISSIONS)
+    .some((routes) => routes.includes(currentPath));
+
   if (isModuleProtected) {
     if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess) {
-      // If neither role nor module clearance, redirect
       const defaultRoute = allowedRoutes && allowedRoutes.length > 0 ? allowedRoutes[0] : "/index";
       return <Navigate to={defaultRoute} replace />;
     }
   } else {
-    // If role is defined and has specific route restrictions (not wildcard)
     if (allowedRoutes && allowedRoutes.length > 0 && !allowedRoutes.includes("*")) {
       if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess) {
-        // Redirect to their default page based on role
-        const defaultRoute = allowedRoutes[0];
-        return <Navigate to={defaultRoute} replace />;
+        return <Navigate to={allowedRoutes[0]} replace />;
       }
-    }
-    // If role is not defined in ROLE_RESTRICTED_ROUTES, allow access to /index only
-    else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess && !hasShiftManagementAccess) {
+    } else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess && !hasShiftManagementAccess) {
       return <Navigate to="/index" replace />;
     }
   }
 
-  // Then check clearance for protected routes
   const requiredClearance =
     CLEARANCE_ROUTES[location.pathname as keyof typeof CLEARANCE_ROUTES];
   if (requiredClearance) {
     const hasLegacyClearance = requiredClearance.includes(userData.clearance);
     const hasClearance = hasLegacyClearance || hasModuleRouteAccess;
     if (!hasClearance) {
-      // If no clearance, redirect to record-list with error state
       return (
         <Navigate
           to="/record-list"
@@ -176,7 +156,6 @@ export default function ProtectedRoutes() {
     }
   }
 
-  // Only show BottomNav on specific pages
   const showBottomNav = ["/index", "/phonebook", "/tasks", "/site-admin-workers", "/mobile-punch"].includes(location.pathname);
 
   return (
