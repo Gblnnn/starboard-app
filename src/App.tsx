@@ -1,4 +1,3 @@
-
 // Push/notifications removed — no firestore notification imports here.
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Route, Routes } from "react-router-dom";
@@ -18,7 +17,6 @@ import PageNotFound from "./pages/page-not-found";
 import RequestAccess from "./pages/request-access";
 import UserReset from "./pages/user-reset";
 import UpdatePassword from "./pages/update-password";
-
 
 // Lazy load protected pages only (loaded after authentication)
 const Index = lazy(() => import("./pages"));
@@ -67,7 +65,6 @@ const SimCards = lazy(() => import("./pages/sim-cards"));
 const AttendanceDashboard = lazy(() => import("./pages/AttendanceDashboard"));
 const Tickets = lazy(() => import("./pages/tickets"));
 const MobilePunch = lazy(() => import("./pages/mobile-punch"));
-         
 
 const ManpowerRequirements = lazy(() => import("./pages/manpower-requirements"));
 const Offboarding = lazy(() => import("./pages/offboarding"));
@@ -79,10 +76,10 @@ const ShiftManagement = lazy(() => import("./pages/shift-management"));
 
 // Loading fallback component
 const PageLoader = () => (
-  <div style={{ 
-    display: "flex", 
-    justifyContent: "center", 
-    alignItems: "center", 
+  <div style={{
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
     height: "100svh"
   }}>
     <Loader2 className="animate-spin" style={{ fontSize: 24 }} />
@@ -93,14 +90,14 @@ export default function App() {
   const { addProcess, updateProcess } = useBackgroundProcess();
   const { user, userData, cachedAuthState } = useAuth();
   const phonebookInitialized = useRef(false);
-  
+
   // Initialize phonebook cache in the background on app launch (only once)
   useEffect(() => {
     if (!phonebookInitialized.current) {
       phonebookInitialized.current = true;
       const processId = "phonebook-cache-init";
       addProcess(processId, "Phonebook Sync");
-      
+
       refreshPhonebookCache((status, message) => {
         updateProcess(processId, { status, message });
       });
@@ -147,79 +144,79 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}
-        <Route path="/" element={<Login />} />
-        <Route path="/user-reset" element={<UserReset />} />
-        <Route path="/update-password" element={<UpdatePassword />} />
-        <Route path="/request-access" element={<RequestAccess />} />
-        <Route path="/create-account" element={<CreateAccount />} />
-        <Route path="/inbox" element={<Inbox />} />
-        <Route path="/supervisor" element={<Supervisor />} />
-        <Route path="/quick-links" element={<QuickLinks />} />
+          <Route path="/" element={<Login />} />
+          <Route path="/user-reset" element={<UserReset />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
+          <Route path="/request-access" element={<RequestAccess />} />
+          <Route path="/create-account" element={<CreateAccount />} />
+          <Route path="/inbox" element={<Inbox />} />
+          <Route path="/supervisor" element={<Supervisor />} />
+          <Route path="/quick-links" element={<QuickLinks />} />
 
-        {/* Protected routes */}
-        <Route
-          element={
-            <AuthGuard>
-              <ProtectedRoutes />
-            </AuthGuard>
-          }
-        >
-          <Route path="/index" element={<Index />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/shift-logs" element={<ShiftLogs />} />
-          <Route path="/site-admin-workers" element={<SiteAdminWorkers />} />
-          
-          <Route path="/record-list" element={<RecordList />} />
-          <Route path="/mobilizacao" element={<ValeMobilisation />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/archives" element={<Archives />} />
-          <Route path="/site-coordinator" element={<SiteCoordinator />} />
-          <Route path="/access-control" element={<AccessControl />} />
-          <Route path="access-requests" element={<AccessRequests />} />
-          <Route path="/user" element={<UserPage />} />
-          <Route path="/new-hire" element={<NewHire />} />
-          <Route path="/offer-letters" element={<OfferLetters />} />
-          <Route path="/employee-clearance-form" element={<EmployeeClearanceForm />} />
-          <Route path="/phonebook" element={<Phonebook />} />
-          <Route path="/devices" element={<Devices />} />
-          <Route path="/agreements" element={<Agreements />} />
-          <Route path="/shortlist" element={<Shortlist />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/openings" element={<Openings />} />
-          <Route path="/website" element={<Website />} />
-          <Route path="/add-remarks" element={<AddRemarks />} />
-          <Route path="/lpos" element={<LPO />} />
-          <Route path="/qr-code-generator" element={<QRCodeGenerator />} />
-          <Route path="/fuel-log" element={<FuelLog />} />
-          <Route path="/passports" element={<Passports />} />
-          <Route path="/asset-master" element={<AssetMaster />} />
-          <Route path="/vehicles" element={<VehicleLogBook />} />
-          <Route path="/vehicle-log-book" element={<VehicleLogBook />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/project-lpo" element={<ProjectLPO />} />
-          <Route path="/movement-register" element={<MovementRegister />} />
-          <Route path="/transfer-requests" element={<TransferRequests />} />
-          <Route path="/sim-cards" element={<SimCards />} />
-          <Route path="/tickets" element={<Tickets />} />
-          <Route path="/attendance" element={<AttendanceDashboard />} />
-          <Route path="/shift-management" element={<ShiftManagement />} />
-          <Route path="/employee-timesheet-summary" element={<EmployeeTimesheetSummaryReport />} />
-          <Route path="/timesheet-edit" element={<TimesheetEdit />} />   
-          <Route path="/project-timing-break" element={<ProjectTimingBreak />} />                 
-          <Route path="/mobile-punch" element={<MobilePunch />} />
-          <Route path="/manpower-requirements" element={<ManpowerRequirements />} />
-          <Route path="/offboarding" element={<Offboarding />} />
-          <Route path="/document-editor" element={<DocumentEditor />} />
-          <Route path="/records" element={<Records />} />
-          <Route path="/record/:id" element={<RecordDetail />} />
-          <Route path="/vale-records" element={<ValeRecords />} />
-          <Route path="/medicals" element={<Medicals />} />
-          <Route path="/history" element={<History />} />
-        </Route>
+          {/* Protected routes */}
+          <Route
+            element={
+              <AuthGuard>
+                <ProtectedRoutes />
+              </AuthGuard>
+            }
+          >
+            <Route path="/index" element={<Index />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/shift-logs" element={<ShiftLogs />} />
+            <Route path="/site-admin-workers" element={<SiteAdminWorkers />} />
 
-        <Route path="*" element={<PageNotFound />} />
-      </Routes>
+            <Route path="/record-list" element={<RecordList />} />
+            <Route path="/mobilizacao" element={<ValeMobilisation />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/archives" element={<Archives />} />
+            <Route path="/site-coordinator" element={<SiteCoordinator />} />
+            <Route path="/access-control" element={<AccessControl />} />
+            <Route path="access-requests" element={<AccessRequests />} />
+            <Route path="/user" element={<UserPage />} />
+            <Route path="/new-hire" element={<NewHire />} />
+            <Route path="/offer-letters" element={<OfferLetters />} />
+            <Route path="/employee-clearance-form" element={<EmployeeClearanceForm />} />
+            <Route path="/phonebook" element={<Phonebook />} />
+            <Route path="/devices" element={<Devices />} />
+            <Route path="/agreements" element={<Agreements />} />
+            <Route path="/shortlist" element={<Shortlist />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/openings" element={<Openings />} />
+            <Route path="/website" element={<Website />} />
+            <Route path="/add-remarks" element={<AddRemarks />} />
+            <Route path="/lpos" element={<LPO />} />
+            <Route path="/qr-code-generator" element={<QRCodeGenerator />} />
+            <Route path="/fuel-log" element={<FuelLog />} />
+            <Route path="/passports" element={<Passports />} />
+            <Route path="/asset-master" element={<AssetMaster />} />
+            <Route path="/vehicles" element={<VehicleLogBook />} />
+            <Route path="/vehicle-log-book" element={<VehicleLogBook />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/project-lpo" element={<ProjectLPO />} />
+            <Route path="/movement-register" element={<MovementRegister />} />
+            <Route path="/transfer-requests" element={<TransferRequests />} />
+            <Route path="/sim-cards" element={<SimCards />} />
+            <Route path="/tickets" element={<Tickets />} />
+            <Route path="/attendance" element={<AttendanceDashboard />} />
+            <Route path="/shift-management" element={<ShiftManagement />} />
+            <Route path="/employee-timesheet-summary" element={<EmployeeTimesheetSummaryReport />} />
+            <Route path="/timesheet-edit" element={<TimesheetEdit />} />
+            <Route path="/project-timing-break" element={<ProjectTimingBreak />} />
+            <Route path="/mobile-punch" element={<MobilePunch />} />
+            <Route path="/manpower-requirements" element={<ManpowerRequirements />} />
+            <Route path="/offboarding" element={<Offboarding />} />
+            <Route path="/document-editor" element={<DocumentEditor />} />
+            <Route path="/records" element={<Records />} />
+            <Route path="/record/:id" element={<RecordDetail />} />
+            <Route path="/vale-records" element={<ValeRecords />} />
+            <Route path="/medicals" element={<Medicals />} />
+            <Route path="/history" element={<History />} />
+          </Route>
+
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
       </Suspense>
     </AuthGuard>
   );
