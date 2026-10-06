@@ -1,7 +1,3 @@
-
-
-
-
 import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import BackgroundProcessDropdown from "@/components/background-process-dropdown";
@@ -228,14 +224,16 @@ export default function Index() {
     const hasSimCards = hasModuleAccess('sim_cards');
     const hasOffboarding = hasModuleAccess('offboarding');
     const hasDocumentEditor = hasModuleAccess('document_editor');
+    const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
 
     return hasRecordsMaster || hasUsers || hasNewHire || hasQuickLinks ||
       hasQRGenerator || hasVehicleMaster || hasVehicleLogBook || hasAttendance ||
       hasPettyCash || hasOfferLetters || hasEmployeeClearanceForm || hasShiftLogs ||
-      hasTransferRequests || hasSimCards || hasOffboarding || hasTickets || hasDocumentEditor;
+      hasTransferRequests || hasSimCards || hasOffboarding || hasTickets || hasDocumentEditor || hasShiftManagement;
   };
 
   const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
+  const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
 
   // const getAccessibleModuleCount = () => {
   //   let count = 0;
@@ -580,6 +578,15 @@ export default function Index() {
                       description="Attendance and workforce time tracking"
                       icon={<Clock3Icon width="2.5rem" />}
                       onClick={() => authenticateModule('attendance', '/attendance', 'Attendance')}
+                    />
+                  )}
+
+                  {hasShiftManagement && (
+                    <GridTile
+                      title="Shift Management"
+                      description="Project shifts, rosters and daily attendance"
+                      icon={<Clock3 width="2.5rem" />}
+                      onClick={() => navigate('/shift-management')}
                     />
                   )}
 
