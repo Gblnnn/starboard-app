@@ -38,6 +38,7 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
   tickets: ["/tickets"],
   attendance: ["/attendance"],
   attendance_edit: ["/timesheet-edit", "/project-timing-break"],
+  shift_management: ["/shift-management"],
   document_editor: ["/document-editor"],
   mobile_punch: ["/mobile-punch"]
 };
@@ -110,6 +111,11 @@ export default function ProtectedRoutes() {
   // Check role-based route restrictions
   const allowedRoutes = ROLE_RESTRICTED_ROUTES[userData.role as keyof typeof ROLE_RESTRICTED_ROUTES];
   const hasModuleRouteAccess = hasRoutePermissionFromModules(currentPath, modulePermissions);
+  const hasShiftManagementAccess = currentPath === "/shift-management" && (
+    userData.role === "admin" ||
+    Boolean(userData.emp_id) ||
+    modulePermissions.shift_management === true
+  );
 
   // Helper function to check if a path matches allowed routes (including dynamic routes)
   const isPathAllowed = (path: string, allowedRoutes: string[]): boolean => {
@@ -132,7 +138,7 @@ export default function ProtectedRoutes() {
   // If route is module-protected, allow access if EITHER role-based or module clearance is present
   const isModuleProtected = Object.values(MODULE_ROUTE_PERMISSIONS).some(routes => routes.includes(currentPath));
   if (isModuleProtected) {
-    if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess) {
+    if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess) {
       // If neither role nor module clearance, redirect
       const defaultRoute = allowedRoutes && allowedRoutes.length > 0 ? allowedRoutes[0] : "/index";
       return <Navigate to={defaultRoute} replace />;
@@ -140,14 +146,14 @@ export default function ProtectedRoutes() {
   } else {
     // If role is defined and has specific route restrictions (not wildcard)
     if (allowedRoutes && allowedRoutes.length > 0 && !allowedRoutes.includes("*")) {
-      if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess) {
+      if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess) {
         // Redirect to their default page based on role
         const defaultRoute = allowedRoutes[0];
         return <Navigate to={defaultRoute} replace />;
       }
     }
     // If role is not defined in ROLE_RESTRICTED_ROUTES, allow access to /index only
-    else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess) {
+    else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess && !hasShiftManagementAccess) {
       return <Navigate to="/index" replace />;
     }
   }
