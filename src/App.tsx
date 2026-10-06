@@ -75,6 +75,7 @@ const DocumentEditor = lazy(() => import("./pages/document-editor"));
 const EmployeeTimesheetSummaryReport = lazy(() => import("./pages/EmployeeTimesheetSummaryReport"));
 const TimesheetEdit = lazy(() => import("./pages/TimesheetEdit"));
 const ProjectTimingBreak = lazy(() => import("./pages/ProjectTimingBreak"));
+const ShiftManagement = lazy(() => import("./pages/shift-management"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -202,6 +203,7 @@ export default function App() {
           <Route path="/sim-cards" element={<SimCards />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/attendance" element={<AttendanceDashboard />} />
+          <Route path="/shift-management" element={<ShiftManagement />} />
           <Route path="/employee-timesheet-summary" element={<EmployeeTimesheetSummaryReport />} />
           <Route path="/timesheet-edit" element={<TimesheetEdit />} />   
           <Route path="/project-timing-break" element={<ProjectTimingBreak />} />                 
