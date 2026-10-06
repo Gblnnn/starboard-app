@@ -1,21 +1,3 @@
-Read , lines 1 to 260
-Completed with input: {
-  "path": "D:\\GitHub\\starboard-app\\src\\pages\\shift-management\\ShiftMaster.tsx",
-  "view_range": [
-    1,
-    260
-  ]
-}
-
-### Step 3 — Add Shift Master
-
-Create or open:
-
-`src/pages/shift-management/ShiftMaster.tsx`
-
-Paste the complete file below, save it, and confirm the path. Don’t edit other files yet.
-
-```tsx
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { useCallback, useEffect, useState } from "react";
@@ -231,4 +213,3 @@ export default function ShiftMaster() {
     </div>
   );
 }
-```
