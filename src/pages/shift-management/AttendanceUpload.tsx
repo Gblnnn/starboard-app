@@ -1,226 +1,380 @@
+import { useAuth } from "@/components/AuthProvider";
+import { supabase } from "@/lib/supabase";
+import * as XLSX from "xlsx";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import {
+  addDays, AttendanceStatus, ATTENDANCE_STATUSES, Employee,
+  errorMessage, fetchAccessibleProjects, isAdminRole, Project, scheduledTimestamps,
+  Shift, validDate, workingMinutes,
+} from "./shared";
 
-// Push/notifications removed — no firestore notification imports here.
-import { lazy, Suspense, useEffect, useRef } from "react";
-import { Route, Routes } from "react-router-dom";
-import AuthGuard from "./components/AuthGuard";
-import { useAuth } from "./components/AuthProvider";
-import ProtectedRoutes from "./components/protectedRoute";
-import { useBackgroundProcess } from "./context/BackgroundProcessContext";
-import { preloadMrzWorker } from "./utils/mrzWorker";
-import { preloadOcrWorker } from "./utils/ocrWorker";
-import { refreshPhonebookCache } from "./utils/phonebookCache";
+type ImportInput = {
+  rowNumber: number;
+  attendanceDate: string;
+  projectCode: string;
+  employeeCode: string;
+  shiftCode: string;
+  status: string;
+  punchIn: string;
+  punchOut: string;
+  overtime: string;
+  remarks: string;
+};
 
-// Import critical startup pages immediately (no lazy loading)
-import { Loader2 } from "lucide-react";
-import CreateAccount from "./pages/create-account";
-import Login from "./pages/login";
-import PageNotFound from "./pages/page-not-found";
-import RequestAccess from "./pages/request-access";
-import UserReset from "./pages/user-reset";
-import UpdatePassword from "./pages/update-password";
+type PreviewRow = ImportInput & {
+  employeeName: string;
+  errors: string[];
+  warnings: string[];
+  payload?: Record<string, unknown>;
+};
 
+const requiredHeaders = ["date", "project code", "employee id", "shift code", "status", "punch in", "punch out", "ot", "remarks"];
+const fieldClass = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
-// Lazy load protected pages only (loaded after authentication)
-const Index = lazy(() => import("./pages"));
-const AccessControl = lazy(() => import("./pages/access-control"));
-const AccessRequests = lazy(() => import("./pages/access-requests"));
-const AddRemarks = lazy(() => import("./pages/add-remarks"));
-const AdminPage = lazy(() => import("./pages/admin-page"));
-const Agreements = lazy(() => import("./pages/agreements"));
-const Archives = lazy(() => import("./pages/archives"));
-const History = lazy(() => import("./pages/history"));
-const Inbox = lazy(() => import("./pages/inbox"));
-const LPO = lazy(() => import("./pages/lpo"));
-const Medicals = lazy(() => import("./pages/medicals"));
-const MovementRegister = lazy(() => import("./pages/movement-register"));
-const NewHire = lazy(() => import("./pages/new-hire"));
-const OfferLetters = lazy(() => import("./pages/offer-letters"));
-const EmployeeClearanceForm = lazy(() => import("./pages/employee-clearance-form"));
-const Openings = lazy(() => import("./pages/openings"));
-const Profile = lazy(() => import("./pages/profile"));
-const ProjectLPO = lazy(() => import("./pages/project-lpo"));
-const QRCodeGenerator = lazy(() => import("./pages/qr-code"));
-const Projects = lazy(() => import("./pages/projects"));
-const QuickLinks = lazy(() => import("./pages/quick-links"));
-const RecordList = lazy(() => import("./pages/record-list"));
-const Records = lazy(() => import("./pages/records"));
-const Shortlist = lazy(() => import("./pages/shortlist"));
-const UserPage = lazy(() => import("./pages/user"));
-const Users = lazy(() => import("./pages/users"));
-const ValeRecords = lazy(() => import("./pages/vale-records"));
-const Website = lazy(() => import("./pages/website"));
-const Phonebook = lazy(() => import("./pages/phonebook"));
-const Supervisor = lazy(() => import("./pages/supervisor"));
-const SiteCoordinator = lazy(() => import("./pages/site-coordinator"));
-const Devices = lazy(() => import("./pages/devices"));
-const ValeMobilisation = lazy(() => import("./pages/vale-mobilisation"));
-const RecordDetail = lazy(() => import("./pages/record-detail"));
-const FuelLog = lazy(() => import("./pages/fuel-log"));
-const Passports = lazy(() => import("./pages/passports"));
-const AssetMaster = lazy(() => import("./pages/asset-master"));
-const VehicleLogBook = lazy(() => import("./pages/vehicle-log-book"));
-const Tasks = lazy(() => import("./pages/tasks"));
-const ShiftLogs = lazy(() => import("./pages/shift-logs"));
-const SiteAdminWorkers = lazy(() => import("./pages/site-admin-workers"));
-const TransferRequests = lazy(() => import("./pages/transfer-requests"));
-const SimCards = lazy(() => import("./pages/sim-cards"));
-const AttendanceDashboard = lazy(() => import("./pages/AttendanceDashboard"));
-const Tickets = lazy(() => import("./pages/tickets"));
-const MobilePunch = lazy(() => import("./pages/mobile-punch"));
-         
+function cellText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString();
+  return String(value).trim();
+}
 
-const ManpowerRequirements = lazy(() => import("./pages/manpower-requirements"));
-const Offboarding = lazy(() => import("./pages/offboarding"));
-const DocumentEditor = lazy(() => import("./pages/document-editor"));
-const EmployeeTimesheetSummaryReport = lazy(() => import("./pages/EmployeeTimesheetSummaryReport"));
-const TimesheetEdit = lazy(() => import("./pages/TimesheetEdit"));
-const ProjectTimingBreak = lazy(() => import("./pages/ProjectTimingBreak"));
-const ShiftManagement = lazy(() => import("./pages/shift-management"));
+function excelDate(value: unknown): string {
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (!parsed) return "";
+    return `${String(parsed.y).padStart(4, "0")}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+  }
+  const text = cellText(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (!match) return "";
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  const day = first > 12 ? first : second > 12 ? second : first;
+  const month = first > 12 ? second : second > 12 ? first : second;
+  return `${match[3]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
 
-// Loading fallback component
-const PageLoader = () => (
-  <div style={{ 
-    display: "flex", 
-    justifyContent: "center", 
-    alignItems: "center", 
-    height: "100svh"
-  }}>
-    <Loader2 className="animate-spin" style={{ fontSize: 24 }} />
-  </div>
-);
+function excelTime(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const totalMinutes = Math.round((value % 1) * 1440);
+    return `${String(Math.floor(totalMinutes / 60) % 24).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+  }
+  const text = cellText(value);
+  const match = text.match(/(?:T|\s)?(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/);
+  if (!match) return "";
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour <= 23 && minute <= 59 ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` : "";
+}
 
-export default function App() {
-  const { addProcess, updateProcess } = useBackgroundProcess();
-  const { user, userData, cachedAuthState } = useAuth();
-  const phonebookInitialized = useRef(false);
-  
-  // Initialize phonebook cache in the background on app launch (only once)
-  useEffect(() => {
-    if (!phonebookInitialized.current) {
-      phonebookInitialized.current = true;
-      const processId = "phonebook-cache-init";
-      addProcess(processId, "Phonebook Sync");
-      
-      refreshPhonebookCache((status, message) => {
-        updateProcess(processId, { status, message });
-      });
+function parseMinutes(value: unknown): number | null {
+  const text = cellText(value);
+  if (!text) return null;
+  const minutes = Number(text);
+  return Number.isInteger(minutes) && minutes >= 0 ? minutes : null;
+}
+
+function parseImportRows(file: File): Promise<ImportInput[]> {
+  return file.arrayBuffer().then((buffer) => {
+    const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!sheet) throw new Error("The workbook does not contain a worksheet.");
+    const values = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: "" });
+    if (!values.length) throw new Error("The first worksheet is empty.");
+    const headers = (values[0] as unknown[]).map((value) => cellText(value).toLowerCase());
+    const column = (name: string) => headers.indexOf(name);
+    const missing = requiredHeaders.filter((header) => column(header) < 0);
+    if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}.`);
+    const rows = values.slice(1).filter((line) => (line as unknown[]).some((value) => cellText(value) !== ""));
+    if (rows.length > 2000) throw new Error("A single import is limited to 2,000 data rows.");
+    return rows.map((raw, index) => {
+      const line = raw as unknown[];
+      const get = (header: string) => line[column(header)];
+      return {
+        rowNumber: index + 2,
+        attendanceDate: excelDate(get("date")),
+        projectCode: cellText(get("project code")),
+        employeeCode: cellText(get("employee id")),
+        shiftCode: cellText(get("shift code")),
+        status: cellText(get("status")).toLowerCase(),
+        punchIn: excelTime(get("punch in")),
+        punchOut: excelTime(get("punch out")),
+        overtime: cellText(get("ot")),
+        remarks: cellText(get("remarks")),
+      };
+    });
+  });
+}
+
+function timeOnDate(date: string, time: string): string {
+  return `${date}T${time}:00+04:00`;
+}
+
+export default function AttendanceUpload() {
+  const { user, userData } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [mappings, setMappings] = useState<Array<{ project_code: string; shift_code: string; active_yn: string }>>([]);
+  const [preview, setPreview] = useState<PreviewRow[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const loadReferences = useCallback(async () => {
+    setValidating(true);
+    try {
+      const [accessibleProjects, shiftResult, mappingResult] = await Promise.all([
+        fetchAccessibleProjects(userData?.emp_id ? String(userData.emp_id) : null, isAdminRole(userData?.role)),
+        supabase.from("shift_master").select("id, shift_code, shift_name, punch_in, punch_out, default_ot_minutes, break_minutes, shift_type, active_yn"),
+        supabase.from("project_shifts").select("project_code, shift_code, active_yn"),
+      ]);
+      if (shiftResult.error) throw shiftResult.error;
+      if (mappingResult.error) throw mappingResult.error;
+      setProjects(accessibleProjects);
+      setShifts((shiftResult.data ?? []) as Shift[]);
+      setMappings((mappingResult.data ?? []) as Array<{ project_code: string; shift_code: string; active_yn: string }>);
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to load validation data."));
+    } finally {
+      setValidating(false);
     }
-  }, []); // Empty dependency array ensures this only runs once
+  }, [userData?.emp_id, userData?.role]);
 
-  // Push/notifications feature removed — no runtime listeners or SW cleanup here.
+  useEffect(() => { void loadReferences(); }, [loadReferences]);
 
-  useEffect(() => {
-    const isAuthenticated = Boolean((user && userData) || cachedAuthState);
-    if (!isAuthenticated) {
+  const downloadTemplate = () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      requiredHeaders.map((header) => ({
+        "date": "Date",
+        "project code": "Project Code",
+        "employee id": "Employee ID",
+        "shift code": "Shift Code",
+        "status": "Status",
+        "punch in": "Punch In",
+        "punch out": "Punch Out",
+        "ot": "OT",
+        "remarks": "Remarks",
+      }[header])),
+      [null, "PROJECT-CODE", "SS00605", "D01", "present", null, null, 0, ""],
+    ]);
+    const excelEpoch = Date.UTC(1899, 11, 30);
+    worksheet.A2 = { t: "n", v: (Date.UTC(2026, 9, 6) - excelEpoch) / 86400000, z: "yyyy-mm-dd" };
+    worksheet.F2 = { t: "n", v: 7 / 24, z: "hh:mm" };
+    worksheet.G2 = { t: "n", v: 17 / 24, z: "hh:mm" };
+    worksheet["!cols"] = [{ wch: 14 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 40 }];
+    const instructions = XLSX.utils.aoa_to_sheet([
+      ["Shift Attendance Upload — Instructions"],
+      ["Use employees.emp_id for Employee ID. Do not use the biometric device_user_id."],
+      ["Date is the business shift-start date in Asia/Dubai, formatted YYYY-MM-DD."],
+      ["Punch In and Punch Out are local 24-hour times (HH:MM). Overnight punch-out is assigned to the next calendar day."],
+      ["OT is a non-negative whole number of minutes."],
+      [`Allowed statuses: ${ATTENDANCE_STATUSES.join(", ")}.`],
+      ["The example row is illustrative; replace PROJECT-CODE, SS00605 and D01 with valid values."],
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
+    XLSX.utils.book_append_sheet(workbook, instructions, "Instructions");
+    XLSX.writeFile(workbook, "shift-attendance-template.xlsx");
+  };
+
+  const validateFile = async () => {
+    if (!selectedFile) {
+      toast.error("Choose an Excel file first.");
       return;
     }
+    setValidating(true);
+    try {
+      const parsedRows = await parseImportRows(selectedFile);
+      if (!parsedRows.length) throw new Error("The worksheet does not contain attendance rows.");
+      const projectCodes = Array.from(new Set(parsedRows.map((row) => row.projectCode).filter(Boolean)));
+      const dateKeys = parsedRows.map((row) => row.attendanceDate).filter(validDate).sort();
+      const employeeCodes = Array.from(new Set(parsedRows.map((row) => row.employeeCode).filter(Boolean)));
+      const [attendanceResult, employeeResult] = await Promise.all([
+        dateKeys.length && projectCodes.length && employeeCodes.length ? supabase.from("shift_timesheet")
+          .select("project_code, employee_code, attendance_date, approval_status")
+          .in("project_code", projectCodes)
+          .in("employee_code", employeeCodes)
+          .gte("attendance_date", dateKeys[0])
+          .lte("attendance_date", dateKeys[dateKeys.length - 1])
+          : Promise.resolve({ data: [], error: null }),
+        employeeCodes.length
+          ? supabase.from("employees")
+            .select("id, emp_id, device_user_id, name, designation, emp_type, project, status")
+            .in("emp_id", employeeCodes)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (attendanceResult.error) throw attendanceResult.error;
+      if (employeeResult.error) throw employeeResult.error;
+      const existing = new Map((attendanceResult.data ?? []).map((row) => [
+        `${row.project_code}:${row.employee_code}:${row.attendance_date}`,
+        row.approval_status,
+      ]));
+      const projectByCode = new Map(projects.map((project) => [project.project_code, project]));
+      const employeeByCode = new Map(((employeeResult.data ?? []) as Employee[]).map((employee) => [employee.emp_id, employee]));
+      const shiftByCode = new Map(shifts.map((shift) => [shift.shift_code, shift]));
+      const mappingSet = new Set(mappings.filter((mapping) => mapping.active_yn.trim().toUpperCase() === "Y").map((mapping) => `${mapping.project_code}:${mapping.shift_code}`));
+      const seen = new Set<string>();
 
-    const warmup = () => {
-      void preloadOcrWorker().catch((error) => {
-        console.warn("OCR warmup skipped:", error);
+      const nextPreview: PreviewRow[] = parsedRows.map((row) => {
+        const errors: string[] = [];
+        const warnings: string[] = [];
+        const project = projectByCode.get(row.projectCode);
+        const employee = employeeByCode.get(row.employeeCode);
+        const shift = shiftByCode.get(row.shiftCode);
+        if (!validDate(row.attendanceDate)) errors.push("Date must be a valid YYYY-MM-DD business date.");
+        if (!project) errors.push("Project is missing or you do not have access to it.");
+        if (!employee) errors.push("Employee ID was not found.");
+        else if (project) {
+          const employeeProject = employee.project?.trim().toLowerCase();
+          if (!employeeProject || ![project.project_code, project.project_name ?? ""].some((value) => value.trim().toLowerCase() === employeeProject)) {
+            errors.push("Employee does not belong to the selected project.");
+          }
+          if (employee.status && employee.status.trim().toLowerCase() !== "active") {
+            warnings.push(`Employee status is ${employee.status}.`);
+          }
+        }
+        if (!shift || shift.active_yn.trim().toUpperCase() !== "Y") errors.push("Shift is missing or inactive.");
+        if (project && shift && !mappingSet.has(`${project.project_code}:${shift.shift_code}`)) errors.push("Shift is not actively mapped to the project.");
+        if (!ATTENDANCE_STATUSES.includes(row.status as AttendanceStatus)) errors.push("Status is not supported.");
+        const overtimeMinutes = parseMinutes(row.overtime);
+        if (row.overtime && overtimeMinutes === null) errors.push("OT must be a non-negative whole number of minutes.");
+        const present = row.status === "present" || row.status === "present with ot";
+        if (present && (!row.punchIn || !row.punchOut)) errors.push("Punch In and Punch Out are required for present statuses.");
+        if (row.punchIn && !/^\d{2}:\d{2}$/.test(row.punchIn)) errors.push("Punch In must use HH:MM.");
+        if (row.punchOut && !/^\d{2}:\d{2}$/.test(row.punchOut)) errors.push("Punch Out must use HH:MM.");
+        const key = `${row.projectCode}:${row.employeeCode}:${row.attendanceDate}`;
+        if (row.projectCode && row.employeeCode && row.attendanceDate && seen.has(key)) errors.push("Duplicate row in this file.");
+        seen.add(key);
+        const existingStatus = existing.get(key);
+        if (existingStatus) errors.push(`Attendance already exists (${existingStatus}); import does not overwrite existing records.`);
+
+        let payload: Record<string, unknown> | undefined;
+        if (!errors.length && project && employee && shift) {
+          try {
+            const schedule = scheduledTimestamps(row.attendanceDate, shift);
+            const punchIn: string | null = row.punchIn ? timeOnDate(row.attendanceDate, row.punchIn) : null;
+            let punchOut: string | null = row.punchOut ? timeOnDate(row.attendanceDate, row.punchOut) : null;
+            if (punchIn && punchOut && punchOut < punchIn) {
+              punchOut = timeOnDate(addDays(row.attendanceDate, 1), row.punchOut);
+            }
+            let breakMinutes = 0;
+            let totalWorkingMinutes: number | null = null;
+            if (punchIn && punchOut) {
+              const totals = workingMinutes(punchIn, punchOut, shift.break_minutes);
+              breakMinutes = totals.breakMinutes;
+              totalWorkingMinutes = totals.total;
+            }
+            payload = {
+              attendance_date: row.attendanceDate,
+              project_code: row.projectCode,
+              employee_code: employee.emp_id,
+              roster_shift_code: row.shiftCode,
+              actual_shift_code: row.shiftCode,
+              scheduled_punch_in: schedule.start,
+              scheduled_punch_out: schedule.end,
+              punch_in: punchIn,
+              punch_out: punchOut,
+              default_ot_minutes: shift.default_ot_minutes,
+              overtime_minutes: overtimeMinutes ?? shift.default_ot_minutes,
+              break_minutes: breakMinutes,
+              total_working_minutes: totalWorkingMinutes,
+              status: row.status as AttendanceStatus,
+              verify_type: "manual",
+              machine: "manual",
+              approval_status: "draft",
+              remarks: row.remarks || null,
+              created_by: user?.id ?? null,
+              updated_by: user?.id ?? null,
+            };
+          } catch (error) {
+            errors.push(errorMessage(error, "Unable to calculate attendance."));
+          }
+        }
+        if (!row.overtime && shift) warnings.push(`OT defaults to ${shift.default_ot_minutes} minutes.`);
+        return { ...row, employeeName: employee?.name ?? "", errors, warnings, payload };
       });
-
-      if (navigator.onLine) {
-        void preloadMrzWorker().catch((error) => {
-          console.warn("MRZ warmup skipped:", error);
-        });
-      }
-    };
-
-    if (typeof globalThis !== "undefined" && "requestIdleCallback" in globalThis) {
-      const requestIdle = globalThis.requestIdleCallback as (callback: IdleRequestCallback) => number;
-      const cancelIdle = globalThis.cancelIdleCallback as (handle: number) => void;
-      const handle = requestIdle(() => warmup());
-      return () => {
-        cancelIdle(handle);
-      };
+      setPreview(nextPreview);
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to read or validate the workbook."));
+      setPreview([]);
+    } finally {
+      setValidating(false);
     }
+  };
 
-    const timer = setTimeout(warmup, 300);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [user, userData, cachedAuthState]);
+  const importRows = async () => {
+    const validRows = preview.filter((row) => row.errors.length === 0 && row.payload);
+    if (!validRows.length) {
+      toast.error("There are no valid rows to import.");
+      return;
+    }
+    const confirmed = window.confirm(`Import ${validRows.length} valid attendance row${validRows.length === 1 ? "" : "s"}? Invalid rows will be skipped.`);
+    if (!confirmed) return;
+    setImporting(true);
+    try {
+      const payload = validRows.map((row) => ({
+        ...row.payload,
+        updated_at: new Date().toISOString(),
+      }));
+      const { data, error } = await supabase.from("shift_timesheet").insert(payload).select("id");
+      if (error) throw error;
+      toast.success(`Imported ${data?.length ?? validRows.length} attendance record${validRows.length === 1 ? "" : "s"}.`);
+      setPreview([]);
+      setSelectedFile(null);
+    } catch (error) {
+      toast.error(errorMessage(error, "Import failed; no attendance rows were written."));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const validCount = preview.filter((row) => row.errors.length === 0 && row.payload).length;
+  const invalidCount = preview.length - validCount;
 
   return (
-    <AuthGuard>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          {/* Public routes */}
-        <Route path="/" element={<Login />} />
-        <Route path="/user-reset" element={<UserReset />} />
-        <Route path="/update-password" element={<UpdatePassword />} />
-        <Route path="/request-access" element={<RequestAccess />} />
-        <Route path="/create-account" element={<CreateAccount />} />
-        <Route path="/inbox" element={<Inbox />} />
-        <Route path="/supervisor" element={<Supervisor />} />
-        <Route path="/quick-links" element={<QuickLinks />} />
+    <div className="space-y-5">
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="text-lg font-semibold text-slate-900">Attendance upload</h2><p className="mt-1 max-w-3xl text-sm text-slate-500">Upload is validated and previewed before inserting. Employee ID is `employees.emp_id`; punch times and dates are interpreted in Asia/Dubai.</p></div>
+          <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={downloadTemplate}>Download blank template</button>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <input className={fieldClass} type="file" accept=".xlsx,.xls" onChange={(event) => { setSelectedFile(event.target.files?.[0] ?? null); setPreview([]); }} />
+          <button type="button" className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!selectedFile || validating || importing} onClick={() => void validateFile()}>{validating ? "Validating…" : "Validate and preview"}</button>
+          {selectedFile && <span className="text-sm text-slate-500">{selectedFile.name}</span>}
+        </div>
+        <p className="mt-3 text-xs text-slate-500">Required headers: Date, Project Code, Employee ID, Shift Code, Status, Punch In, Punch Out, OT, Remarks. OT is a non-negative whole number of minutes; blank OT uses the shift default.</p>
+      </section>
 
-        {/* Protected routes */}
-        <Route
-          element={
-            <AuthGuard>
-              <ProtectedRoutes />
-            </AuthGuard>
-          }
-        >
-          <Route path="/index" element={<Index />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/shift-logs" element={<ShiftLogs />} />
-          <Route path="/site-admin-workers" element={<SiteAdminWorkers />} />
-          
-          <Route path="/record-list" element={<RecordList />} />
-          <Route path="/mobilizacao" element={<ValeMobilisation />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/archives" element={<Archives />} />
-          <Route path="/site-coordinator" element={<SiteCoordinator />} />
-          <Route path="/access-control" element={<AccessControl />} />
-          <Route path="access-requests" element={<AccessRequests />} />
-          <Route path="/user" element={<UserPage />} />
-          <Route path="/new-hire" element={<NewHire />} />
-          <Route path="/offer-letters" element={<OfferLetters />} />
-          <Route path="/employee-clearance-form" element={<EmployeeClearanceForm />} />
-          <Route path="/phonebook" element={<Phonebook />} />
-          <Route path="/devices" element={<Devices />} />
-          <Route path="/agreements" element={<Agreements />} />
-          <Route path="/shortlist" element={<Shortlist />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/openings" element={<Openings />} />
-          <Route path="/website" element={<Website />} />
-          <Route path="/add-remarks" element={<AddRemarks />} />
-          <Route path="/lpos" element={<LPO />} />
-          <Route path="/qr-code-generator" element={<QRCodeGenerator />} />
-          <Route path="/fuel-log" element={<FuelLog />} />
-          <Route path="/passports" element={<Passports />} />
-          <Route path="/asset-master" element={<AssetMaster />} />
-          <Route path="/vehicles" element={<VehicleLogBook />} />
-          <Route path="/vehicle-log-book" element={<VehicleLogBook />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/project-lpo" element={<ProjectLPO />} />
-          <Route path="/movement-register" element={<MovementRegister />} />
-          <Route path="/transfer-requests" element={<TransferRequests />} />
-          <Route path="/sim-cards" element={<SimCards />} />
-          <Route path="/tickets" element={<Tickets />} />
-          <Route path="/attendance" element={<AttendanceDashboard />} />
-          <Route path="/shift-management" element={<ShiftManagement />} />
-          <Route path="/employee-timesheet-summary" element={<EmployeeTimesheetSummaryReport />} />
-          <Route path="/timesheet-edit" element={<TimesheetEdit />} />   
-          <Route path="/project-timing-break" element={<ProjectTimingBreak />} />                 
-          <Route path="/mobile-punch" element={<MobilePunch />} />
-          <Route path="/manpower-requirements" element={<ManpowerRequirements />} />
-          <Route path="/offboarding" element={<Offboarding />} />
-          <Route path="/document-editor" element={<DocumentEditor />} />
-          <Route path="/records" element={<Records />} />
-          <Route path="/record/:id" element={<RecordDetail />} />
-          <Route path="/vale-records" element={<ValeRecords />} />
-          <Route path="/medicals" element={<Medicals />} />
-          <Route path="/history" element={<History />} />
-        </Route>
-
-        <Route path="*" element={<PageNotFound />} />
-      </Routes>
-      </Suspense>
-    </AuthGuard>
+      {preview.length > 0 && <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+          <div><h2 className="font-semibold text-slate-900">Import preview</h2><p className="text-sm text-slate-500">{validCount} valid · {invalidCount} invalid · {preview.reduce((total, row) => total + row.warnings.length, 0)} warnings</p></div>
+          <button type="button" className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!validCount || importing || validating} onClick={() => void importRows()}>{importing ? "Importing…" : `Import ${validCount} valid rows`}</button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1300px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{["Row", "Date", "Project", "Employee", "Shift", "Status", "Punch In", "Punch Out", "OT (min)", "Validation result"].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {preview.map((row) => <tr key={row.rowNumber} className={row.errors.length ? "bg-rose-50/40" : ""}>
+                <td className="px-3 py-3">{row.rowNumber}</td>
+                <td className="px-3 py-3">{row.attendanceDate || "—"}</td>
+                <td className="px-3 py-3">{row.projectCode || "—"}</td>
+                <td className="px-3 py-3">{row.employeeCode || "—"}<div className="text-xs text-slate-500">{row.employeeName}</div></td>
+                <td className="px-3 py-3">{row.shiftCode || "—"}</td>
+                <td className="px-3 py-3">{row.status || "—"}</td>
+                <td className="px-3 py-3">{row.punchIn || "—"}</td>
+                <td className="px-3 py-3">{row.punchOut || "—"}</td>
+                <td className="px-3 py-3">{row.overtime || "default"}</td>
+                <td className="max-w-[28rem] px-3 py-3">
+                  {row.errors.length > 0 ? <ul className="list-inside list-disc text-xs text-rose-700">{row.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <span className="text-xs font-medium text-emerald-700">Valid</span>}
+                  {row.warnings.map((warning) => <div key={warning} className="mt-1 text-xs text-amber-700">Warning: {warning}</div>)}
+                </td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </section>}
+    </div>
   );
 }
