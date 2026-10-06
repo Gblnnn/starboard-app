@@ -75,7 +75,7 @@ const DocumentEditor = lazy(() => import("./pages/document-editor"));
 const EmployeeTimesheetSummaryReport = lazy(() => import("./pages/EmployeeTimesheetSummaryReport"));
 const TimesheetEdit = lazy(() => import("./pages/TimesheetEdit"));
 const ProjectTimingBreak = lazy(() => import("./pages/ProjectTimingBreak"));
-const ShiftManagement = lazy(() => import("./pages/shift-management"));
+const ShiftManagement = lazy(() => import("./shift-management"));
 
 // Loading fallback component
 const PageLoader = () => (
