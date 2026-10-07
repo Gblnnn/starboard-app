@@ -205,6 +205,11 @@ export async function fetchAccessibleProjects(empId: string | null, isAdmin: boo
   return Array.from(unique.values()).sort((left, right) => left.project_code.localeCompare(right.project_code));
 }
 
+export function filterMappedProjects(projects: Project[], mappedProjectCodes: Iterable<string>): Project[] {
+  const mappedCodes = new Set(mappedProjectCodes);
+  return projects.filter((project) => mappedCodes.has(project.project_code));
+}
+
 export function projectDisplay(project: Project): string {
   return project.project_name
     ? `${project.project_code} — ${project.project_name}`
