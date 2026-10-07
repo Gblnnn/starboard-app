@@ -385,7 +385,13 @@ export default function Roster() {
             </div>
             <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => setShowRosterReport(false)}>Back to roster</button>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="text-sm font-medium text-slate-700">Project
+              <select className={`${fieldClass} mt-1 w-full`} value={projectCode} onChange={(event) => { setProjectCode(event.target.value); setReportShiftCode("all"); }}>
+                <option value="">Select project</option>
+                {projects.map((item) => <option key={item.project_code} value={item.project_code}>{projectDisplay(item)}</option>)}
+              </select>
+            </label>
             <label className="text-sm font-medium text-slate-700">From date
               <input className={`${fieldClass} mt-1 w-full`} type="date" value={reportFromDate} onChange={(event) => setReportFromDate(event.target.value)} />
             </label>
