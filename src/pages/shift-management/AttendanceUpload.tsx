@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   addDays, AttendanceStatus, ATTENDANCE_STATUSES, Employee,
-  errorMessage, fetchAccessibleProjects, isAdminRole, Project, scheduledTimestamps,
+  errorMessage, fetchAccessibleProjects, filterMappedProjects, isAdminRole, Project, scheduledTimestamps,
   Shift, validDate, workingMinutes,
 } from "./shared";
 
@@ -131,7 +131,7 @@ export default function AttendanceUpload() {
       ]);
       if (shiftResult.error) throw shiftResult.error;
       if (mappingResult.error) throw mappingResult.error;
-      setProjects(accessibleProjects);
+      setProjects(filterMappedProjects(accessibleProjects, (mappingResult.data ?? []).map((mapping) => mapping.project_code)));
       setShifts((shiftResult.data ?? []) as Shift[]);
       setMappings((mappingResult.data ?? []) as Array<{ project_code: string; shift_code: string; active_yn: string }>);
     } catch (error) {
