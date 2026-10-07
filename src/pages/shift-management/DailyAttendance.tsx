@@ -18,6 +18,14 @@ const badgeClass: Record<ApprovalStatus, string> = {
   rejected: "bg-rose-100 text-rose-800",
 };
 
+function approvalErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+}
+
 export default function DailyAttendance() {
   const { user, userData } = useAuth();
   const [screen, setScreen] = useState<Screen>("attendance");
@@ -330,7 +338,7 @@ export default function DailyAttendance() {
       toast.success(`Approved ${submitted.length} record${submitted.length === 1 ? "" : "s"}.`);
       await loadRows();
     } catch (error) {
-      toast.error(errorMessage(error, "Unable to approve attendance."));
+      toast.error(approvalErrorMessage(error, "Unable to approve attendance."));
     } finally {
       setProcessingApproval(false);
     }
