@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  addDays, employeeBelongsToProject, Employee, errorMessage, fetchAccessibleProjects,
+  addDays, employeeBelongsToProject, Employee, errorMessage, fetchAccessibleProjects, filterMappedProjects,
   isAdminRole, Project, projectDisplay, RosterRow, Shift, validDate,
 } from "./shared";
 
@@ -40,10 +40,16 @@ export default function Roster() {
       ]);
       if (shiftResult.error) throw shiftResult.error;
       if (mappingResult.error) throw mappingResult.error;
-      setProjects(projectRows);
+      const mappedProjects = filterMappedProjects(
+        projectRows,
+        (mappingResult.data ?? []).map((mapping) => mapping.project_code),
+      );
+      setProjects(mappedProjects);
       setShifts((shiftResult.data ?? []) as Shift[]);
       setMappings((mappingResult.data ?? []) as Array<{ project_code: string; shift_code: string; active_yn: string }>);
-      if (!projectCode && projectRows[0]) setProjectCode(projectRows[0].project_code);
+      if (!mappedProjects.some((project) => project.project_code === projectCode)) {
+        setProjectCode(mappedProjects[0]?.project_code ?? "");
+      }
     } catch (error) {
       toast.error(errorMessage(error, "Unable to load roster setup."));
       setProjects([]);
