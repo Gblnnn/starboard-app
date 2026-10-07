@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ApprovalStatus, AttendanceRow, AttendanceStatus, ATTENDANCE_STATUSES, dateTimeInput,
-  errorMessage, fetchAccessibleProjects, formatDateTime, formatMinutes, fromDateTimeInput,
+  errorMessage, fetchAccessibleProjects, filterMappedProjects, formatDateTime, formatMinutes, fromDateTimeInput,
   isAdminRole, Project, projectDisplay, scheduledTimestamps, Shift,
   workingMinutes,
 } from "./shared";
@@ -44,11 +44,17 @@ export default function DailyAttendance() {
 
   const loadSetup = useCallback(async () => {
     try {
-      const [projectRows, shiftResult] = await Promise.all([
+      const [accessibleProjects, shiftResult, projectsMappingsResult] = await Promise.all([
         fetchAccessibleProjects(userData?.emp_id ? String(userData.emp_id) : null, isAdminRole(userData?.role)),
         supabase.from("shift_master").select("id, shift_code, shift_name, punch_in, punch_out, default_ot_minutes, break_minutes, shift_type, active_yn").order("shift_code"),
+        supabase.from("project_shifts").select("project_code"),
       ]);
       if (shiftResult.error) throw shiftResult.error;
+      if (projectsMappingsResult.error) throw projectsMappingsResult.error;
+      const projectRows = filterMappedProjects(
+        accessibleProjects,
+        (projectsMappingsResult.data ?? []).map((mapping) => mapping.project_code),
+      );
       const mappingResult = projectCode
         ? await supabase.from("project_shifts").select("shift_code, active_yn").eq("project_code", projectCode)
         : { data: [], error: null };
@@ -58,7 +64,9 @@ export default function DailyAttendance() {
       setMappedShiftCodes(new Set((mappingResult.data ?? [])
         .filter((mapping) => mapping.active_yn.trim().toUpperCase() === "Y")
         .map((mapping) => mapping.shift_code)));
-      if (!projectCode && projectRows[0]) setProjectCode(projectRows[0].project_code);
+      if (!projectRows.some((project) => project.project_code === projectCode)) {
+        setProjectCode(projectRows[0]?.project_code ?? "");
+      }
     } catch (error) {
       toast.error(errorMessage(error, "Unable to load attendance setup."));
       setProjects([]);
