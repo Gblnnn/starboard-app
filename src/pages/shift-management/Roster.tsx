@@ -75,12 +75,10 @@ export default function Roster() {
     }
     setLoading(true);
     try {
-      const projectNames = Array.from(new Set([project.project_code, project.project_name].filter((value): value is string => Boolean(value))));
-      const [employeeResult, rosterResult] = await Promise.all([
-        supabase.from("employees")
-          .select("id, emp_id, device_user_id, name, designation, emp_type, project, status")
-          .in("project", projectNames)
-          .order("name"),
+      const [latestProjectsResult, rosterResult] = await Promise.all([
+        supabase.from("v_employee_latest_project")
+          .select("emp_id, project_code")
+          .eq("project_code", project.project_code),
         supabase.from("roster")
           .select("id, project_code, employee_code, shift_code, roster_date, created_by")
           .eq("project_code", projectCode)
@@ -89,10 +87,27 @@ export default function Roster() {
           .order("roster_date")
           .order("employee_code"),
       ]);
-      if (employeeResult.error) throw employeeResult.error;
+      if (latestProjectsResult.error) throw latestProjectsResult.error;
       if (rosterResult.error) throw rosterResult.error;
+      const latestProjectByEmployee = new Map(
+        (latestProjectsResult.data ?? [])
+          .filter((row) => row.emp_id && row.project_code)
+          .map((row) => [row.emp_id, row.project_code]),
+      );
+      const employeeCodes = Array.from(latestProjectByEmployee.keys());
+      const employeeResult = employeeCodes.length
+        ? await supabase.from("employees")
+          .select("id, emp_id, device_user_id, name, designation, emp_type, status")
+          .in("emp_id", employeeCodes)
+          .order("name")
+        : { data: [], error: null };
+      if (employeeResult.error) throw employeeResult.error;
       const distinctEmployees = new Map<string, Employee>();
-      for (const rawEmployee of (employeeResult.data ?? []) as Employee[]) {
+      for (const employeeDetails of (employeeResult.data ?? []) as Omit<Employee, "project">[]) {
+        const rawEmployee: Employee = {
+          ...employeeDetails,
+          project: latestProjectByEmployee.get(employeeDetails.emp_id) ?? null,
+        };
         if (!rawEmployee.emp_id || !employeeBelongsToProject(rawEmployee, project)) continue;
         if (rawEmployee.status && rawEmployee.status.trim().toLowerCase() !== "active") continue;
         distinctEmployees.set(rawEmployee.emp_id, rawEmployee);
