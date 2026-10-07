@@ -9,7 +9,7 @@ import DailyAttendance from "./DailyAttendance";
 import ProjectShifts from "./ProjectShifts";
 import Roster from "./Roster";
 import ShiftMaster from "./ShiftMaster";
-import { AttendanceRow, errorMessage, fetchAccessibleProjects, isAdminRole, Project, projectDisplay } from "./shared";
+import { AttendanceRow, errorMessage, fetchAccessibleProjects, filterMappedProjects, isAdminRole, Project, projectDisplay } from "./shared";
 
 type Tab = "overview" | "shifts" | "project-shifts" | "roster" | "attendance" | "upload";
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
@@ -28,9 +28,16 @@ export default function ShiftManagement() {
   const loadProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await fetchAccessibleProjects(userData?.emp_id ? String(userData.emp_id) : null, isAdmin);
+      const [accessibleProjects, mappingsResult] = await Promise.all([
+        fetchAccessibleProjects(userData?.emp_id ? String(userData.emp_id) : null, isAdmin),
+        supabase.from("project_shifts").select("project_code"),
+      ]);
+      if (mappingsResult.error) throw mappingsResult.error;
+      const rows = filterMappedProjects(accessibleProjects, (mappingsResult.data ?? []).map((mapping) => mapping.project_code));
       setProjects(rows);
-      if (!selectedProject && rows.length) setSelectedProject(rows[0].project_code);
+      if (!rows.some((project) => project.project_code === selectedProject)) {
+        setSelectedProject(rows[0]?.project_code ?? "");
+      }
     } catch (error) {
       toast.error(errorMessage(error, "Unable to load assigned projects."));
       setProjects([]);
