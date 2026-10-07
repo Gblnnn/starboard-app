@@ -34,7 +34,10 @@ export default function Roster() {
   const [mappings, setMappings] = useState<Array<{ project_code: string; shift_code: string; active_yn: string }>>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [reportDate, setReportDate] = useState("all");
+  const [showRosterReport, setShowRosterReport] = useState(false);
+  const [reportFromDate, setReportFromDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" }));
+  const [reportToDate, setReportToDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" }));
+  const [reportShiftCode, setReportShiftCode] = useState("all");
   const [reportRoster, setReportRoster] = useState<RosterRow[]>([]);
   const [reportEmployeeNames, setReportEmployeeNames] = useState<Record<string, string>>({});
   const [reportLoading, setReportLoading] = useState(false);
@@ -147,7 +150,20 @@ export default function Roster() {
   useEffect(() => { void loadRoster(); }, [loadRoster]);
 
   const loadReport = useCallback(async () => {
+    if (!showRosterReport) return;
     if (!projectCode) {
+      setReportRoster([]);
+      setReportEmployeeNames({});
+      return;
+    }
+    if (!validDate(reportFromDate) || !validDate(reportToDate)) {
+      toast.error("Select valid roster report dates.");
+      setReportRoster([]);
+      setReportEmployeeNames({});
+      return;
+    }
+    if (reportFromDate > reportToDate) {
+      toast.error("Report From date must be on or before To date.");
       setReportRoster([]);
       setReportEmployeeNames({});
       return;
@@ -160,6 +176,8 @@ export default function Roster() {
         const { data, error } = await supabase.from("roster")
           .select("id, project_code, employee_code, shift_code, roster_date, created_by")
           .eq("project_code", projectCode)
+          .gte("roster_date", reportFromDate)
+          .lte("roster_date", reportToDate)
           .order("roster_date")
           .order("shift_code")
           .order("employee_code")
@@ -192,15 +210,16 @@ export default function Roster() {
     } finally {
       setReportLoading(false);
     }
-  }, [projectCode]);
+  }, [projectCode, reportFromDate, reportToDate, showRosterReport]);
 
   useEffect(() => { void loadReport(); }, [loadReport]);
 
   const rosterByKey = useMemo(() => new Map(roster.map((row) => [`${row.roster_date}:${row.employee_code}`, row])), [roster]);
-  const reportDates = Array.from(new Set(reportRoster.map((row) => row.roster_date))).sort().reverse();
-  const filteredReportRoster = reportDate === "all"
+  const reportShiftCodes = Array.from(new Set(reportRoster.map((row) => row.shift_code))).sort();
+  const effectiveReportShiftCode = reportShiftCodes.includes(reportShiftCode) ? reportShiftCode : "all";
+  const filteredReportRoster = effectiveReportShiftCode === "all"
     ? reportRoster
-    : reportRoster.filter((row) => row.roster_date === reportDate);
+    : reportRoster.filter((row) => row.shift_code === effectiveReportShiftCode);
   const visibleEmployees = employees.filter((employee) =>
     `${employee.emp_id} ${employee.name} ${employee.designation ?? ""} ${employee.emp_type ?? ""}`
       .toLowerCase().includes(search.trim().toLowerCase())
@@ -355,12 +374,65 @@ export default function Roster() {
     }
   };
 
+  if (showRosterReport) {
+    return (
+      <div className="space-y-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-900">Roster report</h2>
+              <p className="text-sm text-slate-500">Employees assigned to each shift in the selected project and date range.</p>
+            </div>
+            <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => setShowRosterReport(false)}>Back to roster</button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <label className="text-sm font-medium text-slate-700">From date
+              <input className={`${fieldClass} mt-1 w-full`} type="date" value={reportFromDate} onChange={(event) => setReportFromDate(event.target.value)} />
+            </label>
+            <label className="text-sm font-medium text-slate-700">To date
+              <input className={`${fieldClass} mt-1 w-full`} type="date" value={reportToDate} onChange={(event) => setReportToDate(event.target.value)} />
+            </label>
+            <label className="text-sm font-medium text-slate-700">Roster / shift
+              <select className={`${fieldClass} mt-1 w-full`} value={effectiveReportShiftCode} onChange={(event) => setReportShiftCode(event.target.value)}>
+                <option value="all">All</option>
+                {reportShiftCodes.map((shiftCode) => <option key={shiftCode} value={shiftCode}>{shiftCode}{shiftByCode.has(shiftCode) ? ` — ${shiftByCode.get(shiftCode)?.shift_name}` : ""}</option>)}
+              </select>
+            </label>
+          </div>
+        </section>
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          {reportLoading ? <p className="p-6 text-sm text-slate-500">Loading roster report…</p> : filteredReportRoster.length === 0 ? (
+            <p className="p-6 text-sm text-slate-500">No roster assignments are available for this project and date range.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>{["Roster date", "Shift", "Employee ID", "Employee name"].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredReportRoster.map((row) => (
+                    <tr key={row.id}>
+                      <td className="px-3 py-3">{formatRosterDate(row.roster_date)}</td>
+                      <td className="px-3 py-3 font-medium">{row.shift_code}</td>
+                      <td className="px-3 py-3">{row.employee_code}</td>
+                      <td className="px-3 py-3">{reportEmployeeNames[row.employee_code] ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-slate-700">Project
-            <select className={`${fieldClass} mt-1 w-full`} value={projectCode} onChange={(event) => { setProjectCode(event.target.value); setReportDate("all"); }}>
+            <select className={`${fieldClass} mt-1 w-full`} value={projectCode} onChange={(event) => { setProjectCode(event.target.value); setReportShiftCode("all"); }}>
               <option value="">Select project</option>{projects.map((item) => <option key={item.project_code} value={item.project_code}>{projectDisplay(item)}</option>)}
             </select>
           </label>
@@ -377,6 +449,7 @@ export default function Roster() {
           </label>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button type="button" className="rounded-lg border border-teal-700 px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50" onClick={() => { setReportShiftCode("all"); setShowRosterReport(true); }}>Roster report</button>
           <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={saving || !projectCode} onClick={() => void copyPreviousDay()}>Copy previous day</button>
           <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={saving || !projectCode} onClick={() => void copyPreviousWeek()}>Copy previous week</button>
           <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700" onClick={() => setSelected(new Set(employees.map((employee) => employee.emp_id)))}>Select all</button>
@@ -418,41 +491,6 @@ export default function Roster() {
         )}
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 p-4">
-          <div>
-            <h2 className="font-semibold text-slate-900">Roster report</h2>
-            <p className="text-sm text-slate-500">Employees assigned to each shift in the selected project.</p>
-          </div>
-          <label className="text-sm font-medium text-slate-700">Roster date
-            <select className={`${fieldClass} mt-1 min-w-48`} value={reportDate} onChange={(event) => setReportDate(event.target.value)}>
-              <option value="all">All dates</option>
-              {reportDates.map((date) => <option key={date} value={date}>{formatRosterDate(date)}</option>)}
-            </select>
-          </label>
-        </div>
-        {reportLoading ? <p className="p-6 text-sm text-slate-500">Loading roster report…</p> : filteredReportRoster.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">No roster assignments are available for this project and date.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>{["Roster date", "Shift", "Employee ID", "Employee name"].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredReportRoster.map((row) => (
-                  <tr key={row.id}>
-                    <td className="px-3 py-3">{formatRosterDate(row.roster_date)}</td>
-                    <td className="px-3 py-3 font-medium">{row.shift_code}</td>
-                    <td className="px-3 py-3">{row.employee_code}</td>
-                    <td className="px-3 py-3">{reportEmployeeNames[row.employee_code] ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
     </div>
   );
 }
