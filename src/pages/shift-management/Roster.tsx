@@ -9,6 +9,11 @@ import {
 
 const fieldClass = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
+function formatRosterDate(date: string): string {
+  const [year, month, day] = date.split("-");
+  return `${day}-${month}-${year}`;
+}
+
 function rosterSaveErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
@@ -29,6 +34,10 @@ export default function Roster() {
   const [mappings, setMappings] = useState<Array<{ project_code: string; shift_code: string; active_yn: string }>>([]);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [reportDate, setReportDate] = useState("all");
+  const [reportRoster, setReportRoster] = useState<RosterRow[]>([]);
+  const [reportEmployeeNames, setReportEmployeeNames] = useState<Record<string, string>>({});
+  const [reportLoading, setReportLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -137,7 +146,61 @@ export default function Roster() {
 
   useEffect(() => { void loadRoster(); }, [loadRoster]);
 
+  const loadReport = useCallback(async () => {
+    if (!projectCode) {
+      setReportRoster([]);
+      setReportEmployeeNames({});
+      return;
+    }
+    setReportLoading(true);
+    try {
+      const pageSize = 1000;
+      const rosterRows: RosterRow[] = [];
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase.from("roster")
+          .select("id, project_code, employee_code, shift_code, roster_date, created_by")
+          .eq("project_code", projectCode)
+          .order("roster_date")
+          .order("shift_code")
+          .order("employee_code")
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const page = (data ?? []) as RosterRow[];
+        rosterRows.push(...page);
+        if (page.length < pageSize) break;
+      }
+
+      const employeeCodes = Array.from(new Set(rosterRows.map((row) => row.employee_code)));
+      const employeeNameEntries = await Promise.all(
+        Array.from({ length: Math.ceil(employeeCodes.length / 500) }, (_, index) =>
+          supabase.from("employees")
+            .select("emp_id, name")
+            .in("emp_id", employeeCodes.slice(index * 500, (index + 1) * 500))
+        ),
+      );
+      const employeeNames: Record<string, string> = {};
+      for (const result of employeeNameEntries) {
+        if (result.error) throw result.error;
+        for (const employee of result.data ?? []) employeeNames[employee.emp_id] = employee.name;
+      }
+      setReportRoster(rosterRows);
+      setReportEmployeeNames(employeeNames);
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to load roster report."));
+      setReportRoster([]);
+      setReportEmployeeNames({});
+    } finally {
+      setReportLoading(false);
+    }
+  }, [projectCode]);
+
+  useEffect(() => { void loadReport(); }, [loadReport]);
+
   const rosterByKey = useMemo(() => new Map(roster.map((row) => [`${row.roster_date}:${row.employee_code}`, row])), [roster]);
+  const reportDates = Array.from(new Set(reportRoster.map((row) => row.roster_date))).sort().reverse();
+  const filteredReportRoster = reportDate === "all"
+    ? reportRoster
+    : reportRoster.filter((row) => row.roster_date === reportDate);
   const visibleEmployees = employees.filter((employee) =>
     `${employee.emp_id} ${employee.name} ${employee.designation ?? ""} ${employee.emp_type ?? ""}`
       .toLowerCase().includes(search.trim().toLowerCase())
@@ -297,7 +360,7 @@ export default function Roster() {
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-slate-700">Project
-            <select className={`${fieldClass} mt-1 w-full`} value={projectCode} onChange={(event) => setProjectCode(event.target.value)}>
+            <select className={`${fieldClass} mt-1 w-full`} value={projectCode} onChange={(event) => { setProjectCode(event.target.value); setReportDate("all"); }}>
               <option value="">Select project</option>{projects.map((item) => <option key={item.project_code} value={item.project_code}>{projectDisplay(item)}</option>)}
             </select>
           </label>
@@ -342,13 +405,49 @@ export default function Roster() {
                     <td className="px-3 py-3">{employee.designation || "—"}</td>
                     <td className="px-3 py-3">{employee.emp_type || "—"}</td>
                     <td className="px-3 py-3">
-                      {assignments.length ? assignments.map(({ date, row }) => <div key={date} className="whitespace-nowrap">{date}: <span className="font-medium">{row?.shift_code}</span></div>) : "—"}
+                      {assignments.length ? assignments.map(({ date, row }) => <div key={date} className="whitespace-nowrap">{formatRosterDate(date)}: <span className="font-medium">{row?.shift_code}</span></div>) : "—"}
                     </td>
                     <td className="px-3 py-3">
-                      {assignments.map(({ date, row }) => row && <button key={date} type="button" className="mr-2 text-xs font-medium text-rose-700 hover:underline disabled:opacity-50" disabled={saving} title={`${date}: ${shiftByCode.get(row.shift_code)?.shift_name ?? row.shift_code}`} onClick={() => void removeAssignment(row)}>{date} ×</button>)}
+                      {assignments.map(({ date, row }) => row && <button key={date} type="button" className="mr-2 text-xs font-medium text-rose-700 hover:underline disabled:opacity-50" disabled={saving} title={`${formatRosterDate(date)}: ${shiftByCode.get(row.shift_code)?.shift_name ?? row.shift_code}`} onClick={() => void removeAssignment(row)}>{formatRosterDate(date)} ×</button>)}
                     </td>
                   </tr>;
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 p-4">
+          <div>
+            <h2 className="font-semibold text-slate-900">Roster report</h2>
+            <p className="text-sm text-slate-500">Employees assigned to each shift in the selected project.</p>
+          </div>
+          <label className="text-sm font-medium text-slate-700">Roster date
+            <select className={`${fieldClass} mt-1 min-w-48`} value={reportDate} onChange={(event) => setReportDate(event.target.value)}>
+              <option value="all">All dates</option>
+              {reportDates.map((date) => <option key={date} value={date}>{formatRosterDate(date)}</option>)}
+            </select>
+          </label>
+        </div>
+        {reportLoading ? <p className="p-6 text-sm text-slate-500">Loading roster report…</p> : filteredReportRoster.length === 0 ? (
+          <p className="p-6 text-sm text-slate-500">No roster assignments are available for this project and date.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>{["Roster date", "Shift", "Employee ID", "Employee name"].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredReportRoster.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-3">{formatRosterDate(row.roster_date)}</td>
+                    <td className="px-3 py-3 font-medium">{row.shift_code}</td>
+                    <td className="px-3 py-3">{row.employee_code}</td>
+                    <td className="px-3 py-3">{reportEmployeeNames[row.employee_code] ?? "—"}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
