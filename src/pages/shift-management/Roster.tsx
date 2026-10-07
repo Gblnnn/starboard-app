@@ -9,6 +9,14 @@ import {
 
 const fieldClass = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
+function rosterSaveErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return "Unable to save roster.";
+}
+
 export default function Roster() {
   const { user, userData } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -186,7 +194,7 @@ export default function Roster() {
       toast.success(`Saved roster assignments for ${selected.size} employee${selected.size === 1 ? "" : "s"} across ${dates.length} date${dates.length === 1 ? "" : "s"}.`);
       await loadRoster();
     } catch (error) {
-      toast.error(errorMessage(error, "Unable to save roster."));
+      toast.error(rosterSaveErrorMessage(error));
     } finally {
       setSaving(false);
     }
