@@ -116,6 +116,14 @@ function dateKey(value: string | null): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' }).format(parsed);
 }
 
+function dayOfWeek(value: string | null): string {
+  const key = dateKey(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return '';
+  const date = new Date(`${key}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(date);
+}
+
 function formatTime(value: string | null): string {
   if (!value) return '';
   return value.length >= 5 ? value.slice(0, 5) : value;
@@ -870,6 +878,14 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
       const [year, month] = assignedPrintMonth.split('-').map(Number);
       const startDate = `${assignedPrintMonth}-01`;
       const endDate = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+      const employeeIds = assignedPrintEmployeeId === 'ALL'
+        ? assignedPrintEmployees.map((employee) => employee.empId)
+        : [assignedPrintEmployeeId];
+      if (!employeeIds.length) {
+        toast.error('No employees were found for the selected project.');
+        setMonthlyPrintData(null);
+        return;
+      }
       let offset = 0;
       const monthRows: DisplayRow[] = [];
       let pageRows: SummaryRow[];
@@ -877,10 +893,9 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
         let query = supabase
           .from('v_employee_timesheet_summary')
           .select('*')
-          .eq('project_code', assignedPrintProject)
           .gte('date', `${startDate}T00:00:00Z`)
-          .lt('date', `${endDate}T00:00:00Z`);
-        if (assignedPrintEmployeeId !== 'ALL') query = query.eq('emp_id', assignedPrintEmployeeId);
+          .lt('date', `${endDate}T00:00:00Z`)
+          .in('emp_id', employeeIds);
         const { data, error } = await query
           .order('emp_id', { ascending: true })
           .order('date', { ascending: true })
@@ -1068,7 +1083,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
     return <article key={sheet.employee.empId} className="monthly-print-sheet">
       <h1>Timesheet for the month of - {format(new Date(`${monthlyPrintData.month}-01T00:00:00`), 'MMMM yyyy')}</h1>
       <p className="monthly-print-subtitle">{sheet.employee.name} [{sheet.employee.empId}] [{companyName}]</p>
-      <table><thead><tr><th className="monthly-serial"><span>S.No.</span></th><th className="monthly-date"><span>Date</span></th><th className="monthly-time"><span>Punch<br />In</span></th><th className="monthly-time"><span>Punch<br />Out</span></th><th className="monthly-time"><span>OT</span></th><th className="monthly-time"><span>Holiday<br />OT</span></th><th className="monthly-time"><span>Total<br />Hours</span></th><th><span>Project</span></th><th><span>Remarks</span></th><th className="monthly-verified"><span>Verified</span></th></tr></thead><tbody>{sheet.rows.map((row, index) => <tr key={`${row.emp_id}-${row.date}-${index}`}><td className="monthly-serial">{index + 1}</td><td className="monthly-date">{row.displayDate}</td><td className="monthly-time">{row.displayPunchIn}</td><td className="monthly-time">{row.displayPunchOut}</td><td className="monthly-time">{row.displayOvertime}</td><td className="monthly-time">{row.displayHolidayOvertime}</td><td className="monthly-time">{row.displayHours}</td><td>{row.project_code || ''}</td><td>{row.remarks || ''}</td><td className="monthly-verified">&nbsp;</td></tr>)}<tr className="monthly-total-row"><td colSpan={4}>Total</td><td className="monthly-time">{sheetTotals.displayOvertime}</td><td className="monthly-time">{sheetTotals.displayHolidayOvertime}</td><td className="monthly-time">{sheetTotals.displayHours}</td><td></td><td></td><td></td></tr></tbody></table>
+      <table><thead><tr><th className="monthly-serial"><span>S.No.</span></th><th className="monthly-date"><span>Date</span></th><th className="monthly-day"><span>Day</span></th><th className="monthly-time"><span>Punch<br />In</span></th><th className="monthly-time"><span>Punch<br />Out</span></th><th className="monthly-time"><span>OT</span></th><th className="monthly-time"><span>Holiday<br />OT</span></th><th className="monthly-time"><span>Total<br />Hours</span></th><th className="monthly-project"><span>Project</span></th><th className="monthly-remarks"><span>Remarks</span></th><th className="monthly-verified"><span>Verified</span></th></tr></thead><tbody>{sheet.rows.map((row, index) => <tr key={`${row.emp_id}-${row.date}-${index}`}><td className="monthly-serial">{index + 1}</td><td className="monthly-date">{row.displayDate}</td><td className="monthly-day">{dayOfWeek(row.date)}</td><td className="monthly-time">{row.displayPunchIn}</td><td className="monthly-time">{row.displayPunchOut}</td><td className="monthly-time">{row.displayOvertime}</td><td className="monthly-time">{row.displayHolidayOvertime}</td><td className="monthly-time">{row.displayHours}</td><td className="monthly-project">{row.project_code || ''}</td><td className="monthly-remarks">{row.remarks || ''}</td><td className="monthly-verified">&nbsp;</td></tr>)}<tr className="monthly-total-row"><td colSpan={5}>Total</td><td className="monthly-time">{sheetTotals.displayOvertime}</td><td className="monthly-time">{sheetTotals.displayHolidayOvertime}</td><td className="monthly-time">{sheetTotals.displayHours}</td><td></td><td></td><td></td></tr></tbody></table>
       <footer className="monthly-print-footer"><span>{userData?.emp_id ? `Emp ID: ${userData.emp_id} | ` : ''}{format(new Date(), 'dd/MM/yyyy HH:mm')}</span><span>Verified by</span><span>{sheet.employee.name} [{sheet.employee.empId}]</span></footer>
     </article>;
   })}</section>;
@@ -1087,9 +1102,11 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
           .timesheet-print-preview th > span { display: inline-block; width: 100%; height: 100px; overflow: hidden; text-align: left; writing-mode: vertical-rl; transform: rotate(180deg); }
           .timesheet-print-preview .monthly-serial { width: 40px; }
           .timesheet-print-preview .monthly-date { width: 90px; }
+          .timesheet-print-preview .monthly-day { width: 42px; }
           .timesheet-print-preview .monthly-time { width: 55px; }
+          .timesheet-print-preview .monthly-project { width: calc(50% - 242.5px); }
           .timesheet-print-preview .monthly-verified { width: 80px; }
-          .timesheet-print-preview tbody .monthly-serial, .timesheet-print-preview tbody .monthly-date, .timesheet-print-preview tbody .monthly-time { white-space: nowrap; }
+          .timesheet-print-preview tbody .monthly-serial, .timesheet-print-preview tbody .monthly-date, .timesheet-print-preview tbody .monthly-day, .timesheet-print-preview tbody .monthly-time { white-space: nowrap; }
           .timesheet-print-preview tbody tr { height: 34px; }
           .timesheet-print-preview .monthly-total-row { font-weight: 700; }
           .timesheet-print-preview .monthly-print-footer { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end; margin-top: 28px; font-size: 12px; }
@@ -1116,10 +1133,13 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
             body.employee-monthly-timesheet-print #employee-monthly-timesheet th > span { display: inline-block; width: 100%; height: 12mm; max-height: 12mm; overflow: hidden; text-align: left; writing-mode: vertical-rl; transform: rotate(180deg); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-serial { width: calc(2ch + 3mm); max-width: calc(2ch + 3mm); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-date { width: calc(10ch + 3mm); max-width: calc(10ch + 3mm); }
+            body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-day { width: calc(3ch + 3mm); max-width: calc(3ch + 3mm); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-time { width: calc(5ch + 3mm); max-width: calc(5ch + 3mm); }
+            body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-project { width: calc(50% - 23.5ch - 10.5mm); max-width: calc(50% - 23.5ch - 10.5mm); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-verified { width: 10ch; max-width: 10ch; }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet tbody .monthly-serial,
             body.employee-monthly-timesheet-print #employee-monthly-timesheet tbody .monthly-date,
+            body.employee-monthly-timesheet-print #employee-monthly-timesheet tbody .monthly-day,
             body.employee-monthly-timesheet-print #employee-monthly-timesheet tbody .monthly-time { white-space: nowrap; overflow-wrap: normal; }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet tbody tr { height: 4.5mm; break-inside: avoid; page-break-inside: avoid; }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-total-row { font-weight: 700; }
