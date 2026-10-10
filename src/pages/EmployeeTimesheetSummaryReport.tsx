@@ -1102,7 +1102,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
           .timesheet-print-preview th > span { display: inline-block; width: 100%; height: 100px; overflow: hidden; text-align: left; writing-mode: vertical-rl; transform: rotate(180deg); }
           .timesheet-print-preview .monthly-serial { width: 40px; }
           .timesheet-print-preview .monthly-date { width: 90px; }
-          .timesheet-print-preview .monthly-day { width: 42px; }
+          .timesheet-print-preview .monthly-day { width: 55px; }
           .timesheet-print-preview .monthly-time { width: 55px; }
           .timesheet-print-preview .monthly-project { width: calc(50% - 242.5px); }
           .timesheet-print-preview .monthly-verified { width: 80px; }
@@ -1133,7 +1133,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
             body.employee-monthly-timesheet-print #employee-monthly-timesheet th > span { display: inline-block; width: 100%; height: 12mm; max-height: 12mm; overflow: hidden; text-align: left; writing-mode: vertical-rl; transform: rotate(180deg); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-serial { width: calc(2ch + 3mm); max-width: calc(2ch + 3mm); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-date { width: calc(10ch + 3mm); max-width: calc(10ch + 3mm); }
-            body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-day { width: calc(3ch + 3mm); max-width: calc(3ch + 3mm); }
+            body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-day { width: calc(5ch + 3mm); max-width: calc(5ch + 3mm); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-time { width: calc(5ch + 3mm); max-width: calc(5ch + 3mm); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-project { width: calc(50% - 23.5ch - 10.5mm); max-width: calc(50% - 23.5ch - 10.5mm); }
             body.employee-monthly-timesheet-print #employee-monthly-timesheet .monthly-verified { width: 10ch; max-width: 10ch; }
