@@ -44,7 +44,6 @@ type DisplayRow = SummaryRow & {
 
 type FilterOptions = {
   companies: string[];
-  projects: string[];
 //  employees: string[];
   statuses: string[];
 };
@@ -341,7 +340,8 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
   const [assignedPrintEmployeesLoading, setAssignedPrintEmployeesLoading] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortableColumnKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({ companies: [], projects: [], statuses: [] });  
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({ companies: [], statuses: [] });
+  const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
@@ -560,7 +560,6 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
       const nextRows = (data || []).map((row) => toDisplayRow(row as SummaryRow));
         setFilterOptions((current) => ({
         companies: Array.from(new Set([...current.companies, ...nextRows.map((row) => row.company_name).filter(Boolean) as string[]])).sort(),
-        projects: current.projects,
 //        employees: current.employees,
         statuses: Array.from(new Set([...current.statuses, ...nextRows.map((row) => row.timecard_status).filter(Boolean) as string[]])).sort(),
       }));      
@@ -578,7 +577,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
   const fetchFilterOptions = useCallback(async () => {
     try {
       let offset = 0;
-      const options: FilterOptions = { companies: [], projects: [], statuses: [] };
+      const options: FilterOptions = { companies: [], statuses: [] };
       let page: Array<Pick<SummaryRow, 'company_name' | 'project_code' | 'name' | 'timecard_status'>>;
 
       const { data: employeeData, error: employeeError } = await supabase
@@ -597,21 +596,6 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
 //      options.employees = employees;
       setEmployeeOptions(employees.sort((left, right) => left.name.localeCompare(right.name)));
 
-      let projectOffset = 0;
-      let projectPage: Array<{ project_code: string | null }>;
-      do {
-        const { data, error } = await supabase
-          .from('projects')
-          .select('project_code')
-          .order('project_code')
-          .range(projectOffset, projectOffset + PAGE_SIZE - 1);
-        if (error) throw error;
-
-        projectPage = data || [];
-        options.projects.push(...projectPage.map((project) => project.project_code).filter(Boolean) as string[]);
-        projectOffset += PAGE_SIZE;
-      } while (projectPage.length === PAGE_SIZE);
-
       do {
         const { data, error } = await supabase
           .from('v_employee_timesheet_summary')
@@ -626,7 +610,6 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
 
       setFilterOptions({
         companies: Array.from(new Set(options.companies)).sort(),
-        projects: Array.from(new Set(options.projects)).sort(),
         // employees: Array.from(new Set(options.employees)).sort(),
         statuses: Array.from(new Set(options.statuses)).sort(),
       });
@@ -669,7 +652,6 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
         pageRows = (data || []).map((row) => toDisplayRow(row as SummaryRow));
         setFilterOptions((current) => ({
           companies: Array.from(new Set([...current.companies, ...pageRows.map((row) => row.company_name).filter(Boolean) as string[]])).sort(),
-          projects: current.projects,
           // employees: Array.from(new Set([...current.employees, ...pageRows.map((row) => row.name).filter(Boolean) as string[]])).sort(),
           statuses: Array.from(new Set([...current.statuses, ...pageRows.map((row) => row.timecard_status).filter(Boolean) as string[]])).sort(),
         }));      
@@ -700,6 +682,38 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
   useEffect(() => {
     if (!timesheetPrintMode && userData?.email && canViewReport) void fetchFilterOptions();
   }, [canViewReport, fetchFilterOptions, timesheetPrintMode, userData?.email]);
+
+  useEffect(() => {
+    if (timesheetPrintMode || !userData?.email || !canViewReport) return;
+    let cancelled = false;
+
+    const loadProjectOptions = async () => {
+      try {
+        let offset = 0;
+        let page: Array<{ project_code: string | null }>;
+        const projects: string[] = [];
+        do {
+          const { data, error } = await supabase
+            .from('projects')
+            .select('project_code, project_name')
+            .order('project_code')
+            .range(offset, offset + PAGE_SIZE - 1);
+          if (error) throw error;
+
+          page = data || [];
+          projects.push(...page.map((project) => project.project_code).filter(Boolean) as string[]);
+          offset += PAGE_SIZE;
+        } while (page.length === PAGE_SIZE);
+
+        if (!cancelled) setProjectOptions(Array.from(new Set(projects)).sort());
+      } catch (error) {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : 'Unable to load project options.');
+      }
+    };
+
+    void loadProjectOptions();
+    return () => { cancelled = true; };
+  }, [canViewReport, timesheetPrintMode, userData?.email]);
 
   const companyEmployeeOptions = useMemo(
     () => employeeOptions
@@ -1270,7 +1284,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
       <div className="report-no-print flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-3 py-2">
         <div className="relative min-w-[220px] flex-1 sm:flex-none"><Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employee, company, project..." className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs outline-none focus:border-teal-500" /></div>
         <SearchableSelect label="Company" value={companyFilter} options={filterOptions.companies} onChange={setCompanyFilter} />
-        <SearchableSelect label="Project" value={projectFilter} options={filterOptions.projects} onChange={setProjectFilter} />
+        <SearchableSelect label="Project" value={projectFilter} options={projectOptions} onChange={setProjectFilter} />
         <SearchableSelect label="Employee" value={employeeFilter} options={companyEmployeeOptions.map((employee) => employee.name)} onChange={setEmployeeFilter} />
         <div className="flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
           <button type="button" onClick={() => setCalendarMode('day')} className={`h-7 rounded-md px-2 text-[11px] ${calendarMode === 'day' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>Day</button>
