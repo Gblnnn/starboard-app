@@ -597,16 +597,29 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
 //      options.employees = employees;
       setEmployeeOptions(employees.sort((left, right) => left.name.localeCompare(right.name)));
 
+      let projectOffset = 0;
+      let projectPage: Array<{ project_code: string | null }>;
+      do {
+        const { data, error } = await supabase
+          .from('projects')
+          .select('project_code')
+          .order('project_code')
+          .range(projectOffset, projectOffset + PAGE_SIZE - 1);
+        if (error) throw error;
+
+        projectPage = data || [];
+        options.projects.push(...projectPage.map((project) => project.project_code).filter(Boolean) as string[]);
+        projectOffset += PAGE_SIZE;
+      } while (projectPage.length === PAGE_SIZE);
+
       do {
         const { data, error } = await supabase
           .from('v_employee_timesheet_summary')
           .select('company_name, project_code, name, timecard_status')
           .range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
-
         page = (data || []) as Array<Pick<SummaryRow, 'company_name' | 'project_code' | 'name' | 'timecard_status'>>;
         options.companies.push(...page.map((row) => row.company_name).filter(Boolean) as string[]);
-        options.projects.push(...page.map((row) => row.project_code).filter(Boolean) as string[]);
         options.statuses.push(...page.map((row) => row.timecard_status).filter(Boolean) as string[]);
         offset += PAGE_SIZE;
       } while (page.length === PAGE_SIZE);
