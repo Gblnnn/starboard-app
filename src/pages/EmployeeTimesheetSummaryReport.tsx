@@ -560,7 +560,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
       const nextRows = (data || []).map((row) => toDisplayRow(row as SummaryRow));
         setFilterOptions((current) => ({
         companies: Array.from(new Set([...current.companies, ...nextRows.map((row) => row.company_name).filter(Boolean) as string[]])).sort(),
-        projects: Array.from(new Set([...current.projects, ...nextRows.map((row) => row.project_code).filter(Boolean) as string[]])).sort(),
+        projects: current.projects,
 //        employees: current.employees,
         statuses: Array.from(new Set([...current.statuses, ...nextRows.map((row) => row.timecard_status).filter(Boolean) as string[]])).sort(),
       }));      
@@ -669,7 +669,7 @@ export default function EmployeeTimesheetSummaryReport({ embedMode = false, time
         pageRows = (data || []).map((row) => toDisplayRow(row as SummaryRow));
         setFilterOptions((current) => ({
           companies: Array.from(new Set([...current.companies, ...pageRows.map((row) => row.company_name).filter(Boolean) as string[]])).sort(),
-          projects: Array.from(new Set([...current.projects, ...pageRows.map((row) => row.project_code).filter(Boolean) as string[]])).sort(),
+          projects: current.projects,
           // employees: Array.from(new Set([...current.employees, ...pageRows.map((row) => row.name).filter(Boolean) as string[]])).sort(),
           statuses: Array.from(new Set([...current.statuses, ...pageRows.map((row) => row.timecard_status).filter(Boolean) as string[]])).sort(),
         }));      
