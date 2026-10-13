@@ -181,7 +181,11 @@ export default function Phonebook() {
                 return (
                 <Directive
                 subtext={record.designation?.toLowerCase()}
-                    id_subtitle={[record.phone ? `Ph: ${record.phone}` : "", record.CUG ? `CUG: ${record.CUG}` : ""].filter(Boolean).join(" | ") || undefined}
+                    id_subtitle={[
+                        record.phone ? `Ph: ${record.phone}` : "",
+                        record.CUG ? `CUG: ${record.CUG}` : "",
+                        record.email ? `Email: ${record.email}` : "",
+                    ].filter(Boolean).join(" | ") || undefined}
                     onClick={() => {
                         setSelectedRecord(record);
                         setDrawerOpen(true);
