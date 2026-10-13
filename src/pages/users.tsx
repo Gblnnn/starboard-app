@@ -766,7 +766,7 @@ const ModuleClearanceContent: React.FC<ModuleClearanceContentProps> = ({
   );
 };
 
-export default function Users() {
+export default function Users({ embedded = false }: { embedded?: boolean } = {}) {
   const [addUserDialog, setAddUserDialog] = useState(false);
   // Track hovered module id for icon highlight
   const [hoveredModuleId, setHoveredModuleId] = useState<string | null>(null);
@@ -1117,32 +1117,40 @@ export default function Users() {
         }
       `}</style>
       <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}>
-        <Back
-          blurBG
-          fixed
-          title="Users"
-          extra={
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <RefreshButton
-                fetchingData={fetchingData}
-                onClick={fetchUsers}
-                refreshCompleted={refreshCompleted}
-              />
-            </div>
-          }
-        />
-
-        <br />
+        {!embedded && (
+          <>
+            <Back
+              blurBG
+              fixed
+              title="Users"
+              extra={
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <RefreshButton
+                    fetchingData={fetchingData}
+                    onClick={fetchUsers}
+                    refreshCompleted={refreshCompleted}
+                  />
+                </div>
+              }
+            />
+            <br />
+          </>
+        )}
 
         <div
           style={{
-            top: "5rem",
-            left: "1.25rem",
-            right: "1.25rem",
+            ...(embedded ? {
+              position: "relative" as const,
+              margin: "1.25rem",
+            } : {
+              top: "5rem",
+              left: "1.25rem",
+              right: "1.25rem",
+              position: "fixed" as const,
+            }),
             borderRadius: "1.1rem",
             overflow: "hidden",
             background: CONTROL_THEME.panelBg,
-            position: "fixed",
             zIndex: 18,
             WebkitBackdropFilter: "blur(12px)",
             backdropFilter: "blur(12px)",
@@ -1185,6 +1193,13 @@ export default function Users() {
                 </h2>
               </div>
               <div style={{ display: "flex", gap: "0.7rem", alignItems: "center" }}>
+                {embedded && (
+                  <RefreshButton
+                    fetchingData={fetchingData}
+                    onClick={fetchUsers}
+                    refreshCompleted={refreshCompleted}
+                  />
+                )}
                 <label style={{ color: CONTROL_THEME.accentText, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", userSelect: "none" }}>
                   {/* <input
                     type="checkbox"
@@ -1269,7 +1284,7 @@ export default function Users() {
               height: "",
               overflowY: "auto",
               padding: "1.25rem",
-              paddingTop: isMobile ? "13.2rem" : "14rem",
+              paddingTop: embedded ? "1.25rem" : isMobile ? "13.2rem" : "14rem",
               paddingBottom: "7rem"
             }}
           >
