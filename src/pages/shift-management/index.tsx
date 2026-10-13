@@ -1,17 +1,15 @@
 import Back from "@/components/back";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { CalendarDays, ClipboardCheck, FileSpreadsheet, LayoutDashboard, Settings2, UsersRound } from "lucide-react";
+import { ClipboardCheck, FileSpreadsheet, LayoutDashboard, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import AttendanceUpload from "./AttendanceUpload";
 import DailyAttendance from "./DailyAttendance";
-import ProjectShifts from "./ProjectShifts";
 import Roster from "./Roster";
-import ShiftMaster from "./ShiftMaster";
 import { AttendanceRow, errorMessage, fetchAccessibleProjects, filterMappedProjects, isAdminRole, Project, projectDisplay } from "./shared";
 
-type Tab = "overview" | "shifts" | "project-shifts" | "roster" | "attendance" | "upload";
+type Tab = "overview" | "roster" | "attendance" | "upload";
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" });
 
 export default function ShiftManagement() {
@@ -87,10 +85,8 @@ export default function ShiftManagement() {
   const approvedCount = attendance.filter((row) => row.approval_status === "approved").length;
   const rejectedCount = attendance.filter((row) => row.approval_status === "rejected").length;
 
-  const tabs: Array<{ id: Tab; label: string; icon: React.ReactNode; adminOnly?: boolean }> = [
+  const tabs: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
     { id: "overview", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" /> },
-    { id: "shifts", label: "Shift Master", icon: <Settings2 className="h-4 w-4" />, adminOnly: true },
-    { id: "project-shifts", label: "Project Shifts", icon: <CalendarDays className="h-4 w-4" />, adminOnly: true },
     { id: "roster", label: "Roster", icon: <UsersRound className="h-4 w-4" /> },
     { id: "attendance", label: "Daily Attendance & Approval", icon: <ClipboardCheck className="h-4 w-4" /> },
     { id: "upload", label: "Attendance Upload", icon: <FileSpreadsheet className="h-4 w-4" /> },
@@ -107,7 +103,7 @@ export default function ShiftManagement() {
       <Back title="Shift Management" subtitle="Project roster and attendance" />
       <div className="mx-auto max-w-[1600px] px-3 pt-20 sm:px-6">
         <nav aria-label="Shift management sections" className="mb-5 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-          {tabs.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+          {tabs.map((item) => (
             <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${tab === item.id ? "bg-teal-700 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
               {item.icon}{item.label}
             </button>
@@ -138,8 +134,6 @@ export default function ShiftManagement() {
             </section>
           </>}
         </section>}
-        {tab === "shifts" && isAdmin && <ShiftMaster />}
-        {tab === "project-shifts" && isAdmin && <ProjectShifts />}
         {tab === "roster" && <Roster />}
         {tab === "attendance" && <DailyAttendance />}
         {tab === "upload" && <AttendanceUpload />}
