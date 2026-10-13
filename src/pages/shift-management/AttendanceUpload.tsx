@@ -1,380 +1,515 @@
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import * as XLSX from "xlsx";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  addDays, AttendanceStatus, ATTENDANCE_STATUSES, Employee,
-  errorMessage, fetchAccessibleProjects, filterMappedProjects, isAdminRole, Project, scheduledTimestamps,
-  Shift, validDate, workingMinutes,
+  ApprovalStatus, AttendanceRow, AttendanceStatus, ATTENDANCE_STATUSES, dateTimeInput,
+  errorMessage, fetchAccessibleProjects, filterMappedProjects, formatDateTime, formatMinutes, fromDateTimeInput,
+  isAdminRole, Project, projectDisplay, scheduledTimestamps, Shift,
+  workingMinutes,
 } from "./shared";
 
-type ImportInput = {
-  rowNumber: number;
-  attendanceDate: string;
-  projectCode: string;
-  employeeCode: string;
-  shiftCode: string;
-  status: string;
-  punchIn: string;
-  punchOut: string;
-  overtime: string;
-  remarks: string;
-};
-
-type PreviewRow = ImportInput & {
-  employeeName: string;
-  errors: string[];
-  warnings: string[];
-  payload?: Record<string, unknown>;
-};
-
-const requiredHeaders = ["date", "project code", "employee id", "shift code", "status", "punch in", "punch out", "ot", "remarks"];
+type Screen = "attendance" | "approval" | "report";
 const fieldClass = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
+const badgeClass: Record<ApprovalStatus, string> = {
+  draft: "bg-slate-100 text-slate-700",
+  submitted: "bg-amber-100 text-amber-800",
+  approved: "bg-emerald-100 text-emerald-800",
+  rejected: "bg-rose-100 text-rose-800",
+};
 
-function cellText(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  if (value instanceof Date) return value.toISOString();
-  return String(value).trim();
-}
-
-function excelDate(value: unknown): string {
-  if (typeof value === "number") {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (!parsed) return "";
-    return `${String(parsed.y).padStart(4, "0")}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+function approvalErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
   }
-  const text = cellText(value);
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
-  const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (!match) return "";
-  const first = Number(match[1]);
-  const second = Number(match[2]);
-  const day = first > 12 ? first : second > 12 ? second : first;
-  const month = first > 12 ? second : second > 12 ? first : second;
-  return `${match[3]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return fallback;
 }
 
-function excelTime(value: unknown): string {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const totalMinutes = Math.round((value % 1) * 1440);
-    return `${String(Math.floor(totalMinutes / 60) % 24).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
-  }
-  const text = cellText(value);
-  const match = text.match(/(?:T|\s)?(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/);
-  if (!match) return "";
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  return hour <= 23 && minute <= 59 ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}` : "";
-}
-
-function parseMinutes(value: unknown): number | null {
-  const text = cellText(value);
-  if (!text) return null;
-  const minutes = Number(text);
-  return Number.isInteger(minutes) && minutes >= 0 ? minutes : null;
-}
-
-function parseImportRows(file: File): Promise<ImportInput[]> {
-  return file.arrayBuffer().then((buffer) => {
-    const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!sheet) throw new Error("The workbook does not contain a worksheet.");
-    const values = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: "" });
-    if (!values.length) throw new Error("The first worksheet is empty.");
-    const headers = (values[0] as unknown[]).map((value) => cellText(value).toLowerCase());
-    const column = (name: string) => headers.indexOf(name);
-    const missing = requiredHeaders.filter((header) => column(header) < 0);
-    if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}.`);
-    const rows = values.slice(1).filter((line) => (line as unknown[]).some((value) => cellText(value) !== ""));
-    if (rows.length > 2000) throw new Error("A single import is limited to 2,000 data rows.");
-    return rows.map((raw, index) => {
-      const line = raw as unknown[];
-      const get = (header: string) => line[column(header)];
-      return {
-        rowNumber: index + 2,
-        attendanceDate: excelDate(get("date")),
-        projectCode: cellText(get("project code")),
-        employeeCode: cellText(get("employee id")),
-        shiftCode: cellText(get("shift code")),
-        status: cellText(get("status")).toLowerCase(),
-        punchIn: excelTime(get("punch in")),
-        punchOut: excelTime(get("punch out")),
-        overtime: cellText(get("ot")),
-        remarks: cellText(get("remarks")),
-      };
-    });
-  });
-}
-
-function timeOnDate(date: string, time: string): string {
-  return `${date}T${time}:00+04:00`;
-}
-
-export default function AttendanceUpload() {
+export default function DailyAttendance() {
   const { user, userData } = useAuth();
+  const [screen, setScreen] = useState<Screen>("attendance");
   const [projects, setProjects] = useState<Project[]>([]);
+  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
+  const [projectCode, setProjectCode] = useState("");
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dubai" }));
+  const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [mappings, setMappings] = useState<Array<{ project_code: string; shift_code: string; active_yn: string }>>([]);
-  const [preview, setPreview] = useState<PreviewRow[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [validating, setValidating] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [mappedShiftCodes, setMappedShiftCodes] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalStatus | "all">("all");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [processingApproval, setProcessingApproval] = useState(false);
+  const [savedEdits, setSavedEdits] = useState<Record<number, string>>({});
 
-  const loadReferences = useCallback(async () => {
-    setValidating(true);
+  const editableState = (row: AttendanceRow) => JSON.stringify([
+    row.actual_shift_code, row.punch_in, row.punch_out, row.status,
+    row.overtime_minutes, row.remarks ?? "",
+  ]);
+
+  const loadSetup = useCallback(async () => {
     try {
-      const [accessibleProjects, shiftResult, mappingResult] = await Promise.all([
+      const [accessibleProjects, shiftResult, projectsMappingsResult] = await Promise.all([
         fetchAccessibleProjects(userData?.emp_id ? String(userData.emp_id) : null, isAdminRole(userData?.role)),
-        supabase.from("shift_master").select("id, shift_code, shift_name, punch_in, punch_out, default_ot_minutes, break_minutes, shift_type, active_yn"),
-        supabase.from("project_shifts").select("project_code, shift_code, active_yn"),
+        supabase.from("shift_master").select("id, shift_code, shift_name, punch_in, punch_out, default_ot_minutes, break_minutes, shift_type, active_yn").order("shift_code"),
+        supabase.from("project_shifts").select("project_code"),
       ]);
       if (shiftResult.error) throw shiftResult.error;
+      if (projectsMappingsResult.error) throw projectsMappingsResult.error;
+      const projectRows = filterMappedProjects(
+        accessibleProjects,
+        (projectsMappingsResult.data ?? []).map((mapping) => mapping.project_code),
+      );
+      const mappingResult = projectCode
+        ? await supabase.from("project_shifts").select("shift_code, active_yn").eq("project_code", projectCode)
+        : { data: [], error: null };
       if (mappingResult.error) throw mappingResult.error;
-      setProjects(filterMappedProjects(accessibleProjects, (mappingResult.data ?? []).map((mapping) => mapping.project_code)));
+      setProjects(projectRows);
       setShifts((shiftResult.data ?? []) as Shift[]);
-      setMappings((mappingResult.data ?? []) as Array<{ project_code: string; shift_code: string; active_yn: string }>);
+      setMappedShiftCodes(new Set((mappingResult.data ?? [])
+        .filter((mapping) => mapping.active_yn.trim().toUpperCase() === "Y")
+        .map((mapping) => mapping.shift_code)));
+      if (!projectRows.some((project) => project.project_code === projectCode)) {
+        setProjectCode(projectRows[0]?.project_code ?? "");
+      }
     } catch (error) {
-      toast.error(errorMessage(error, "Unable to load validation data."));
-    } finally {
-      setValidating(false);
+      toast.error(errorMessage(error, "Unable to load attendance setup."));
+      setProjects([]);
     }
-  }, [userData?.emp_id, userData?.role]);
+  }, [userData?.emp_id, userData?.role, projectCode]);
 
-  useEffect(() => { void loadReferences(); }, [loadReferences]);
+  useEffect(() => { void loadSetup(); }, [loadSetup]);
 
-  const downloadTemplate = () => {
-    const worksheet = XLSX.utils.aoa_to_sheet([
-      requiredHeaders.map((header) => ({
-        "date": "Date",
-        "project code": "Project Code",
-        "employee id": "Employee ID",
-        "shift code": "Shift Code",
-        "status": "Status",
-        "punch in": "Punch In",
-        "punch out": "Punch Out",
-        "ot": "OT",
-        "remarks": "Remarks",
-      }[header])),
-      [null, "PROJECT-CODE", "SS00605", "D01", "present", null, null, 0, ""],
-    ]);
-    const excelEpoch = Date.UTC(1899, 11, 30);
-    worksheet.A2 = { t: "n", v: (Date.UTC(2026, 9, 6) - excelEpoch) / 86400000, z: "yyyy-mm-dd" };
-    worksheet.F2 = { t: "n", v: 7 / 24, z: "hh:mm" };
-    worksheet.G2 = { t: "n", v: 17 / 24, z: "hh:mm" };
-    worksheet["!cols"] = [{ wch: 14 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 40 }];
-    const instructions = XLSX.utils.aoa_to_sheet([
-      ["Shift Attendance Upload — Instructions"],
-      ["Use employees.emp_id for Employee ID. Do not use the biometric device_user_id."],
-      ["Date is the business shift-start date in Asia/Dubai, formatted YYYY-MM-DD."],
-      ["Punch In and Punch Out are local 24-hour times (HH:MM). Overnight punch-out is assigned to the next calendar day."],
-      ["OT is a non-negative whole number of minutes."],
-      [`Allowed statuses: ${ATTENDANCE_STATUSES.join(", ")}.`],
-      ["The example row is illustrative; replace PROJECT-CODE, SS00605 and D01 with valid values."],
-    ]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
-    XLSX.utils.book_append_sheet(workbook, instructions, "Instructions");
-    XLSX.writeFile(workbook, "shift-attendance-template.xlsx");
-  };
-
-  const validateFile = async () => {
-    if (!selectedFile) {
-      toast.error("Choose an Excel file first.");
+  const loadRows = useCallback(async () => {
+    if (!projectCode || !attendanceDate) {
+      setRows([]);
       return;
     }
-    setValidating(true);
+    setLoading(true);
     try {
-      const parsedRows = await parseImportRows(selectedFile);
-      if (!parsedRows.length) throw new Error("The worksheet does not contain attendance rows.");
-      const projectCodes = Array.from(new Set(parsedRows.map((row) => row.projectCode).filter(Boolean)));
-      const dateKeys = parsedRows.map((row) => row.attendanceDate).filter(validDate).sort();
-      const employeeCodes = Array.from(new Set(parsedRows.map((row) => row.employeeCode).filter(Boolean)));
-      const [attendanceResult, employeeResult] = await Promise.all([
-        dateKeys.length && projectCodes.length && employeeCodes.length ? supabase.from("shift_timesheet")
-          .select("project_code, employee_code, attendance_date, approval_status")
-          .in("project_code", projectCodes)
-          .in("employee_code", employeeCodes)
-          .gte("attendance_date", dateKeys[0])
-          .lte("attendance_date", dateKeys[dateKeys.length - 1])
-          : Promise.resolve({ data: [], error: null }),
-        employeeCodes.length
-          ? supabase.from("employees")
-            .select("id, emp_id, device_user_id, name, designation, emp_type, project, status")
-            .in("emp_id", employeeCodes)
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-      if (attendanceResult.error) throw attendanceResult.error;
-      if (employeeResult.error) throw employeeResult.error;
-      const existing = new Map((attendanceResult.data ?? []).map((row) => [
-        `${row.project_code}:${row.employee_code}:${row.attendance_date}`,
-        row.approval_status,
-      ]));
-      const projectByCode = new Map(projects.map((project) => [project.project_code, project]));
-      const employeeByCode = new Map(((employeeResult.data ?? []) as Employee[]).map((employee) => [employee.emp_id, employee]));
-      const shiftByCode = new Map(shifts.map((shift) => [shift.shift_code, shift]));
-      const mappingSet = new Set(mappings.filter((mapping) => mapping.active_yn.trim().toUpperCase() === "Y").map((mapping) => `${mapping.project_code}:${mapping.shift_code}`));
-      const seen = new Set<string>();
-
-      const nextPreview: PreviewRow[] = parsedRows.map((row) => {
-        const errors: string[] = [];
-        const warnings: string[] = [];
-        const project = projectByCode.get(row.projectCode);
-        const employee = employeeByCode.get(row.employeeCode);
-        const shift = shiftByCode.get(row.shiftCode);
-        if (!validDate(row.attendanceDate)) errors.push("Date must be a valid YYYY-MM-DD business date.");
-        if (!project) errors.push("Project is missing or you do not have access to it.");
-        if (!employee) errors.push("Employee ID was not found.");
-        else if (project) {
-          const employeeProject = employee.project?.trim().toLowerCase();
-          if (!employeeProject || ![project.project_code, project.project_name ?? ""].some((value) => value.trim().toLowerCase() === employeeProject)) {
-            errors.push("Employee does not belong to the selected project.");
-          }
-          if (employee.status && employee.status.trim().toLowerCase() !== "active") {
-            warnings.push(`Employee status is ${employee.status}.`);
-          }
-        }
-        if (!shift || shift.active_yn.trim().toUpperCase() !== "Y") errors.push("Shift is missing or inactive.");
-        if (project && shift && !mappingSet.has(`${project.project_code}:${shift.shift_code}`)) errors.push("Shift is not actively mapped to the project.");
-        if (!ATTENDANCE_STATUSES.includes(row.status as AttendanceStatus)) errors.push("Status is not supported.");
-        const overtimeMinutes = parseMinutes(row.overtime);
-        if (row.overtime && overtimeMinutes === null) errors.push("OT must be a non-negative whole number of minutes.");
-        const present = row.status === "present" || row.status === "present with ot";
-        if (present && (!row.punchIn || !row.punchOut)) errors.push("Punch In and Punch Out are required for present statuses.");
-        if (row.punchIn && !/^\d{2}:\d{2}$/.test(row.punchIn)) errors.push("Punch In must use HH:MM.");
-        if (row.punchOut && !/^\d{2}:\d{2}$/.test(row.punchOut)) errors.push("Punch Out must use HH:MM.");
-        const key = `${row.projectCode}:${row.employeeCode}:${row.attendanceDate}`;
-        if (row.projectCode && row.employeeCode && row.attendanceDate && seen.has(key)) errors.push("Duplicate row in this file.");
-        seen.add(key);
-        const existingStatus = existing.get(key);
-        if (existingStatus) errors.push(`Attendance already exists (${existingStatus}); import does not overwrite existing records.`);
-
-        let payload: Record<string, unknown> | undefined;
-        if (!errors.length && project && employee && shift) {
-          try {
-            const schedule = scheduledTimestamps(row.attendanceDate, shift);
-            const punchIn: string | null = row.punchIn ? timeOnDate(row.attendanceDate, row.punchIn) : null;
-            let punchOut: string | null = row.punchOut ? timeOnDate(row.attendanceDate, row.punchOut) : null;
-            if (punchIn && punchOut && punchOut < punchIn) {
-              punchOut = timeOnDate(addDays(row.attendanceDate, 1), row.punchOut);
-            }
-            let breakMinutes = 0;
-            let totalWorkingMinutes: number | null = null;
-            if (punchIn && punchOut) {
-              const totals = workingMinutes(punchIn, punchOut, shift.break_minutes);
-              breakMinutes = totals.breakMinutes;
-              totalWorkingMinutes = totals.total;
-            }
-            payload = {
-              attendance_date: row.attendanceDate,
-              project_code: row.projectCode,
-              employee_code: employee.emp_id,
-              roster_shift_code: row.shiftCode,
-              actual_shift_code: row.shiftCode,
-              scheduled_punch_in: schedule.start,
-              scheduled_punch_out: schedule.end,
-              punch_in: punchIn,
-              punch_out: punchOut,
-              default_ot_minutes: shift.default_ot_minutes,
-              overtime_minutes: overtimeMinutes ?? shift.default_ot_minutes,
-              break_minutes: breakMinutes,
-              total_working_minutes: totalWorkingMinutes,
-              status: row.status as AttendanceStatus,
-              verify_type: "manual",
-              machine: "manual",
-              approval_status: "draft",
-              remarks: row.remarks || null,
-              created_by: user?.id ?? null,
-              updated_by: user?.id ?? null,
-            };
-          } catch (error) {
-            errors.push(errorMessage(error, "Unable to calculate attendance."));
-          }
-        }
-        if (!row.overtime && shift) warnings.push(`OT defaults to ${shift.default_ot_minutes} minutes.`);
-        return { ...row, employeeName: employee?.name ?? "", errors, warnings, payload };
-      });
-      setPreview(nextPreview);
-    } catch (error) {
-      toast.error(errorMessage(error, "Unable to read or validate the workbook."));
-      setPreview([]);
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  const importRows = async () => {
-    const validRows = preview.filter((row) => row.errors.length === 0 && row.payload);
-    if (!validRows.length) {
-      toast.error("There are no valid rows to import.");
-      return;
-    }
-    const confirmed = window.confirm(`Import ${validRows.length} valid attendance row${validRows.length === 1 ? "" : "s"}? Invalid rows will be skipped.`);
-    if (!confirmed) return;
-    setImporting(true);
-    try {
-      const payload = validRows.map((row) => ({
-        ...row.payload,
-        updated_at: new Date().toISOString(),
-      }));
-      const { data, error } = await supabase.from("shift_timesheet").insert(payload).select("id");
+      const { data, error } = await supabase.from("shift_timesheet")
+        .select("id, attendance_date, project_code, employee_code, roster_shift_code, actual_shift_code, scheduled_punch_in, scheduled_punch_out, punch_in, punch_out, default_ot_minutes, overtime_minutes, break_minutes, total_working_minutes, status, verify_type, machine, attested_by, attested_at, verified_by, verified_at, approval_status, approved_by, approved_at, rejected_by, rejected_at, rejection_reason, remarks")
+        .eq("project_code", projectCode)
+        .eq("attendance_date", attendanceDate)
+        .order("employee_code");
       if (error) throw error;
-      toast.success(`Imported ${data?.length ?? validRows.length} attendance record${validRows.length === 1 ? "" : "s"}.`);
-      setPreview([]);
-      setSelectedFile(null);
+      const attendanceRows = (data ?? []) as AttendanceRow[];
+      setRows(attendanceRows);
+      setSavedEdits(Object.fromEntries(attendanceRows.map((row) => [row.id, editableState(row)])));
+      const employeeCodes = Array.from(new Set(attendanceRows.map((row) => row.employee_code)));
+      if (employeeCodes.length) {
+        const { data: employees, error: employeeError } = await supabase.from("employees")
+          .select("emp_id, name")
+          .in("emp_id", employeeCodes);
+        if (employeeError) throw employeeError;
+        setEmployeeNames(Object.fromEntries((employees ?? []).map((employee) => [employee.emp_id, employee.name])));
+      } else {
+        setEmployeeNames({});
+      }
     } catch (error) {
-      toast.error(errorMessage(error, "Import failed; no attendance rows were written."));
+      toast.error(errorMessage(error, "Unable to load daily attendance."));
+      setRows([]);
     } finally {
-      setImporting(false);
+      setLoading(false);
+    }
+  }, [projectCode, attendanceDate]);
+
+  useEffect(() => { void loadRows(); }, [loadRows]);
+
+  const shiftByCode = useMemo(() => new Map(shifts.map((shift) => [shift.shift_code, shift])), [shifts]);
+  const selectedProject = projects.find((project) => project.project_code === projectCode);
+  const canApprove = isAdminRole(userData?.role) ||
+    String(selectedProject?.approver_id ?? "").trim() === String(userData?.emp_id ?? "").trim();
+
+  const generateAttendance = async () => {
+    if (!projectCode || !attendanceDate) {
+      toast.error("Select a project and date.");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const [{ data: rosterData, error: rosterError }, { data: mappingData, error: mappingError }] = await Promise.all([
+        supabase.from("roster").select("employee_code, shift_code")
+          .eq("project_code", projectCode).eq("roster_date", attendanceDate),
+        supabase.from("project_shifts").select("shift_code, active_yn")
+          .eq("project_code", projectCode),
+      ]);
+      if (rosterError) throw rosterError;
+      if (mappingError) throw mappingError;
+      if (!rosterData?.length) throw new Error("No roster exists for this project and date.");
+      const allowedCodes = new Set((mappingData ?? [])
+        .filter((item) => item.active_yn?.trim().toUpperCase() === "Y")
+        .map((item) => item.shift_code));
+      const byCode = new Map(shifts.map((shift) => [shift.shift_code, shift]));
+      const timestamp = new Date().toISOString();
+      const values = rosterData.map((rosterItem) => {
+        const shift = byCode.get(rosterItem.shift_code);
+        if (!shift || shift.active_yn.trim().toUpperCase() !== "Y" || !allowedCodes.has(shift.shift_code)) {
+          throw new Error(`Roster shift ${rosterItem.shift_code} is not currently active and mapped to this project.`);
+        }
+        const schedule = scheduledTimestamps(attendanceDate, shift);
+        const work = workingMinutes(schedule.start, schedule.end, shift.break_minutes);
+        return {
+          attendance_date: attendanceDate,
+          project_code: projectCode,
+          employee_code: rosterItem.employee_code,
+          roster_shift_code: rosterItem.shift_code,
+          actual_shift_code: rosterItem.shift_code,
+          scheduled_punch_in: schedule.start,
+          scheduled_punch_out: schedule.end,
+          punch_in: schedule.start,
+          punch_out: schedule.end,
+          default_ot_minutes: shift.default_ot_minutes,
+          overtime_minutes: shift.default_ot_minutes,
+          break_minutes: work.breakMinutes,
+          total_working_minutes: work.total,
+          status: "present" as AttendanceStatus,
+          verify_type: "manual",
+          machine: "manual",
+          approval_status: "draft" as ApprovalStatus,
+          created_by: user?.id ?? null,
+          updated_by: user?.id ?? null,
+          updated_at: timestamp,
+        };
+      });
+      const { error } = await supabase.from("shift_timesheet").upsert(values, {
+        onConflict: "project_code,employee_code,attendance_date",
+        ignoreDuplicates: true,
+      });
+      if (error) throw error;
+      toast.success(`Attendance generated for ${values.length} rostered employee${values.length === 1 ? "" : "s"}. Existing attendance was preserved.`);
+      await loadRows();
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to generate attendance."));
+    } finally {
+      setGenerating(false);
     }
   };
 
-  const validCount = preview.filter((row) => row.errors.length === 0 && row.payload).length;
-  const invalidCount = preview.length - validCount;
+  const updateLocal = (id: number, changes: Partial<AttendanceRow>) => {
+    setRows((current) => current.map((row) => row.id === id ? { ...row, ...changes } : row));
+  };
+
+  const changeActualShift = (row: AttendanceRow, shiftCode: string) => {
+    const shift = shiftByCode.get(shiftCode);
+    if (!shift) {
+      toast.error("The selected shift is unavailable.");
+      return;
+    }
+    try {
+      const schedule = scheduledTimestamps(row.attendance_date, shift);
+      const work = workingMinutes(schedule.start, schedule.end, shift.break_minutes);
+      updateLocal(row.id, {
+        actual_shift_code: shift.shift_code,
+        scheduled_punch_in: schedule.start,
+        scheduled_punch_out: schedule.end,
+        punch_in: schedule.start,
+        punch_out: schedule.end,
+        default_ot_minutes: shift.default_ot_minutes,
+        overtime_minutes: shift.default_ot_minutes,
+        break_minutes: work.breakMinutes,
+        total_working_minutes: work.total,
+      });
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to apply this shift."));
+    }
+  };
+
+  const saveAttendanceRow = async (row: AttendanceRow) => {
+    if (row.approval_status === "approved" || row.approval_status === "submitted") {
+      toast.error("Submitted or approved attendance cannot be edited.");
+      return;
+    }
+    const shift = shiftByCode.get(row.actual_shift_code);
+    if (!shift) {
+      toast.error(`Shift ${row.actual_shift_code} is missing from Shift Master.`);
+      return;
+    }
+    if (!Number.isInteger(row.overtime_minutes) || row.overtime_minutes < 0) {
+      toast.error("OT must be a non-negative whole number of minutes.");
+      return;
+    }
+    let computed: { elapsed: number; breakMinutes: number; total: number } | null = null;
+    if (row.status === "present" || row.status === "present with ot") {
+      if (!row.punch_in || !row.punch_out) {
+        toast.error("Punch in and punch out are required for present attendance.");
+        return;
+      }
+      try {
+        computed = workingMinutes(row.punch_in, row.punch_out, shift.break_minutes);
+      } catch (error) {
+        toast.error(errorMessage(error, "Punches are invalid."));
+        return;
+      }
+    }
+    setSavingId(row.id);
+    try {
+      const payload = {
+        actual_shift_code: shift.shift_code,
+        scheduled_punch_in: row.scheduled_punch_in,
+        scheduled_punch_out: row.scheduled_punch_out,
+        punch_in: row.punch_in,
+        punch_out: row.punch_out,
+        default_ot_minutes: shift.default_ot_minutes,
+        overtime_minutes: Number(row.overtime_minutes),
+        break_minutes: computed?.breakMinutes ?? 0,
+        total_working_minutes: computed?.total ?? null,
+        status: row.status,
+        remarks: row.remarks?.trim() || null,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.id ?? null,
+      };
+      const { error } = await supabase.from("shift_timesheet").update(payload).eq("id", row.id);
+      if (error) throw error;
+      toast.success(`Attendance saved for ${row.employee_code}.`);
+      await loadRows();
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to save attendance."));
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const submitAttendance = async () => {
+    const submittable = rows.filter((row) => row.approval_status === "draft" || row.approval_status === "rejected");
+    if (submittable.length === 0) {
+      toast.error("There are no draft or rejected records to submit.");
+      return;
+    }
+    if (submittable.some((row) => savedEdits[row.id] !== editableState(row))) {
+      toast.error("Save all attendance edits before submitting.");
+      return;
+    }
+    const invalid = submittable.find((row) => {
+      if (row.status !== "present" && row.status !== "present with ot") return false;
+      const shift = shiftByCode.get(row.actual_shift_code);
+      if (!shift || !row.punch_in || !row.punch_out) return true;
+      try {
+        workingMinutes(row.punch_in, row.punch_out, shift.break_minutes);
+        return !Number.isInteger(row.overtime_minutes) || row.overtime_minutes < 0;
+      } catch {
+        return true;
+      }
+    });
+    if (invalid) {
+      toast.error(`Complete and save valid punches and OT for ${invalid.employee_code} before submitting.`);
+      return;
+    }
+    setProcessingApproval(true);
+    try {
+      const ids = submittable.map((row) => row.id);
+      const { error } = await supabase.from("shift_timesheet").update({
+        approval_status: "submitted",
+        attested_by: user?.id ?? null,
+        attested_at: new Date().toISOString(),
+        updated_by: user?.id ?? null,
+        updated_at: new Date().toISOString(),
+      }).in("id", ids);
+      if (error) throw error;
+      toast.success(`Submitted ${ids.length} attendance record${ids.length === 1 ? "" : "s"} for approval.`);
+      await loadRows();
+      setScreen("approval");
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to submit attendance."));
+    } finally {
+      setProcessingApproval(false);
+    }
+  };
+
+  const approveSubmitted = async () => {
+    const submitted = rows.filter((row) => row.approval_status === "submitted");
+    if (!submitted.length) {
+      toast.info("There are no submitted records for this project and date.");
+      return;
+    }
+    setProcessingApproval(true);
+    try {
+      const { error } = await supabase.from("shift_timesheet").update({
+        approval_status: "approved",
+        approved_by: user?.id ?? null,
+        approved_at: new Date().toISOString(),
+        updated_by: user?.id ?? null,
+        updated_at: new Date().toISOString(),
+      }).in("id", submitted.map((row) => row.id)).eq("approval_status", "submitted");
+      if (error) throw error;
+      toast.success(`Approved ${submitted.length} record${submitted.length === 1 ? "" : "s"}.`);
+      await loadRows();
+    } catch (error) {
+      toast.error(approvalErrorMessage(error, "Unable to approve attendance."));
+    } finally {
+      setProcessingApproval(false);
+    }
+  };
+
+  const rejectSubmitted = async () => {
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      toast.error("Enter a rejection reason.");
+      return;
+    }
+    const submitted = rows.filter((row) => row.approval_status === "submitted");
+    if (!submitted.length) {
+      toast.info("There are no submitted records for this project and date.");
+      return;
+    }
+    setProcessingApproval(true);
+    try {
+      const { error } = await supabase.from("shift_timesheet").update({
+        approval_status: "rejected",
+        rejected_by: user?.id ?? null,
+        rejected_at: new Date().toISOString(),
+        rejection_reason: reason,
+        updated_by: user?.id ?? null,
+        updated_at: new Date().toISOString(),
+      }).in("id", submitted.map((row) => row.id)).eq("approval_status", "submitted");
+      if (error) throw error;
+      toast.success(`Rejected ${submitted.length} record${submitted.length === 1 ? "" : "s"}.`);
+      setRejectionReason("");
+      await loadRows();
+    } catch (error) {
+      toast.error(errorMessage(error, "Unable to reject attendance."));
+    } finally {
+      setProcessingApproval(false);
+    }
+  };
+
+  const exportCsv = () => {
+    const data = rows.filter((row) => approvalFilter === "all" || row.approval_status === approvalFilter);
+    if (!data.length) {
+      toast.info("No attendance records to export.");
+      return;
+    }
+    const headers = ["Date", "Project Code", "Employee ID", "Roster Shift", "Actual Shift", "Status", "Punch In", "Punch Out", "Break Minutes", "OT Minutes", "Total Working Minutes", "Approval Status", "Remarks"];
+    const escapeCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [headers, ...data.map((row) => [
+      row.attendance_date, row.project_code, row.employee_code, row.roster_shift_code, row.actual_shift_code,
+      row.status, row.punch_in, row.punch_out, row.break_minutes, row.overtime_minutes,
+      row.total_working_minutes, row.approval_status, row.remarks,
+    ])].map((line) => line.map(escapeCell).join(",")).join("\r\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `shift-attendance-${projectCode}-${attendanceDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const visibleRows = rows.filter((row) => (
+    (approvalFilter === "all" || row.approval_status === approvalFilter) &&
+    `${row.employee_code} ${row.actual_shift_code} ${row.roster_shift_code} ${row.status} ${row.remarks ?? ""}`
+      .toLowerCase().includes(search.trim().toLowerCase())
+  ));
+  const counts = rows.reduce<Record<ApprovalStatus, number>>((result, row) => {
+    result[row.approval_status] += 1;
+    return result;
+  }, { draft: 0, submitted: 0, approved: 0, rejected: 0 });
+  const statusLabel = (status: AttendanceStatus) => status.replace(/\b\w/g, (character) => character.toUpperCase());
 
   return (
     <div className="space-y-5">
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-lg font-semibold text-slate-900">Attendance upload</h2><p className="mt-1 max-w-3xl text-sm text-slate-500">Upload is validated and previewed before inserting. Employee ID is `employees.emp_id`; punch times and dates are interpreted in Asia/Dubai.</p></div>
-          <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={downloadTemplate}>Download blank template</button>
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-[minmax(15rem,1fr)_12rem_auto]">
+          <label className="text-sm font-medium text-slate-700">Project
+            <select className={`${fieldClass} mt-1 w-full`} value={projectCode} onChange={(event) => setProjectCode(event.target.value)}>
+              <option value="">Select project</option>{projects.map((project) => <option key={project.project_code} value={project.project_code}>{projectDisplay(project)}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">Attendance date
+            <input className={`${fieldClass} mt-1 w-full`} type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} />
+          </label>
+          <button type="button" onClick={() => void generateAttendance()} disabled={generating || loading || !projectCode} className="mt-auto h-10 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50">{generating ? "Generating…" : "Generate attendance"}</button>
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <input className={fieldClass} type="file" accept=".xlsx,.xls" onChange={(event) => { setSelectedFile(event.target.files?.[0] ?? null); setPreview([]); }} />
-          <button type="button" className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!selectedFile || validating || importing} onClick={() => void validateFile()}>{validating ? "Validating…" : "Validate and preview"}</button>
-          {selectedFile && <span className="text-sm text-slate-500">{selectedFile.name}</span>}
-        </div>
-        <p className="mt-3 text-xs text-slate-500">Required headers: Date, Project Code, Employee ID, Shift Code, Status, Punch In, Punch Out, OT, Remarks. OT is a non-negative whole number of minutes; blank OT uses the shift default.</p>
+        {selectedProject && <p className="mt-2 text-xs text-slate-500">Business timezone: Asia/Dubai · Attendance date is the shift-start date, including overnight shifts.</p>}
       </section>
 
-      {preview.length > 0 && <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {(["draft", "submitted", "approved", "rejected"] as const).map((status) => <div key={status} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{status}</p><p className="mt-1 text-2xl font-semibold text-slate-900">{counts[status]}</p></div>)}
+      </div>
+
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
-          <div><h2 className="font-semibold text-slate-900">Import preview</h2><p className="text-sm text-slate-500">{validCount} valid · {invalidCount} invalid · {preview.reduce((total, row) => total + row.warnings.length, 0)} warnings</p></div>
-          <button type="button" className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!validCount || importing || validating} onClick={() => void importRows()}>{importing ? "Importing…" : `Import ${validCount} valid rows`}</button>
+          <div>
+            <div className="flex flex-wrap gap-2">
+              {(["attendance", "approval", "report"] as const).map((value) => <button type="button" key={value} onClick={() => setScreen(value)} className={`rounded-lg px-3 py-2 text-sm font-medium capitalize ${screen === value ? "bg-teal-700 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-50"}`}>{value}</button>)}
+            </div>
+            <p className="mt-2 text-sm text-slate-500">{rows.length} records · {attendanceDate}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {screen === "attendance" && <button type="button" className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={processingApproval || !rows.some((row) => row.approval_status === "draft" || row.approval_status === "rejected")} onClick={() => void submitAttendance()}>{processingApproval ? "Submitting…" : "Submit attendance"}</button>}
+            {screen === "approval" && canApprove && <>
+              <button type="button" className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={processingApproval || !rows.some((row) => row.approval_status === "submitted")} onClick={() => void approveSubmitted()}>{processingApproval ? "Processing…" : "Approve submitted"}</button>
+              <input className={fieldClass} placeholder="Required rejection reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} />
+              <button type="button" className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={processingApproval || !rows.some((row) => row.approval_status === "submitted")} onClick={() => void rejectSubmitted()}>Reject submitted</button>
+            </>}
+            {screen === "report" && <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={exportCsv}>Export CSV</button>}
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1300px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{["Row", "Date", "Project", "Employee", "Shift", "Status", "Punch In", "Punch Out", "OT (min)", "Validation result"].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead>
-            <tbody className="divide-y divide-slate-100">
-              {preview.map((row) => <tr key={row.rowNumber} className={row.errors.length ? "bg-rose-50/40" : ""}>
-                <td className="px-3 py-3">{row.rowNumber}</td>
-                <td className="px-3 py-3">{row.attendanceDate || "—"}</td>
-                <td className="px-3 py-3">{row.projectCode || "—"}</td>
-                <td className="px-3 py-3">{row.employeeCode || "—"}<div className="text-xs text-slate-500">{row.employeeName}</div></td>
-                <td className="px-3 py-3">{row.shiftCode || "—"}</td>
-                <td className="px-3 py-3">{row.status || "—"}</td>
-                <td className="px-3 py-3">{row.punchIn || "—"}</td>
-                <td className="px-3 py-3">{row.punchOut || "—"}</td>
-                <td className="px-3 py-3">{row.overtime || "default"}</td>
-                <td className="max-w-[28rem] px-3 py-3">
-                  {row.errors.length > 0 ? <ul className="list-inside list-disc text-xs text-rose-700">{row.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <span className="text-xs font-medium text-emerald-700">Valid</span>}
-                  {row.warnings.map((warning) => <div key={warning} className="mt-1 text-xs text-amber-700">Warning: {warning}</div>)}
-                </td>
-              </tr>)}
-            </tbody>
-          </table>
+
+        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+          <input className={`${fieldClass} min-w-[14rem] flex-1`} placeholder="Search employee, shift, status or remarks" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <select className={fieldClass} value={approvalFilter} onChange={(event) => setApprovalFilter(event.target.value as ApprovalStatus | "all")}>
+            <option value="all">All approval statuses</option><option value="draft">Draft</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+          </select>
         </div>
-      </section>}
+
+        {loading ? <p className="p-6 text-sm text-slate-500">Loading attendance…</p> : visibleRows.length === 0 ? <p className="p-6 text-sm text-slate-500">No attendance records. Generate from the roster to begin.</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1500px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>{["Employee ID", "Roster shift", "Actual shift", "Status", "Punch in (Dubai)", "Punch out (Dubai)", "Break", "OT (min)", "Working", "Approval", "Remarks", ...(screen === "approval" ? ["Audit"] : []), ...(screen === "attendance" ? ["Save"] : [])].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleRows.map((row) => {
+                  const editable = screen === "attendance" && (row.approval_status === "draft" || row.approval_status === "rejected");
+                  const shift = shiftByCode.get(row.actual_shift_code);
+                  let calculated = formatMinutes(row.total_working_minutes);
+                  let calculatedBreak = row.break_minutes;
+                  if (row.punch_in && row.punch_out && shift) {
+                    try {
+                      const totals = workingMinutes(row.punch_in, row.punch_out, shift.break_minutes);
+                      calculated = formatMinutes(totals.total);
+                      calculatedBreak = totals.breakMinutes;
+                    } catch {
+                      calculated = "Invalid";
+                    }
+                  }
+                  return <tr key={row.id} className={row.approval_status === "rejected" ? "bg-rose-50/40" : ""}>
+                    <td className="px-3 py-3 font-semibold text-slate-800">{row.employee_code}<div className="font-normal text-slate-500">{employeeNames[row.employee_code] || "—"}</div></td>
+                    <td className="px-3 py-3">{row.roster_shift_code}</td>
+                    <td className="px-3 py-3">
+                      {editable ? <select className={`${fieldClass} min-w-32`} value={row.actual_shift_code} onChange={(event) => changeActualShift(row, event.target.value)}>{shifts.filter((item) => item.active_yn.trim().toUpperCase() === "Y" && mappedShiftCodes.has(item.shift_code)).map((item) => <option key={item.shift_code} value={item.shift_code}>{item.shift_code}</option>)}</select> : row.actual_shift_code}
+                    </td>
+                    <td className="px-3 py-3">
+                      {editable ? <select className={fieldClass} value={row.status} onChange={(event) => updateLocal(row.id, { status: event.target.value as AttendanceStatus })}>{ATTENDANCE_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select> : statusLabel(row.status)}
+                    </td>
+                    <td className="px-3 py-3">
+                      {editable ? <input aria-label={`Punch in for ${row.employee_code}`} className={`${fieldClass} min-w-52`} type="datetime-local" value={dateTimeInput(row.punch_in)} onChange={(event) => updateLocal(row.id, { punch_in: fromDateTimeInput(event.target.value) })} /> : formatDateTime(row.punch_in)}
+                    </td>
+                    <td className="px-3 py-3">
+                      {editable ? <input aria-label={`Punch out for ${row.employee_code}`} className={`${fieldClass} min-w-52`} type="datetime-local" value={dateTimeInput(row.punch_out)} onChange={(event) => updateLocal(row.id, { punch_out: fromDateTimeInput(event.target.value) })} /> : formatDateTime(row.punch_out)}
+                    </td>
+                    <td className="px-3 py-3">{calculatedBreak} min</td>
+                    <td className="px-3 py-3">{editable ? <input aria-label={`OT minutes for ${row.employee_code}`} className={`${fieldClass} w-24`} type="number" min={0} step={1} value={row.overtime_minutes} onChange={(event) => updateLocal(row.id, { overtime_minutes: Number(event.target.value) })} /> : formatMinutes(row.overtime_minutes)}</td>
+                    <td className="px-3 py-3 font-medium">{calculated}</td>
+                    <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${badgeClass[row.approval_status]}`}>{row.approval_status}</span></td>
+                    <td className="max-w-56 px-3 py-3">
+                      {editable ? <input className={`${fieldClass} min-w-40`} maxLength={500} value={row.remarks ?? ""} onChange={(event) => updateLocal(row.id, { remarks: event.target.value })} placeholder="Remarks" /> : <span title={row.rejection_reason ?? row.remarks ?? ""}>{row.rejection_reason || row.remarks || "—"}</span>}
+                    </td>
+                    {screen === "approval" && <td className="px-3 py-3 text-xs text-slate-500">
+                      {row.approval_status === "approved" ? <>Approved {formatDateTime(row.approved_at)}<br />By {row.approved_by || "—"}</> : row.approval_status === "rejected" ? <>Rejected {formatDateTime(row.rejected_at)}<br />{row.rejection_reason}</> : <>Attested {formatDateTime(row.attested_at)}<br />By {row.attested_by || "—"}</>}
+                    </td>}
+                    {screen === "attendance" && <td className="px-3 py-3">{editable ? <button type="button" className="font-semibold text-teal-700 hover:underline disabled:opacity-50" disabled={savingId === row.id} onClick={() => void saveAttendanceRow(row)}>{savingId === row.id ? "Saving…" : "Save"}</button> : "Locked"}</td>}
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
