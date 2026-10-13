@@ -1107,7 +1107,7 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: embedded ? undefined : "100vh",
         background: "radial-gradient(circle at 12% -8%, rgba(35, 84, 220, 0.26), rgba(255,255,255,0) 42%), radial-gradient(circle at 86% 8%, rgba(42, 110, 255, 0.2), rgba(255,255,255,0) 40%), var(--background)",
       }}
     >
@@ -1193,6 +1193,29 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
                 </h2>
               </div>
               <div style={{ display: "flex", gap: "0.7rem", alignItems: "center" }}>
+                {embedded && (
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setAddUserDialog(true)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      padding: "0.45rem 0.7rem",
+                      borderRadius: "0.6rem",
+                      background: CONTROL_THEME.actionBg,
+                      boxShadow: CONTROL_THEME.actionShadow,
+                      color: "white",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <Plus width="1rem" />
+                    Add User
+                  </motion.button>
+                )}
                 {embedded && (
                   <RefreshButton
                     fetchingData={fetchingData}
@@ -1285,7 +1308,7 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
               overflowY: "auto",
               padding: "1.25rem",
               paddingTop: embedded ? "1.25rem" : isMobile ? "13.2rem" : "14rem",
-              paddingBottom: "7rem"
+              paddingBottom: embedded ? "1.25rem" : "7rem"
             }}
           >
             {filteredUsers.length === 0 && searchQuery.trim() && (
@@ -1597,32 +1620,31 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
         </div>
       </ResponsiveModal>
 
-      {/* Floating Add User Button */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        whileHover={{ scale: 1.05 }}
-        onClick={() => setAddUserDialog(true)}
-        style={{
-          position: "fixed",
-          bottom: "2rem",
-          right: "2rem",
-          width: "3.5rem",
-          height: "3.5rem",
-          borderRadius: "0.9rem",
-          background: CONTROL_THEME.actionBg,
-          boxShadow: CONTROL_THEME.actionShadow,
-          color: "white",
-          border: "none",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-
-
-        }}
-      >
-        <Plus width="1.5rem" />
-      </motion.button>
+      {!embedded && (
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.05 }}
+          onClick={() => setAddUserDialog(true)}
+          style={{
+            position: "fixed",
+            bottom: "2rem",
+            right: "2rem",
+            width: "3.5rem",
+            height: "3.5rem",
+            borderRadius: "0.9rem",
+            background: CONTROL_THEME.actionBg,
+            boxShadow: CONTROL_THEME.actionShadow,
+            color: "white",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Plus width="1.5rem" />
+        </motion.button>
+      )}
     </div>
   );
 }
