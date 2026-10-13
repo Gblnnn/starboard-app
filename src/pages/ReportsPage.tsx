@@ -1,6 +1,5 @@
 import { useAuth } from '@/components/AuthProvider';
 import { DatePicker } from '@/components/date-picker';
-import { ResponsiveModal } from '@/components/responsive-modal';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -16,12 +15,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { db } from '@/firebase';
-import { addDoc, collection, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleMinus, Download, Hash, Highlighter, Loader2, PartyPopper, Plus, Search, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Hash, Highlighter, Loader2, Search, X } from 'lucide-react';
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { parseLocationGeofence, parsePunchLocation } from '../lib/geofence';
 import { supabase } from '../lib/supabase';
@@ -525,32 +523,6 @@ interface ReportsPageProps {
 export default function StaffMonthlyReport({ refreshTrigger, onLoadingChange }: ReportsPageProps = {}) {
   const { userData } = useAuth();
 
-  const canEditAttendance = useMemo(() => {
-    try {
-      const permissions = JSON.parse(userData?.clearance || "{}") as Record<string, boolean>;
-      const hasStructuredClearance = Object.keys(permissions).length > 0;
-      const hasAttendanceModule = permissions.attendance === true;
-      const hasAttendanceEdit = permissions.attendance_edit === true;
-      const hasExplicitEditBlock = permissions.attendance_edit === false;
-
-      if (hasAttendanceModule) {
-        return hasAttendanceEdit;
-      }
-
-      if (permissions.attendance === false || hasExplicitEditBlock) {
-        return false;
-      }
-
-      if (userData?.role === "admin" || userData?.role === "site_admin") {
-        return !hasStructuredClearance;
-      }
-
-      return false;
-    } catch {
-      return userData?.role === "admin" || userData?.role === "site_admin";
-    }
-  }, [userData]);
-
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -604,10 +576,6 @@ export default function StaffMonthlyReport({ refreshTrigger, onLoadingChange }: 
     name: string;
   }
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
-  const [newHolidayDay, setNewHolidayDay] = useState(1);
-  const [newHolidayName, setNewHolidayName] = useState('');
-  const [holidaySubmitting, setHolidaySubmitting] = useState(false);
 
   // Realtime holidays fetch from Firestore
   useEffect(() => {
@@ -2035,15 +2003,6 @@ export default function StaffMonthlyReport({ refreshTrigger, onLoadingChange }: 
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {canEditAttendance && (
-            <button
-              onClick={() => setIsHolidayModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <PartyPopper className="w-4 h-4" />
-              Holidays ({holidays.length})
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setHighlightMode(!highlightMode)}
@@ -3086,118 +3045,6 @@ export default function StaffMonthlyReport({ refreshTrigger, onLoadingChange }: 
         </div>
       )}
 
-      {/* Holiday Dialog */}
-      <ResponsiveModal
-        open={isHolidayModalOpen}
-        onOpenChange={setIsHolidayModalOpen}
-        title={`Declare Holidays for ${monthLabel(month, year)}`}
-        description=""
-      >
-        <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }} className="border-b border-gray-100 pb-4">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4b5563' }}>Day of Month</label>
-              <Select
-                value={String(newHolidayDay)}
-                onValueChange={val => setNewHolidayDay(parseInt(val))}
-              >
-                <SelectTrigger className="h-9 w-[80px] bg-white border-gray-300 rounded-md text-xs">
-                  <SelectValue placeholder="Day" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  {dayList.map(d => (
-                    <SelectItem style={{ justifyContent: "flex-start" }} key={d} value={String(d)}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: '150px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4b5563' }}>Holiday Name</label>
-              <input
-                type="text"
-                placeholder="e.g. National Day"
-                value={newHolidayName}
-                onChange={e => setNewHolidayName(e.target.value)}
-                style={{ height: '2.25rem', fontSize: '0.85rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', padding: '0 0.75rem', outline: 'none' }}
-              />
-            </div>
-
-            <button
-              onClick={async () => {
-                if (!newHolidayName.trim()) {
-                  toast.error("Please enter a holiday name");
-                  return;
-                }
-                setHolidaySubmitting(true);
-                try {
-                  await addDoc(collection(db, 'attendance_holidays'), {
-                    year,
-                    month,
-                    day: newHolidayDay,
-                    name: newHolidayName.trim(),
-                    created_at: new Date().toISOString()
-                  });
-                  setNewHolidayName('');
-                  toast.success("Holiday declared successfully");
-                } catch (err) {
-                  console.error("Error adding holiday:", err);
-                  toast.error("Failed to declare holiday");
-                } finally {
-                  setHolidaySubmitting(false);
-                }
-              }}
-              disabled={holidaySubmitting}
-              className="inline-flex items-center justify-center gap-1.5 h-9 px-4 text-xs font-semibold bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
-            >
-              {holidaySubmitting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Plus className="w-3.5 h-3.5" />
-              )}
-              Add
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <h5 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>Declared Holidays ({holidays.length})</h5>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '200px', overflowY: 'auto' }}>
-              {holidays.map((h) => (
-                <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb', border: '1px solid #e5e7eb', padding: '0.4rem 0.75rem', borderRadius: '0.375rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#1f2937' }}>
-                    <strong style={{ marginRight: '0.5rem' }}>Day {h.day}:</strong> {h.name}
-                  </span>
-                  <button
-                    onClick={async () => {
-                      if (confirm(`Are you sure you want to delete the holiday on day ${h.day}?`)) {
-                        try {
-                          await deleteDoc(doc(db, 'attendance_holidays', h.id));
-                          toast.success("Holiday deleted");
-                        } catch (err) {
-                          console.error("Error deleting holiday:", err);
-                          toast.error("Failed to delete holiday");
-                        }
-                      }
-                    }}
-                    style={{ color: '#ef4444' }}
-                    className="p-1 hover:bg-red-50 rounded transition-colors bg-transparent border-0 cursor-pointer"
-                  >
-                    <CircleMinus className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-              {holidays.length === 0 && (
-                <p style={{ fontSize: '0.75rem', color: '#9ca3af', textAlign: 'center', padding: '1rem 0' }}>No public holidays declared for this month.</p>
-              )}
-            </div>
-          </div>
-
-        </div>
-      </ResponsiveModal>
     </div>
   );
 }
