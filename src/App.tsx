@@ -2,6 +2,7 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Route, Routes } from "react-router-dom";
 import AuthGuard from "./components/AuthGuard";
+import AdminOnlyRoute from "./components/admin-only-route";
 import { useAuth } from "./components/AuthProvider";
 import ProtectedRoutes from "./components/protectedRoute";
 import { useBackgroundProcess } from "./context/BackgroundProcessContext";
@@ -24,6 +25,7 @@ const AccessControl = lazy(() => import("./pages/access-control"));
 const AccessRequests = lazy(() => import("./pages/access-requests"));
 const AddRemarks = lazy(() => import("./pages/add-remarks"));
 const AdminPage = lazy(() => import("./pages/admin-page"));
+const Administrator = lazy(() => import("./pages/administrator"));
 const Agreements = lazy(() => import("./pages/agreements"));
 const Archives = lazy(() => import("./pages/archives"));
 const History = lazy(() => import("./pages/history"));
@@ -162,6 +164,7 @@ export default function App() {
             }
           >
             <Route path="/index" element={<Index />} />
+            <Route path="/administrator" element={<AdminOnlyRoute><Administrator /></AdminOnlyRoute>} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/shift-logs" element={<ShiftLogs />} />
             <Route path="/site-admin-workers" element={<SiteAdminWorkers />} />
@@ -169,7 +172,7 @@ export default function App() {
             <Route path="/record-list" element={<RecordList />} />
             <Route path="/mobilizacao" element={<ValeMobilisation />} />
             <Route path="/admin" element={<AdminPage />} />
-            <Route path="/users" element={<Users />} />
+            <Route path="/users" element={<AdminOnlyRoute><Users /></AdminOnlyRoute>} />
             <Route path="/archives" element={<Archives />} />
             <Route path="/site-coordinator" element={<SiteCoordinator />} />
             <Route path="/access-control" element={<AccessControl />} />
@@ -190,9 +193,9 @@ export default function App() {
             <Route path="/qr-code-generator" element={<QRCodeGenerator />} />
             <Route path="/fuel-log" element={<FuelLog />} />
             <Route path="/passports" element={<Passports />} />
-            <Route path="/asset-master" element={<AssetMaster />} />
-            <Route path="/vehicles" element={<VehicleLogBook />} />
-            <Route path="/vehicle-log-book" element={<VehicleLogBook />} />
+            <Route path="/asset-master" element={<AdminOnlyRoute><AssetMaster /></AdminOnlyRoute>} />
+            <Route path="/vehicles" element={<AdminOnlyRoute><VehicleLogBook /></AdminOnlyRoute>} />
+            <Route path="/vehicle-log-book" element={<AdminOnlyRoute><VehicleLogBook /></AdminOnlyRoute>} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/project-lpo" element={<ProjectLPO />} />
             <Route path="/movement-register" element={<MovementRegister />} />
@@ -203,7 +206,7 @@ export default function App() {
             <Route path="/shift-management" element={<ShiftManagement />} />
             <Route path="/employee-timesheet-summary" element={<EmployeeTimesheetSummaryReport />} />
             <Route path="/timesheet-edit" element={<TimesheetEdit />} />
-            <Route path="/project-timing-break" element={<ProjectTimingBreak />} />
+            <Route path="/project-timing-break" element={<AdminOnlyRoute><ProjectTimingBreak /></AdminOnlyRoute>} />
             <Route path="/mobile-punch" element={<MobilePunch />} />
             <Route path="/manpower-requirements" element={<ManpowerRequirements />} />
             <Route path="/offboarding" element={<Offboarding />} />
