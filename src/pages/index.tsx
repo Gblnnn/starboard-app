@@ -18,13 +18,11 @@ import {
   ArrowRightLeft,
   BookMarked,
   Bug,
-  Car,
   Clock3,
   Clock3Icon,
   File,
   FileArchive,
   FileText,
-  Laptop2,
   KeyRound,
   Link,
   LogOut,
@@ -35,6 +33,7 @@ import {
   Ticket,
   UserCheck,
   Users,
+  Settings,
   Wallet
 } from "lucide-react";
 import moment from "moment";
@@ -207,13 +206,11 @@ export default function Index() {
 
   // Check if user has any modules allocated
   const hasAnyModules = () => {
+    const hasAdministrator = userData?.role === 'admin';
     const hasRecordsMaster = hasModuleAccess('records_master');
-    const hasUsers = admin || hasModuleAccess('user_management');
     const hasNewHire = hasModuleAccess('new_hire');
     const hasQuickLinks = hasModuleAccess('quick_links');
     const hasQRGenerator = hasModuleAccess('qr_generator');
-    const hasVehicleMaster = hasModuleAccess('asset_master');
-    const hasVehicleLogBook = hasModuleAccess('vehicle_log_book');
     const hasAttendance = hasModuleAccess('attendance');
     const hasPettyCash = hasModuleAccess('petty_cash');
     const hasOfferLetters = hasModuleAccess('offer_letters');
@@ -226,8 +223,8 @@ export default function Index() {
     const hasDocumentEditor = hasModuleAccess('document_editor');
     const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
 
-    return hasRecordsMaster || hasUsers || hasNewHire || hasQuickLinks ||
-      hasQRGenerator || hasVehicleMaster || hasVehicleLogBook || hasAttendance ||
+    return hasAdministrator || hasRecordsMaster || hasNewHire || hasQuickLinks ||
+      hasQRGenerator || hasAttendance ||
       hasPettyCash || hasOfferLetters || hasEmployeeClearanceForm || hasShiftLogs ||
       hasTransferRequests || hasSimCards || hasOffboarding || hasTickets || hasDocumentEditor || hasShiftManagement;
   };
@@ -506,12 +503,12 @@ export default function Index() {
                     />
                   )}
 
-                  {(admin || hasModuleAccess('user_management')) && (
+                  {userData?.role === 'admin' && (
                     <GridTile
-                      title="Users"
-                      description="Roles, clearances and access controls"
-                      icon={<Users width="2.5rem" />}
-                      onClick={() => navigate('/users')}
+                      title="Administrator"
+                      description="Manage employees, projects and system masters"
+                      icon={<Settings width="2.5rem" />}
+                      onClick={() => navigate('/administrator')}
                     />
                   )}
 
@@ -563,15 +560,6 @@ export default function Index() {
                     />
                   )}
 
-                  {hasModuleAccess('projects') && (
-                    <GridTile
-                      title="Projects"
-                      description="Project planning and status overview"
-                      icon={<Package width="2.5rem" />}
-                      onClick={() => authenticateModule('projects', '/projects', 'Projects')}
-                    />
-                  )}
-
                   {hasModuleAccess('attendance') && (
                     <GridTile
                       title="Attendance"
@@ -587,24 +575,6 @@ export default function Index() {
                       description="Project shifts, rosters and daily attendance"
                       icon={<Clock3 width="2.5rem" />}
                       onClick={() => navigate('/shift-management')}
-                    />
-                  )}
-
-                  {hasModuleAccess('asset_master') && (
-                    <GridTile
-                      title="Devices"
-                      description="Device register, assignment and lifecycle"
-                      icon={<Laptop2 width="2.5rem" />}
-                      onClick={() => authenticateModule('asset_master', '/asset-master', 'Devices')}
-                    />
-                  )}
-
-                  {hasModuleAccess('vehicle_log_book') && (
-                    <GridTile
-                      title="Vehicles"
-                      description="Vehicle records, logs and movement"
-                      icon={<Car width="2.5rem" />}
-                      onClick={() => authenticateModule('vehicle_log_book', '/vehicles', 'Vehicles')}
                     />
                   )}
 
