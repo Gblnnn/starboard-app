@@ -1139,19 +1139,11 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
 
         <div
           style={{
-            ...(embedded ? {
-              position: "static" as const,
-              margin: "1.25rem",
-            } : {
-              top: "5rem",
-              left: "1.25rem",
-              right: "1.25rem",
-              position: "fixed" as const,
-            }),
+            position: "static",
+            margin: "1.25rem",
             borderRadius: "1.1rem",
             overflow: "hidden",
             background: CONTROL_THEME.panelBg,
-            zIndex: embedded ? undefined : 18,
             WebkitBackdropFilter: "blur(12px)",
             backdropFilter: "blur(12px)",
           }}
@@ -1284,7 +1276,7 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
               height: "",
               overflowY: "auto",
               padding: "1.25rem",
-              paddingTop: embedded ? "1.25rem" : isMobile ? "13.2rem" : "14rem",
+              paddingTop: "1.25rem",
               paddingBottom: "7rem"
             }}
           >
