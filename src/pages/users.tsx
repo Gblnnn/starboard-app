@@ -765,7 +765,7 @@ const ModuleClearanceContent: React.FC<ModuleClearanceContentProps> = ({
   );
 };
 
-export default function Users({ embedded = false }: { embedded?: boolean } = {}) {
+export default function Users() {
   const [addUserDialog, setAddUserDialog] = useState(false);
   // Track hovered module id for icon highlight
   const [hoveredModuleId, setHoveredModuleId] = useState<string | null>(null);
