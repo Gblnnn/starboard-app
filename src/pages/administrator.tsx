@@ -56,7 +56,7 @@ export default function Administrator() {
           ))}
         </nav>
         <div className="mt-5 min-w-0">
-          {activeMaster === "break-timing" ? <ProjectTimingBreak embedMode /> : <MasterPage />}
+          {activeMaster === "break-timing" ? <ProjectTimingBreak embedMode /> : activeMaster === "users" ? <Users /> : <MasterPage />}
         </div>
       </div>
     </main>
