@@ -1,5 +1,4 @@
 import { useAuth } from "@/components/AuthProvider";
-import Back from "@/components/back";
 import Directive from "@/components/directive";
 import IOMenu from "@/components/editorMenu";
 import RefreshButton from "@/components/refresh-button";
@@ -1117,26 +1116,6 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
         }
       `}</style>
       <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}>
-        {!embedded && (
-          <>
-            <Back
-              blurBG
-              fixed
-              title="Users"
-              extra={
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <RefreshButton
-                    fetchingData={fetchingData}
-                    onClick={fetchUsers}
-                    refreshCompleted={refreshCompleted}
-                  />
-                </div>
-              }
-            />
-            <br />
-          </>
-        )}
-
         <div
           style={{
             position: "static",
@@ -1185,13 +1164,11 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
                 </h2>
               </div>
               <div style={{ display: "flex", gap: "0.7rem", alignItems: "center" }}>
-                {embedded && (
-                  <RefreshButton
-                    fetchingData={fetchingData}
-                    onClick={fetchUsers}
-                    refreshCompleted={refreshCompleted}
-                  />
-                )}
+                <RefreshButton
+                  fetchingData={fetchingData}
+                  onClick={fetchUsers}
+                  refreshCompleted={refreshCompleted}
+                />
                 <label style={{ color: CONTROL_THEME.accentText, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", userSelect: "none" }}>
                   {/* <input
                     type="checkbox"
