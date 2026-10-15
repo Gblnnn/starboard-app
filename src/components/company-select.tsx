@@ -1,91 +1,81 @@
 import { supabase } from "@/lib/supabase";
-import { Building } from "lucide-react";
-import { useEffect, useState } from "react";
-import ChevronSelect from "./chevron-select";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+interface Company {
+  company_name: string;
+  alfa_code: string;
+}
 
 interface Props {
   value?: string;
   onChange?: (value: string) => void;
+  className?: string;
 }
 
-// Component for selecting companies from company master
-export default function CompanySelect({ value, onChange }: Props) {
-  const [companies, setCompanies] = useState<{ value: string; label: string }[]>([]);
-  const [loading, setLoading] = useState(false);
+export default function CompanySelect({ value = "", onChange, className }: Props) {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   useEffect(() => {
-    fetchCompanies();
+    let cancelled = false;
+
+    const fetchCompanies = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("company_master")
+          .select("alfa_code, company_name")
+          .order("company_name");
+
+        if (error) throw error;
+        if (!cancelled) setCompanies(data ?? []);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(true);
+          toast.error(error instanceof Error ? error.message : "Unable to load companies.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void fetchCompanies();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const fetchCompanies = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("company_master")
-        .select("alfa_code, company_name")
-        .order("company_name");
+  const matchedCompany = companies.find(company =>
+    company.alfa_code === value ||
+    company.company_name.toLocaleLowerCase() === value.toLocaleLowerCase()
+  );
+  const selectedValue = matchedCompany?.alfa_code ?? value;
 
-      if (error) {
-        console.error("Error fetching companies:", error);
-        return;
-      }
-
-      const fetchedCompanies = (data || []).map((company: any) => ({
-        value: company.alfa_code,
-        label: company.company_name
-      }));
-
-      setCompanies(fetchedCompanies);
-    } catch (error) {
-      console.error("Error fetching companies:", error);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (matchedCompany && value !== matchedCompany.alfa_code) {
+      onChangeRef.current?.(matchedCompany.alfa_code);
     }
-  };
-
-  if (loading) {
-    return (
-      <div
-        style={{
-          background: "rgba(100, 100, 100, 0.05)",
-          padding: "1rem",
-          borderRadius: "1rem",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-          <div style={{ opacity: 0.7, display: "flex", alignItems: "center" }}>
-            <Building color="mediumslateblue" width="1.125rem" height="1.125rem" />
-          </div>
-          <label
-            style={{
-              fontSize: "0.875rem",
-              fontWeight: "600",
-              opacity: 0.9,
-            }}
-          >
-            Company
-          </label>
-        </div>
-        <div style={{
-          padding: "1rem",
-          textAlign: "center",
-          fontSize: "0.875rem",
-          opacity: 0.6
-        }}>
-          Loading companies...
-        </div>
-      </div>
-    );
-  }
+  }, [matchedCompany, value]);
 
   return (
-    <ChevronSelect
-      title="Company Name"
-      icon={<Building color="mediumslateblue" width="1.125rem" height="1.125rem" />}
-      options={companies}
-      value={value}
-      onChange={onChange}
-      placeholder="Select Company"
-    />
+    <select
+      value={selectedValue}
+      onChange={event => onChange?.(event.target.value)}
+      disabled={loading || loadError}
+      className={className ?? "w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"}
+    >
+      <option value="">
+        {loadError ? "Unable to load companies" : loading ? "Loading companies…" : "Select company"}
+      </option>
+      {value && !matchedCompany && <option value={value}>Previously entered: {value}</option>}
+      {companies.map(company => (
+        <option key={company.alfa_code} value={company.alfa_code}>
+          {company.company_name}
+        </option>
+      ))}
+    </select>
   );
 }
