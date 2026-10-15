@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import CompanySelect from "@/components/company-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { ChevronDown, Check, Download, Fingerprint, Loader2, Plus, Scan, Search, SquareCheck, Upload, Users, X, StickyNotes } from 'lucide-react';
@@ -3046,12 +3047,10 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-gray-555 block">Company</label>
-                                        <Input
-                                            type="text"
+                                        <CompanySelect
                                             value={editCompany}
-                                            onChange={(e) => setEditCompany(e.target.value)}
-                                            placeholder="e.g. Acme Corp"
-                                            className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl"
+                                            onChange={setEditCompany}
+                                            className="text-sm bg-gray-50 border border-gray-100 focus:bg-white transition-all rounded-xl h-10 w-full px-3"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -3507,12 +3506,10 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-gray-555 block">Company</label>
-                                        <Input
-                                            type="text"
+                                        <CompanySelect
                                             value={addCompany}
-                                            onChange={(e) => setAddCompany(e.target.value)}
-                                            placeholder="e.g. Acme Corp"
-                                            className="text-sm bg-gray-50 border-gray-100 focus:bg-white transition-all rounded-xl h-10 w-full"
+                                            onChange={setAddCompany}
+                                            className="text-sm bg-gray-50 border border-gray-100 focus:bg-white transition-all rounded-xl h-10 w-full px-3"
                                         />
                                     </div>
                                 </div>
@@ -3709,11 +3706,9 @@ export default function EmployeeManage({ refreshTrigger, onLoadingChange }: Empl
                     <form onSubmit={handleBulkCompanySubmit} className="space-y-4">
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-gray-600 block">Company</label>
-                            <Input
-                                type="text"
+                            <CompanySelect
                                 value={bulkCompanyValue}
-                                onChange={(e) => setBulkCompanyValue(e.target.value)}
-                                placeholder="e.g. Acme Corp"
+                                onChange={setBulkCompanyValue}
                             />
                         </div>
                         <DialogFooter className="pt-4">
