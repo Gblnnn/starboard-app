@@ -1,8 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { db } from "@/firebase";
-import { addDoc, collection, deleteDoc, doc, onSnapshot, query, where } from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 import { CircleMinus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -28,22 +27,26 @@ export default function HolidayMaster() {
   }, [day, daysInMonth]);
 
   useEffect(() => {
-    const holidayQuery = query(
-      collection(db, "attendance_holidays"),
-      where("year", "==", year),
-      where("month", "==", month),
-    );
-    return onSnapshot(holidayQuery, (snapshot) => {
-      const rows = snapshot.docs.map((holiday) => {
-        const data = holiday.data();
-        return { id: holiday.id, day: data.day as number, name: data.name as string };
-      });
-      rows.sort((left, right) => left.day - right.day);
-      setHolidays(rows);
-    }, (error) => {
-      console.error("Error fetching holidays:", error);
-      toast.error("Unable to load holidays.");
-    });
+    let isCurrent = true;
+    const fetchHolidays = async () => {
+      const { data, error } = await supabase
+        .from("attendance_holidays")
+        .select("id, day, name")
+        .eq("year", year)
+        .eq("month", month)
+        .order("day");
+      if (error) {
+        console.error("Error fetching holidays:", error);
+        toast.error("Unable to load holidays.");
+        return;
+      }
+      if (isCurrent) setHolidays(data ?? []);
+    };
+
+    void fetchHolidays();
+    return () => {
+      isCurrent = false;
+    };
   }, [year, month]);
 
   const addHoliday = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -54,13 +57,15 @@ export default function HolidayMaster() {
     }
     setSaving(true);
     try {
-      await addDoc(collection(db, "attendance_holidays"), {
-        year,
-        month,
-        day: Number(day),
-        name: name.trim(),
-        created_at: new Date().toISOString(),
-      });
+      const { data, error } = await supabase
+        .from("attendance_holidays")
+        .insert({ year, month, day: Number(day), name: name.trim() })
+        .select("id, day, name")
+        .single();
+      if (error) throw error;
+      setHolidays((current) =>
+        [...current, data].sort((left, right) => left.day - right.day)
+      );
       setName("");
       toast.success("Holiday declared successfully.");
     } catch (error) {
@@ -74,7 +79,15 @@ export default function HolidayMaster() {
   const removeHoliday = async (holiday: Holiday) => {
     if (!confirm(`Are you sure you want to delete the holiday on day ${holiday.day}?`)) return;
     try {
-      await deleteDoc(doc(db, "attendance_holidays", holiday.id));
+      const { data, error } = await supabase
+        .from("attendance_holidays")
+        .delete()
+        .eq("id", holiday.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Holiday was not found or cannot be deleted.");
+      setHolidays((current) => current.filter((entry) => entry.id !== holiday.id));
       toast.success("Holiday deleted.");
     } catch (error) {
       console.error("Error deleting holiday:", error);
