@@ -9,13 +9,11 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD8LWJoohdEagKAhtVybbqlmzlJYD3w9KY",
   authDomain: "doc-record.firebaseapp.com",
   projectId: "doc-record",
-  storageBucket: "doc-record.appspot.com",
   messagingSenderId: "834882723630",
   appId: "1:834882723630:web:f8efe9cbbfad7e69bd64bf",
 };
@@ -24,7 +22,6 @@ const firebaseConfig = {
 let _app: ReturnType<typeof initializeApp> | null = null;
 let _auth: ReturnType<typeof getAuth> | null = null;
 let _db: ReturnType<typeof initializeFirestore> | null = null;
-let _storage: ReturnType<typeof getStorage> | null = null;
 let _initializing = false;
 
 const initializeFirebase = () => {
@@ -119,24 +116,3 @@ try {
   console.error("Failed to initialize Firebase exports:", error);
   // Will throw when actually used
 }
-
-// Lazy-load Storage
-const initializeStorage = () => {
-  if (_storage) return _storage;
-  
-  const app = getFirebaseApp();
-  _storage = getStorage(app);
-  _storage.maxOperationRetryTime = 15000;
-  
-  return _storage;
-};
-
-export const getAppStorage = () => initializeStorage();
-
-export const storage = new Proxy({} as ReturnType<typeof getStorage>, {
-  get(_target, prop) {
-    const storageInstance = initializeStorage();
-    if (!storageInstance) return undefined;
-    return (storageInstance as any)[prop];
-  }
-});
