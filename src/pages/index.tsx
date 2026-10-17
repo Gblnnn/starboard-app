@@ -29,7 +29,6 @@ import {
   Mail,
   Package,
   QrCode,
-  Smartphone,
   Ticket,
   UserCheck,
   Users,
@@ -218,7 +217,6 @@ export default function Index() {
     const hasEmployeeClearanceForm = hasModuleAccess('employee_clearance_form');
     const hasShiftLogs = hasModuleAccess('shift_logs');
     const hasTransferRequests = hasModuleAccess('transfer_requests');
-    const hasSimCards = hasModuleAccess('sim_cards');
     const hasOffboarding = hasModuleAccess('offboarding');
     const hasDocumentEditor = hasModuleAccess('document_editor');
     const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
@@ -226,7 +224,7 @@ export default function Index() {
     return hasAdministrator || hasRecordsMaster || hasNewHire || hasQuickLinks ||
       hasQRGenerator || hasAttendance ||
       hasPettyCash || hasOfferLetters || hasEmployeeClearanceForm || hasShiftLogs ||
-      hasTransferRequests || hasSimCards || hasOffboarding || hasTickets || hasDocumentEditor || hasShiftManagement;
+      hasTransferRequests || hasOffboarding || hasTickets || hasDocumentEditor || hasShiftManagement;
   };
 
   const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
@@ -494,21 +492,21 @@ export default function Index() {
                     paddingTop: "0.5rem"
                   }}
                 >
-                  {hasModuleAccess('records_master') && (
-                    <GridTile
-                      title="Records"
-                      description="Employee records and profile updates"
-                      icon={<FileArchive width="2.5rem" />}
-                      onClick={() => navigate('/records')}
-                    />
-                  )}
-
                   {userData?.role === 'admin' && (
                     <GridTile
                       title="Administrator"
                       description="Manage employees, projects and system masters"
                       icon={<Settings width="2.5rem" />}
                       onClick={() => navigate('/administrator')}
+                    />
+                  )}
+
+                  {hasModuleAccess('records_master') && (
+                    <GridTile
+                      title="Records"
+                      description="Employee records and profile updates"
+                      icon={<FileArchive width="2.5rem" />}
+                      onClick={() => navigate('/records')}
                     />
                   )}
 
@@ -629,15 +627,6 @@ export default function Index() {
                       description="Staff movement and transfer requests"
                       icon={<ArrowRightLeft width="2.5rem" />}
                       onClick={() => authenticateModule('transfer_requests', '/transfer-requests', 'Transfers')}
-                    />
-                  )}
-
-                  {hasModuleAccess('sim_cards') && (
-                    <GridTile
-                      title="SIM Cards"
-                      description="SIM allocation and status management"
-                      icon={<Smartphone width="2.5rem" />}
-                      onClick={() => authenticateModule('sim_cards', '/sim-cards', 'SIM Cards')}
                     />
                   )}
 
