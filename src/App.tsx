@@ -1,6 +1,6 @@
 // Push/notifications removed — no firestore notification imports here.
 import { lazy, Suspense, useEffect, useRef } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import AuthGuard from "./components/AuthGuard";
 import AdminOnlyRoute from "./components/admin-only-route";
 import { useAuth } from "./components/AuthProvider";
@@ -49,7 +49,6 @@ const Website = lazy(() => import("./pages/website"));
 const Phonebook = lazy(() => import("./pages/phonebook"));
 const Supervisor = lazy(() => import("./pages/supervisor"));
 const SiteCoordinator = lazy(() => import("./pages/site-coordinator"));
-const Devices = lazy(() => import("./pages/devices"));
 const ValeMobilisation = lazy(() => import("./pages/vale-mobilisation"));
 const FuelLog = lazy(() => import("./pages/fuel-log"));
 const Passports = lazy(() => import("./pages/passports"));
@@ -176,7 +175,7 @@ export default function App() {
             <Route path="/offer-letters" element={<OfferLetters />} />
             <Route path="/employee-clearance-form" element={<EmployeeClearanceForm />} />
             <Route path="/phonebook" element={<Phonebook />} />
-            <Route path="/devices" element={<Devices />} />
+            <Route path="/devices" element={<Navigate to="/asset-master" replace />} />
             <Route path="/shortlist" element={<Shortlist />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/openings" element={<Openings />} />
