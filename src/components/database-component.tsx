@@ -9,7 +9,7 @@ import MedicalID from "@/components/medical-id";
 import Passport from "@/components/passport";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import VehicleID from "@/components/vehicle-id";
-import { db, storage } from "@/firebase";
+import { db } from "@/firebase";
 
 import SearchBar from "@/components/search-bar";
 import DefaultDialog from "@/components/ui/default-dialog";
@@ -33,10 +33,6 @@ import { fetchAndCacheRecords, getCachedRecords } from "@/utils/recordsCache";
 import { LoadingOutlined } from "@ant-design/icons";
 import * as XLSX from "@e965/xlsx";
 import { message, Tooltip } from "antd";
-import {
-  deleteObject,
-  ref
-} from "firebase/storage";
 import { motion } from "framer-motion";
 import {
   AlertCircle,
@@ -1437,15 +1433,6 @@ export default function DbComponent(props: Props) {
       let percentage = 100 / checked.length;
       setLoading(true);
 
-      const { data } = await supabase.from("employees").select("*");
-      const snapshot = { docs: data?.map((d: any) => ({ id: d.id, data: () => d })) || [] };
-      snapshot.docs.forEach((e: any) => {
-        const itemData = e.data();
-        if (itemData && itemData.profile_name) {
-          deleteObject(ref(storage, itemData.profile_name)).catch(console.error);
-        }
-      });
-
       await checked.forEach(async (item: any) => {
         // console.log(item)
         await supabase.from("employees").delete().eq("id", item);
@@ -2549,8 +2536,13 @@ export default function DbComponent(props: Props) {
                             <Directive
                               icon={<FileArchive color="darkblue" />}
                               noArrow
-                              id_subtitle={[post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.phone}` : "", (post.CUG || post.cug) ? `CUG: ${post.CUG || post.cug}` : ""].filter(Boolean).join(" | ") || "No details"}
+                              id_subtitle={[
+                                [post.emp_id ? `ID: ${post.emp_id}` : "", post.phone ? `Ph: ${post.phone}` : "", (post.CUG || post.cug) ? `CUG: ${post.CUG || post.cug}` : ""].filter(Boolean).join(" | "),
+                                post.email || "",
+                              ].filter(Boolean).join("\n") || "No details"}
+                              idSubtitleFull
                               className="record-item"
+                              interactive={false}
                               space
                               dotColor={selectable ? "violet" : "mediumslateblue"}
                               notify={!post.notify}
@@ -2583,13 +2575,6 @@ export default function DbComponent(props: Props) {
                               // ON CLICK
                               onSelect={() => {
                                 handleSelect(post.id);
-                              }}
-                              onClick={() => {
-                                // Save scroll position before navigating
-                                if (scrollContainerRef.current) {
-                                  sessionStorage.setItem('database-scroll-position', scrollContainerRef.current.scrollTop.toString());
-                                }
-                                usenavigate(`/record/${post.id}`, { state: { record: post } });
                               }}
                               key={post.id}
                               title={post.name.toLowerCase()}
@@ -2694,7 +2679,7 @@ export default function DbComponent(props: Props) {
                                 key={post.id}
                                 style={{
                                   borderBottom: "1px solid rgba(100 100 100/ 10%)",
-                                  cursor: "pointer",
+                                  cursor: selectable ? "pointer" : "default",
                                   transition: "background 0.2s",
                                   background: checked.includes(post.id) ? "rgba(138 43 226/ 10%)" : "transparent"
                                 }}
@@ -2706,15 +2691,6 @@ export default function DbComponent(props: Props) {
                                 onMouseLeave={(e) => {
                                   if (!checked.includes(post.id)) {
                                     e.currentTarget.style.background = "transparent";
-                                  }
-                                }}
-                                onClick={() => {
-                                  if (!selectable) {
-                                    // Save scroll position before navigating
-                                    if (scrollContainerRef.current) {
-                                      sessionStorage.setItem('database-scroll-position', scrollContainerRef.current.scrollTop.toString());
-                                    }
-                                    usenavigate(`/record/${post.id}`, { state: { record: post } });
                                   }
                                 }}
                               >
@@ -2781,7 +2757,17 @@ export default function DbComponent(props: Props) {
                                   }
 
                                   return (
-                                    <td key={key} style={{ padding: "0.75rem", fontSize: "0.85rem", textTransform: key === "type" ? "capitalize" : "none" }}>
+                                    <td
+                                      key={key}
+                                      style={{
+                                        padding: "0.75rem",
+                                        fontSize: "0.85rem",
+                                        textTransform: key === "type" ? "capitalize" : "none",
+                                        whiteSpace: key === "email" ? "normal" : undefined,
+                                        overflowWrap: key === "email" ? "anywhere" : undefined,
+                                        minWidth: key === "email" ? "16rem" : undefined,
+                                      }}
+                                    >
                                       {displayValue}
                                     </td>
                                   );
@@ -3201,26 +3187,11 @@ export default function DbComponent(props: Props) {
                 {projectPersonnel.map((person) => (
                   <div
                     key={person.id}
-                    onClick={() => {
-                      usenavigate(`/record-detail/${person.id}`);
-                      setViewingProject(null);
-                      setProjectPersonnel([]);
-                    }}
                     style={{
                       padding: "0.875rem 1rem",
                       borderRadius: "0.75rem",
                       background: "rgba(100, 100, 100, 0.04)",
                       border: "1px solid rgba(100, 100, 100, 0.08)",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(100, 100, 100, 0.08)";
-                      e.currentTarget.style.borderColor = "rgba(100, 100, 100, 0.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(100, 100, 100, 0.04)";
-                      e.currentTarget.style.borderColor = "rgba(100, 100, 100, 0.08)";
                     }}
                   >
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
