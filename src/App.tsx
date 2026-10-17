@@ -26,7 +26,6 @@ const AccessRequests = lazy(() => import("./pages/access-requests"));
 const AddRemarks = lazy(() => import("./pages/add-remarks"));
 const AdminPage = lazy(() => import("./pages/admin-page"));
 const Administrator = lazy(() => import("./pages/administrator"));
-const Agreements = lazy(() => import("./pages/agreements"));
 const History = lazy(() => import("./pages/history"));
 const LPO = lazy(() => import("./pages/lpo"));
 const Medicals = lazy(() => import("./pages/medicals"));
@@ -178,7 +177,6 @@ export default function App() {
             <Route path="/employee-clearance-form" element={<EmployeeClearanceForm />} />
             <Route path="/phonebook" element={<Phonebook />} />
             <Route path="/devices" element={<Devices />} />
-            <Route path="/agreements" element={<Agreements />} />
             <Route path="/shortlist" element={<Shortlist />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/openings" element={<Openings />} />
