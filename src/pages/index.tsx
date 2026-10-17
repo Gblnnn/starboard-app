@@ -5,6 +5,7 @@ import GridTile from "@/components/grid-tile";
 import IndexDropDown from "@/components/index-dropdown";
 import InputDialog from "@/components/input-dialog";
 import DefaultDialog from "@/components/ui/default-dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { useBackgroundProcess } from "@/context/BackgroundProcessContext";
 import { auth, db } from "@/firebase";
@@ -541,9 +542,14 @@ export default function Index() {
                     />
                   )}
 
+                  <Accordion
+                    type="multiple"
+                    style={{ gridColumn: "1 / -1", display: "grid", gap: "0.6rem" }}
+                  >
                   {hasRecruitmentModules && (
-                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
-                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Recruitment</h2>
+                    <AccordionItem value="recruitment" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
+                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Recruitment</AccordionTrigger>
+                      <AccordionContent>
                       <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
                         {hasModuleAccess('new_hire') && (
                           <GridTile
@@ -570,12 +576,14 @@ export default function Index() {
                           />
                         )}
                       </div>
-                    </section>
+                      </AccordionContent>
+                    </AccordionItem>
                   )}
 
                   {hasUtilitiesModules && (
-                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
-                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Utilities</h2>
+                    <AccordionItem value="utilities" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
+                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Utilities</AccordionTrigger>
+                      <AccordionContent>
                       <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
                         {hasModuleAccess('quick_links') && (
                           <GridTile
@@ -602,12 +610,14 @@ export default function Index() {
                           />
                         )}
                       </div>
-                    </section>
+                      </AccordionContent>
+                    </AccordionItem>
                   )}
 
                   {hasHumanResourcesModules && (
-                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
-                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Human Resources</h2>
+                    <AccordionItem value="human-resources" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
+                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Human Resources</AccordionTrigger>
+                      <AccordionContent>
                       <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
                         {hasModuleAccess('passports') && (
                           <GridTile
@@ -634,12 +644,14 @@ export default function Index() {
                           />
                         )}
                       </div>
-                    </section>
+                      </AccordionContent>
+                    </AccordionItem>
                   )}
 
                   {hasTimeAttendanceModules && (
-                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
-                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Time &amp; Attendance</h2>
+                    <AccordionItem value="time-attendance" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
+                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Time &amp; Attendance</AccordionTrigger>
+                      <AccordionContent>
                       <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
                         {hasShiftManagement && (
                           <GridTile
@@ -666,8 +678,10 @@ export default function Index() {
                           />
                         )}
                       </div>
-                    </section>
+                      </AccordionContent>
+                    </AccordionItem>
                   )}
+                  </Accordion>
                 </div>
               </>
             ) : (
