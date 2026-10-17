@@ -54,7 +54,6 @@ const Supervisor = lazy(() => import("./pages/supervisor"));
 const SiteCoordinator = lazy(() => import("./pages/site-coordinator"));
 const Devices = lazy(() => import("./pages/devices"));
 const ValeMobilisation = lazy(() => import("./pages/vale-mobilisation"));
-const RecordDetail = lazy(() => import("./pages/record-detail"));
 const FuelLog = lazy(() => import("./pages/fuel-log"));
 const Passports = lazy(() => import("./pages/passports"));
 const AssetMaster = lazy(() => import("./pages/asset-master"));
@@ -212,7 +211,6 @@ export default function App() {
             <Route path="/offboarding" element={<Offboarding />} />
             <Route path="/document-editor" element={<DocumentEditor />} />
             <Route path="/records" element={<Records />} />
-            <Route path="/record/:id" element={<RecordDetail />} />
             <Route path="/vale-records" element={<ValeRecords />} />
             <Route path="/medicals" element={<Medicals />} />
             <Route path="/history" element={<History />} />
