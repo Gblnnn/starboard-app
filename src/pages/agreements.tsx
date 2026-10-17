@@ -13,19 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 import { message } from "antd";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  Timestamp,
-  updateDoc,
-} from "firebase/firestore";
 import { motion } from "framer-motion";
 import jsPDF from "jspdf";
 import {
@@ -74,7 +63,7 @@ type Preset = {
   id: string;
   name: string;
   data: AgreementForm;
-  created_at: any;
+  created_at: string;
 };
 
 export default function Agreements() {
@@ -121,19 +110,16 @@ export default function Agreements() {
   const fetchPresets = async () => {
     try {
       setPresetsLoading(true);
-      const q = query(
-        collection(db, "agreement_presets"),
-        orderBy("created_at", "desc")
-      );
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Preset[];
-      setPresets(data);
-      setPresetsLoading(false);
+      const { data, error } = await supabase
+        .from("agreement_presets")
+        .select("id, name, data, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setPresets((data ?? []) as Preset[]);
     } catch (err) {
+      console.error("Failed to fetch agreement presets:", err);
       message.error("Failed to fetch presets");
+    } finally {
       setPresetsLoading(false);
     }
   };
@@ -145,17 +131,17 @@ export default function Agreements() {
     }
     try {
       setLoading(true);
-      const newPreset = {
-        name: presetName,
+      const { error } = await supabase.from("agreement_presets").insert({
+        name: presetName.trim(),
         data: formData,
-        created_at: Timestamp.now(),
-      };
-      await addDoc(collection(db, "agreement_presets"), newPreset);
+      });
+      if (error) throw error;
       message.success("Preset saved successfully");
       setPresetDialogVisible(false);
       setPresetName("");
-      fetchPresets();
+      await fetchPresets();
     } catch (err) {
+      console.error("Failed to save agreement preset:", err);
       message.error("Failed to save preset");
     } finally {
       setLoading(false);
@@ -175,13 +161,18 @@ export default function Agreements() {
   const handleDeletePreset = async (presetId: string) => {
     try {
       setLoading(true);
-      await deleteDoc(doc(db, "agreement_presets", presetId));
+      const { error } = await supabase
+        .from("agreement_presets")
+        .delete()
+        .eq("id", presetId);
+      if (error) throw error;
       message.success("Preset deleted successfully");
       setSelectedPreset("");
       setOriginalPresetData(null);
       setHasChanges(false);
-      fetchPresets();
+      await fetchPresets();
     } catch (err) {
+      console.error("Failed to delete agreement preset:", err);
       message.error("Failed to delete preset");
     } finally {
       setLoading(false);
@@ -192,14 +183,17 @@ export default function Agreements() {
     if (!selectedPreset || !hasChanges) return;
     try {
       setLoading(true);
-      await updateDoc(doc(db, "agreement_presets", selectedPreset), {
-        data: formData,
-      });
+      const { error } = await supabase
+        .from("agreement_presets")
+        .update({ data: formData })
+        .eq("id", selectedPreset);
+      if (error) throw error;
       message.success("Preset updated successfully");
       setHasChanges(false);
       setOriginalPresetData(formData);
-      fetchPresets();
+      await fetchPresets();
     } catch (err) {
+      console.error("Failed to update agreement preset:", err);
       message.error("Failed to update preset");
     } finally {
       setLoading(false);
