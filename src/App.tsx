@@ -58,7 +58,6 @@ const Tasks = lazy(() => import("./pages/tasks"));
 const ShiftLogs = lazy(() => import("./pages/shift-logs"));
 const SiteAdminWorkers = lazy(() => import("./pages/site-admin-workers"));
 const TransferRequests = lazy(() => import("./pages/transfer-requests"));
-const SimCards = lazy(() => import("./pages/sim-cards"));
 const AttendanceDashboard = lazy(() => import("./pages/AttendanceDashboard"));
 const Tickets = lazy(() => import("./pages/tickets"));
 const MobilePunch = lazy(() => import("./pages/mobile-punch"));
@@ -192,7 +191,6 @@ export default function App() {
             <Route path="/project-lpo" element={<ProjectLPO />} />
             <Route path="/movement-register" element={<MovementRegister />} />
             <Route path="/transfer-requests" element={<TransferRequests />} />
-            <Route path="/sim-cards" element={<SimCards />} />
             <Route path="/tickets" element={<Tickets />} />
             <Route path="/attendance" element={<AttendanceDashboard />} />
             <Route path="/shift-management" element={<ShiftManagement />} />
