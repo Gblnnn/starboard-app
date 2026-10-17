@@ -2,7 +2,6 @@ import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import CivilID from "@/components/civil-id";
 import Directive from "@/components/directive";
-import DropDown from "@/components/dropdown";
 import ImageDialog from "@/components/image-dialog";
 import InputDialog from "@/components/input-dialog";
 import MedicalID from "@/components/medical-id";
@@ -13,10 +12,9 @@ import RefreshButton from "@/components/refresh-button";
 import DefaultDialog from "@/components/ui/default-dialog";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { db, storage } from "@/firebase";
+import { db } from "@/firebase";
 import { Tooltip } from "antd";
 import { deleteDoc, doc, getDoc, updateDoc } from "firebase/firestore";
-import { deleteObject, ref } from "firebase/storage";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import {
@@ -25,7 +23,6 @@ import {
   BellRing,
   Book,
   CreditCard,
-  EllipsisVertical,
   FileArchive,
   GraduationCap,
   HeartPulse,
@@ -487,14 +484,6 @@ export default function RecordDetail() {
   //   };
 
 
-  const handleArchive = () => {
-    setArchivePrompt(true);
-  };
-
-  const handleDelete = () => {
-    setDeletePrompt(true);
-  };
-
   const resetEditedStates = () => {
     setEditedName(undefined);
     setEditedDepartment(undefined);
@@ -539,15 +528,6 @@ export default function RecordDetail() {
     try {
       setRecordDeleteStatus("Deleting Record (1/2)");
       await deleteDoc(doc(db, "records", id));
-
-      if (record.profile_name) {
-        setRecordDeleteStatus("Deleting Image (2/2)");
-        try {
-          await deleteObject(ref(storage, record.profile_name));
-        } catch (error) {
-          console.error("Error deleting image:", error);
-        }
-      }
 
       toast.success("Record deleted successfully");
       navigate(-1); // Go back to previous page
@@ -677,15 +657,6 @@ export default function RecordDetail() {
                   refreshCompleted={refreshCompleted}
                   fetchingData={refreshing}
                 />
-                {(userData?.editor === "true" || userData?.editor === true) && (
-                  <DropDown
-                    trigger={<EllipsisVertical width="1.1rem" />}
-                    // onEdit={handleEdit} // Editing is now handled in Attendance -> Manage
-                    onDelete={handleDelete}
-                    onExtra={handleArchive}
-                    extraText={record?.state === "active" ? "Archive" : "Unarchive"}
-                  />
-                )}
               </div>
 
             </>
