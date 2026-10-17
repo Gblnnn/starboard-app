@@ -27,9 +27,7 @@ const AddRemarks = lazy(() => import("./pages/add-remarks"));
 const AdminPage = lazy(() => import("./pages/admin-page"));
 const Administrator = lazy(() => import("./pages/administrator"));
 const Agreements = lazy(() => import("./pages/agreements"));
-const Archives = lazy(() => import("./pages/archives"));
 const History = lazy(() => import("./pages/history"));
-const Inbox = lazy(() => import("./pages/inbox"));
 const LPO = lazy(() => import("./pages/lpo"));
 const Medicals = lazy(() => import("./pages/medicals"));
 const MovementRegister = lazy(() => import("./pages/movement-register"));
@@ -150,7 +148,6 @@ export default function App() {
           <Route path="/update-password" element={<UpdatePassword />} />
           <Route path="/request-access" element={<RequestAccess />} />
           <Route path="/create-account" element={<CreateAccount />} />
-          <Route path="/inbox" element={<Inbox />} />
           <Route path="/supervisor" element={<Supervisor />} />
           <Route path="/quick-links" element={<QuickLinks />} />
 
@@ -172,7 +169,6 @@ export default function App() {
             <Route path="/mobilizacao" element={<ValeMobilisation />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/users" element={<AdminOnlyRoute><Users /></AdminOnlyRoute>} />
-            <Route path="/archives" element={<Archives />} />
             <Route path="/site-coordinator" element={<SiteCoordinator />} />
             <Route path="/access-control" element={<AccessControl />} />
             <Route path="access-requests" element={<AccessRequests />} />
