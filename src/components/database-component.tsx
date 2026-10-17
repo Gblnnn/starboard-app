@@ -32,7 +32,7 @@ import {
 import { fetchAndCacheRecords, getCachedRecords } from "@/utils/recordsCache";
 import { LoadingOutlined } from "@ant-design/icons";
 import * as XLSX from "@e965/xlsx";
-import { message, Tooltip } from "antd";
+import { message } from "antd";
 import { motion } from "framer-motion";
 import {
   AlertCircle,
@@ -56,7 +56,6 @@ import {
   Globe,
   GraduationCap,
   HeartPulse,
-  Inbox,
   Info,
   ListStart,
   Loader,
@@ -77,7 +76,6 @@ import {
 import moment from "moment";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "react-lazy-load-image-component/src/effects/blur.css";
-import { useNavigate } from "react-router-dom";
 import ReactTimeAgo from "react-time-ago";
 import { toast } from "sonner";
 import useKeyboardShortcut from "use-keyboard-shortcut";
@@ -173,7 +171,6 @@ export default function DbComponent(props: Props) {
 
 
 
-  const usenavigate = useNavigate();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // BASIC PAGE VARIABLES
@@ -514,11 +511,6 @@ export default function DbComponent(props: Props) {
   const { flushHeldKeys } = useKeyboardShortcut(["Control", "A"], () => {
     setAddDialog(!addDialog);
     setName("");
-    flushHeldKeys;
-  });
-
-  useKeyboardShortcut(["Control", "I"], () => {
-    usenavigate("/inbox");
     flushHeldKeys;
   });
 
@@ -1968,34 +1960,12 @@ export default function DbComponent(props: Props) {
 
                         onUpload={() => setImportDialog(true)}
                         onExport={() => setExportDialog(true)}
-                        onInbox={() => usenavigate("/inbox")}
-                        onArchives={() => usenavigate("/archives")}
                         onExportExpiring={handleExportExpiring}
                         onImportExpiring={() =>
                           document.getElementById("excelImport")?.click()
                         }
                         trigger={<EllipsisVerticalIcon width={"1rem"} />}
                       />
-                    </div>
-                  )}
-                  {!access && (
-                    <div style={{ display: "flex" }} className="transitions">
-                      <Tooltip title="Ctrl + I">
-                        <button
-                          className=""
-                          onClick={() => usenavigate("/inbox")}
-                          style={{
-                            width: "3rem",
-                            background: "rgba(220 20 60/ 20%)",
-                          }}
-                        >
-                          <Inbox
-                            className=""
-                            color="crimson"
-                            width={"1.25rem"}
-                          />
-                        </button>
-                      </Tooltip>
                     </div>
                   )}
                 </div>
