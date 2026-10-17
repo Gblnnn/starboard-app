@@ -15,8 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { db } from '@/firebase';
-import { addDoc, collection, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleMinus, Download, Hash, Highlighter, Loader2, Plus, Search, X, User, Globe } from 'lucide-react';
@@ -714,31 +712,28 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange, sourc
   const [newHolidayName, setNewHolidayName] = useState('');
   const [holidaySubmitting, setHolidaySubmitting] = useState(false);
 
-  // Realtime holidays fetch from Firestore
+  // Load holiday declarations for the selected month from Supabase.
   useEffect(() => {
-    const q = query(
-      collection(db, 'attendance_holidays'),
-      where('year', '==', year),
-      where('month', '==', month)
-    );
+    let isCurrent = true;
+    const fetchHolidays = async () => {
+      const { data, error } = await supabase
+        .from('attendance_holidays')
+        .select('id, day, name')
+        .eq('year', year)
+        .eq('month', month)
+        .order('day');
+      if (error) {
+        console.error('Error fetching holidays:', error);
+        toast.error('Unable to load holidays.');
+        return;
+      }
+      if (isCurrent) setHolidays(data ?? []);
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list: Holiday[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        list.push({
-          id: doc.id,
-          day: data.day,
-          name: data.name
-        });
-      });
-      list.sort((a, b) => a.day - b.day);
-      setHolidays(list);
-    }, (err) => {
-      console.error('Error fetching holidays:', err);
-    });
-
-    return () => unsubscribe();
+    void fetchHolidays();
+    return () => {
+      isCurrent = false;
+    };
   }, [year, month]);
 
   const holidayMap = useMemo(() => {
@@ -3278,13 +3273,20 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange, sourc
                 }
                 setHolidaySubmitting(true);
                 try {
-                  await addDoc(collection(db, 'attendance_holidays'), {
-                    year,
-                    month,
-                    day: newHolidayDay,
-                    name: newHolidayName.trim(),
-                    created_at: new Date().toISOString()
-                  });
+                  const { data, error } = await supabase
+                    .from('attendance_holidays')
+                    .insert({
+                      year,
+                      month,
+                      day: newHolidayDay,
+                      name: newHolidayName.trim(),
+                    })
+                    .select('id, day, name')
+                    .single();
+                  if (error) throw error;
+                  setHolidays((current) =>
+                    [...current, data].sort((left, right) => left.day - right.day)
+                  );
                   setNewHolidayName('');
                   toast.success("Holiday declared successfully");
                 } catch (err) {
@@ -3318,7 +3320,15 @@ export default function TimesheetViewer({ refreshTrigger, onLoadingChange, sourc
                     onClick={async () => {
                       if (confirm(`Are you sure you want to delete the holiday on day ${h.day}?`)) {
                         try {
-                          await deleteDoc(doc(db, 'attendance_holidays', h.id));
+                          const { data, error } = await supabase
+                            .from('attendance_holidays')
+                            .delete()
+                            .eq('id', h.id)
+                            .select('id')
+                            .maybeSingle();
+                          if (error) throw error;
+                          if (!data) throw new Error("Holiday was not found or cannot be deleted.");
+                          setHolidays((current) => current.filter((holiday) => holiday.id !== h.id));
                           toast.success("Holiday deleted");
                         } catch (err) {
                           console.error("Error deleting holiday:", err);
