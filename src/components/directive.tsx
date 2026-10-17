@@ -22,6 +22,7 @@ interface Props {
   tag?: any;
   status?: boolean;
   onClick?: any;
+  interactive?: boolean;
   subtext?: string;
   selectable?: boolean;
   onSelect?: any;
@@ -32,6 +33,7 @@ interface Props {
   extraOnEdit?: any;
   notify?: boolean;
   id_subtitle?: any;
+  idSubtitleFull?: boolean;
   loading?: boolean;
   archived?: boolean;
   protected?: boolean;
@@ -71,8 +73,16 @@ export default function Directive(props: Props) {
 
   return (
     <a
-      href={props.href || ""}
-      onClick={(e) => (props.selectable ? handleSelect(e) : props.onClick?.(e))}
+      href={props.interactive === false ? undefined : props.href || ""}
+      onClick={(e) => {
+        if (props.selectable) {
+          handleSelect(e);
+        } else if (props.interactive === false) {
+          e.preventDefault();
+        } else {
+          props.onClick?.(e);
+        }
+      }}
       className={props.className}
       style={{
         display: "flex",
@@ -105,7 +115,7 @@ export default function Directive(props: Props) {
           border: "1px solid rgba(255,255,255,0.65)",
           // boxShadow: "0 2px 10px rgba(15, 23, 42, 0.07)",
           transition: "all 0.2s ease",
-          cursor: "pointer",
+          cursor: props.interactive === false && !props.selectable ? "default" : "pointer",
           paddingLeft: "1rem",
           position: "relative",
           overflow: "hidden",
@@ -245,10 +255,11 @@ export default function Directive(props: Props) {
                   textAlign: "left",
                   color: "",
                   opacity: "0.75",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  width: "30ch",
+                  overflow: props.idSubtitleFull ? "visible" : "hidden",
+                  textOverflow: props.idSubtitleFull ? "clip" : "ellipsis",
+                  whiteSpace: props.idSubtitleFull ? "pre-wrap" : "nowrap",
+                  overflowWrap: props.idSubtitleFull ? "anywhere" : "normal",
+                  width: props.idSubtitleFull ? "100%" : "30ch",
                   border: "",
                   fontWeight: 500,
                 }}
