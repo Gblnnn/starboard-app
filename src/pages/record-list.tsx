@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import DefaultDialog from "@/components/ui/default-dialog";
 import { LoadingOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
-import { HistoryIcon, Inbox, KeyRound, Laptop2, Mail } from "lucide-react";
+import { HistoryIcon, KeyRound, Laptop2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -104,10 +104,6 @@ export default function RecordList() {
     navigate("/history");
   };
 
-  const handleInboxClick = () => {
-    navigate("/inbox");
-  };
-
   if (!userData) {
     return (
       <div
@@ -163,12 +159,6 @@ export default function RecordList() {
                   <HistoryIcon width={"1.1rem"} color="mediumslateblue" />
                 </button>
 
-                <button
-                  onClick={handleInboxClick}
-                  style={{ width: "3rem", background: "rgba(220 20 60/ 20%)" }}
-                >
-                  <Inbox width={"1.25rem"} className="" color="crimson" />
-                </button>
               </div>
             }
           />
