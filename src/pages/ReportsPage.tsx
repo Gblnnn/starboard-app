@@ -14,8 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { db } from '@/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Hash, Highlighter, Loader2, Search, X } from 'lucide-react';
@@ -577,31 +575,27 @@ export default function StaffMonthlyReport({ refreshTrigger, onLoadingChange }: 
   }
   const [holidays, setHolidays] = useState<Holiday[]>([]);
 
-  // Realtime holidays fetch from Firestore
+  // Load holiday declarations for the selected month from Supabase.
   useEffect(() => {
-    const q = query(
-      collection(db, 'attendance_holidays'),
-      where('year', '==', year),
-      where('month', '==', month)
-    );
+    let isCurrent = true;
+    const fetchHolidays = async () => {
+      const { data, error } = await supabase
+        .from('attendance_holidays')
+        .select('id, day, name')
+        .eq('year', year)
+        .eq('month', month)
+        .order('day');
+      if (error) {
+        console.error('Error fetching holidays:', error);
+        return;
+      }
+      if (isCurrent) setHolidays(data ?? []);
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list: Holiday[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        list.push({
-          id: doc.id,
-          day: data.day,
-          name: data.name
-        });
-      });
-      list.sort((a, b) => a.day - b.day);
-      setHolidays(list);
-    }, (err) => {
-      console.error('Error fetching holidays:', err);
-    });
-
-    return () => unsubscribe();
+    void fetchHolidays();
+    return () => {
+      isCurrent = false;
+    };
   }, [year, month]);
 
   const holidayMap = useMemo(() => {
