@@ -1,4 +1,4 @@
-﻿import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { RichTextEditor } from "@/components/rich-text-editor";
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { auth, db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 import { LoadingOutlined } from "@ant-design/icons";
 import {
   closestCenter,
@@ -42,17 +42,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import emailjs from "@emailjs/browser";
 import { Drawer as AntDrawer, Input, message, Modal } from "antd";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  Timestamp,
-  updateDoc
-} from "firebase/firestore";
 import { AnimatePresence, motion } from "framer-motion";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -241,7 +230,7 @@ type Preset = {
   id: string;
   name: string;
   data: FormData;
-  created_at: any;
+  created_at: string;
   fieldConfig?: FieldConfig[];
 };
 
@@ -796,10 +785,11 @@ const [searchTerm, setSearchTerm] = useState("");
 
     const autoSaveFieldConfig = async () => {
       try {
-        const letterRef = doc(db, "offer_letters", loadedLetterId);
-        await updateDoc(letterRef, {
-          fieldConfig: fieldConfig,
+        const { error } = await supabase.rpc("merge_offer_letter_data", {
+          p_id: loadedLetterId,
+          p_patch: { fieldConfig },
         });
+        if (error) throw error;
         console.log("Field visibility state saved automatically");
       } catch (error) {
         console.error("Error auto-saving field config:", error);
@@ -812,19 +802,24 @@ const [searchTerm, setSearchTerm] = useState("");
   const fetchPresets = async () => {
     try {
       setPresetsLoading(true);
-      const q = query(
-        collection(db, "offer_letter_presets"),
-        orderBy("created_at", "desc")
+      const { data, error } = await supabase
+        .from("offer_letter_presets")
+        .select("id, name, data, field_config, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setPresets(
+        (data ?? []).map((preset) => ({
+          id: preset.id,
+          name: preset.name,
+          data: preset.data as FormData,
+          fieldConfig: preset.field_config as FieldConfig[] | undefined,
+          created_at: preset.created_at,
+        }))
       );
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Preset[];
-      setPresets(data);
-      setPresetsLoading(false);
     } catch (err) {
+      console.error("Failed to fetch offer letter presets:", err);
       message.error("Failed to fetch presets");
+    } finally {
       setPresetsLoading(false);
     }
   };
@@ -840,19 +835,18 @@ const [searchTerm, setSearchTerm] = useState("");
       // Create a copy of formData without the date field
       const { date, ...presetData } = formData;
 
-      const newPreset = {
-        name: presetName,
+      const { error } = await supabase.from("offer_letter_presets").insert({
+        name: presetName.trim(),
         data: presetData,
-        fieldConfig: fieldConfig,
-        created_at: Timestamp.now(),
-      };
-
-      await addDoc(collection(db, "offer_letter_presets"), newPreset);
+        field_config: fieldConfig,
+      });
+      if (error) throw error;
       message.success("Preset saved successfully");
       setPresetDialogVisible(false);
       setPresetName("");
-      fetchPresets();
+      await fetchPresets();
     } catch (err) {
+      console.error("Failed to save offer letter preset:", err);
       message.error("Failed to save preset");
     } finally {
       setLoading(false);
@@ -881,13 +875,18 @@ const [searchTerm, setSearchTerm] = useState("");
   const handleDeletePreset = async (presetId: string) => {
     try {
       setLoading(true);
-      await deleteDoc(doc(db, "offer_letter_presets", presetId));
+      const { error } = await supabase
+        .from("offer_letter_presets")
+        .delete()
+        .eq("id", presetId);
+      if (error) throw error;
       message.success("Preset deleted successfully");
       setSelectedPreset("");
       setOriginalPresetData(null);
       setHasChanges(false);
-      fetchPresets();
+      await fetchPresets();
     } catch (err) {
+      console.error("Failed to delete offer letter preset:", err);
       message.error("Failed to delete preset");
     } finally {
       setLoading(false);
@@ -902,16 +901,18 @@ const [searchTerm, setSearchTerm] = useState("");
       // Create a copy of formData without the date field
       const { date, ...presetData } = formData;
 
-      await updateDoc(doc(db, "offer_letter_presets", selectedPreset), {
-        data: presetData,
-        fieldConfig: fieldConfig,
-      });
+      const { error } = await supabase
+        .from("offer_letter_presets")
+        .update({ data: presetData, field_config: fieldConfig })
+        .eq("id", selectedPreset);
+      if (error) throw error;
       message.success("Preset updated successfully");
       setHasChanges(false);
       // Add the current date back to the preset data for state management
       setOriginalPresetData({ ...presetData, date: formData.date });
-      fetchPresets();
+      await fetchPresets();
     } catch (err) {
+      console.error("Failed to update offer letter preset:", err);
       message.error("Failed to update preset");
     } finally {
       setLoading(false);
@@ -921,12 +922,12 @@ const [searchTerm, setSearchTerm] = useState("");
   const sendBugReport = async () => {
     setLoading(true);
     await emailjs.send(serviceId, templateId, {
-      name: auth.currentUser?.email,
+      name: userData?.email,
       subject:
         "Bug Report - " +
         moment().format("ll") +
         " from " +
-        auth.currentUser?.email,
+        userData?.email,
       recipient: "goblinn688@gmail.com",
       message: issue,
     });
@@ -1278,12 +1279,17 @@ const [searchTerm, setSearchTerm] = useState("");
 
     setOfferLettersLoading(true);
     try {
-      const q = query(
-        collection(db, "offer_letters"),
-        orderBy("generated_at", "desc")
-      );
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const { data: rows, error } = await supabase
+        .from("offer_letters")
+        .select("id, data, generated_at, generated_by")
+        .order("generated_at", { ascending: false });
+      if (error) throw error;
+      const data = (rows ?? []).map((row) => ({
+        ...(row.data as Record<string, unknown>),
+        id: row.id,
+        generated_at: row.generated_at,
+        generated_by: row.generated_by,
+      }));
       
       // Set next reference number if form is empty
       if (!formData.refNo) {
@@ -1311,14 +1317,14 @@ const [searchTerm, setSearchTerm] = useState("");
       setOfferLetters(mergedLetters);
       setOfferLettersCache(mergedLetters);
     } catch (err) {
+      console.error("Failed to fetch offer letters:", err);
       message.error("Failed to fetch offer letters");
     } finally {
       setOfferLettersLoading(false);
     }
   };
 
-  // Helper function to clean undefined values from data before saving to Firestore
-  const cleanDataForFirestore = (data: any) => {
+  const cleanData = (data: any) => {
     const cleaned: any = {};
     Object.keys(data).forEach(key => {
       if (data[key] !== undefined) {
@@ -1348,7 +1354,8 @@ const [searchTerm, setSearchTerm] = useState("");
       // Get a fresh reference number for the new letter
       const nextRef = getNextReferenceNumber(offerLetters);
       
-      const newLetter = cleanDataForFirestore({
+      const generatedAt = new Date().toISOString();
+      const newLetter = cleanData({
         ...formData,
         refNo: nextRef,  // Use the new reference number
         fieldConfig: fieldConfig,
@@ -1356,17 +1363,29 @@ const [searchTerm, setSearchTerm] = useState("");
         comm: comm,
         visaS: visaS,
         joiningDate: joiningDate,
-        generated_at: Timestamp.now(),
-        generated_by: auth.currentUser?.email || null,
+        generated_at: generatedAt,
+        generated_by: userData?.email || null,
       });
 
       console.log("Attempting to save letter:", newLetter);
 
       // Always create a new document, regardless of loadedLetterId
-      const docRef = await addDoc(collection(db, "offer_letters"), newLetter);
-      console.log("Document saved with ID:", docRef.id);
-
-      const savedLetter = { id: docRef.id, ...newLetter };
+      const { error, data: savedRow } = await supabase
+        .from("offer_letters")
+        .insert({
+          data: newLetter,
+          generated_at: generatedAt,
+          generated_by: userData?.email || null,
+        })
+        .select("id, data, generated_at, generated_by")
+        .single();
+      if (error) throw error;
+      const savedLetter = {
+        ...(savedRow.data as Record<string, unknown>),
+        id: savedRow.id,
+        generated_at: savedRow.generated_at,
+        generated_by: savedRow.generated_by,
+      };
 
       // Update cache with new letter
       const updatedCache = [savedLetter, ...offerLettersCache];
@@ -1376,7 +1395,7 @@ const [searchTerm, setSearchTerm] = useState("");
       message.success(`Offer letter saved successfully with reference number: ${nextRef}`);
 
       // Reset form state after saving
-      setLoadedLetterId(docRef.id);
+      setLoadedLetterId(savedRow.id);
       setHasChanges(false);
       setOriginalFormData(null);
     } catch (error) {
@@ -1496,14 +1515,22 @@ const [searchTerm, setSearchTerm] = useState("");
     if (!editingLetter?.id) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, "offer_letters", editingLetter.id), cleanDataForFirestore({
-        ...editingLetter,
-        updated_at: Timestamp.now(),
-      }));
+      const { id, ...letterData } = editingLetter;
+      delete letterData.generated_at;
+      const updatedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from("offer_letters")
+        .update({
+          data: cleanData({ ...letterData, updated_at: updatedAt }),
+          updated_at: updatedAt,
+        })
+        .eq("id", id);
+      if (error) throw error;
       message.success("Offer letter updated");
       setEditDialogVisible(false);
-      fetchOfferLetters();
+      await fetchOfferLetters();
     } catch (err) {
+      console.error("Failed to update offer letter:", err);
       message.error("Failed to update offer letter");
     } finally {
       setSaving(false);
@@ -1518,7 +1545,8 @@ const [searchTerm, setSearchTerm] = useState("");
 
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "offer_letters", id));
+      const { error } = await supabase.from("offer_letters").delete().eq("id", id);
+      if (error) throw error;
 
       // Update cache by removing deleted letter
       const updatedCache = offerLettersCache.filter(
@@ -1529,6 +1557,7 @@ const [searchTerm, setSearchTerm] = useState("");
 
       message.success("Offer letter deleted");
     } catch (err) {
+      console.error("Failed to delete offer letter:", err);
       message.error("Failed to delete offer letter");
     } finally {
       setDeleting(false);
@@ -1545,21 +1574,23 @@ const [searchTerm, setSearchTerm] = useState("");
 
     try {
       setSaving(true);
-      const letterRef = doc(db, "offer_letters", loadedLetterId);
-
       // Create a copy of formData without the date field for the preset
       const { date, ...presetData } = formData;
-
-      await updateDoc(letterRef, cleanDataForFirestore({
+      const generatedAt = new Date().toISOString();
+      const { error } = await supabase.rpc("merge_offer_letter_data", {
+        p_id: loadedLetterId,
+        p_patch: cleanData({
         ...presetData,
         fieldConfig: fieldConfig,
         air_passage: air_passage,
         comm: comm,
         visaS: visaS,
         joiningDate: joiningDate,
-        generated_at: Timestamp.now(),
-        generated_by: auth.currentUser?.email || null,
-      }));
+        generated_at: generatedAt,
+        generated_by: userData?.email || null,
+        }),
+      });
+      if (error) throw error;
 
       // Update the original form data to match the new state
       setOriginalFormData({
@@ -1633,40 +1664,6 @@ const [searchTerm, setSearchTerm] = useState("");
     setHasChanges(false);
     setOfferLettersDrawerVisible(false);
   };
-
-  // const handleAddToShortlist = async () => {
-  //   if (selectedLetters.length === 0) return;
-    
-  //   setAddingToShortlist(true);
-  //   try {
-  //     const batch = writeBatch(db);
-
-  //     for (const id of selectedLetters) {
-  //       const letter = offerLetters.find(ol => ol.id === id);
-  //       if (!letter) continue;
-
-  //       batch.set(doc(collection(db, "shortlist")), {
-  //         candidateName: letter.candidateName,
-  //         position: letter.position,
-  //         salary: letter.salary,
-  //         created_at: Timestamp.now(),
-  //         created_by: auth.currentUser?.email,
-  //         source: "Offer Letter",
-  //         referenceNo: letter.refNo
-  //       });
-  //     }
-
-  //     await batch.commit();
-  //     message.success("Added to shortlist successfully");
-  //     setSelectedLetters([]); // Clear selection
-  //     setOfferLettersDrawerVisible(false); // Close drawer
-  //   } catch (error) {
-  //     console.error("Error adding to shortlist:", error);
-  //     message.error("Failed to add to shortlist");
-  //   } finally {
-  //     setAddingToShortlist(false);
-  //   }
-  // };
 
   const handleClearForm = () => {
     const currentDate = new Date().toLocaleDateString();
@@ -4569,12 +4566,15 @@ const [searchTerm, setSearchTerm] = useState("");
 
     try {
       setPresetsLoading(true);
-      await updateDoc(doc(db, "offer_letter_presets", selectedPreset), {
-        name: newName,
-      });
+      const { error } = await supabase
+        .from("offer_letter_presets")
+        .update({ name: newName.trim() })
+        .eq("id", selectedPreset);
+      if (error) throw error;
       message.success("Preset renamed successfully");
-      fetchPresets();
+      await fetchPresets();
     } catch (err) {
+      console.error("Failed to rename offer letter preset:", err);
       message.error("Failed to rename preset");
     } finally {
       setPresetsLoading(false);
@@ -5281,9 +5281,9 @@ const [searchTerm, setSearchTerm] = useState("");
                   
 
                   <div style={{ color: "#888", fontSize: 10 }}>
-                    {ol.generated_at && ol.generated_at.toDate
+                    {ol.generated_at
                       ? "Last Modified : " +
-                        moment(ol.generated_at.toDate()).format(
+                        moment(ol.generated_at.toDate?.() ?? ol.generated_at).format(
                           "DD MMM YYYY, h:mm A"
                         )
                       : ""}
@@ -5947,5 +5947,3 @@ const [searchTerm, setSearchTerm] = useState("");
     </>
   );
 }
-
-
