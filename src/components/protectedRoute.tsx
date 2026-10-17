@@ -17,7 +17,7 @@ const ROLE_RESTRICTED_ROUTES = {
 };
 
 const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
-  records_master: ["/records", "/record-list", "/record/", "/vale-records", "/movement-register"],
+  records_master: ["/records", "/record-list", "/vale-records", "/movement-register"],
   user_management: ["/users", "/user", "/admin", "/access-control", "/access-requests"],
   new_hire: ["/new-hire", "/openings", "/shortlist"],
   phonebook: ["/phonebook"],
@@ -113,13 +113,7 @@ export default function ProtectedRoutes() {
   const isPathAllowed = (path: string, routes: string[]): boolean => {
     if (routes.includes("*")) return true;
     if (routes.includes(path)) return true;
-
-    return routes.some(() => {
-      if (path.startsWith("/record/") && routes.includes("/records")) {
-        return true;
-      }
-      return false;
-    });
+    return false;
   };
 
   const isModuleProtected = Object.values(MODULE_ROUTE_PERMISSIONS)
