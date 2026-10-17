@@ -514,16 +514,6 @@ export default function Index() {
                     />
                   )}
 
-                  {hasTickets && (
-                    <GridTile
-                      title={hasTicketHandler ? "Tickets" : "IT Support"}
-                      description="Report Issues and track resolutions"
-                      icon={<Ticket width="2.5rem" />}
-                      onClick={() => navigate('/tickets')}
-                      badge={hasTicketHandler && openTicketsCount !== null && openTicketsCount > 0 ? openTicketsCount : undefined}
-                    />
-                  )}
-
                   {hasModuleAccess('petty_cash') && (
                     <GridTile
                       title="Petty Cash"
@@ -714,6 +704,16 @@ export default function Index() {
                     </AccordionItem>
                   )}
                   </Accordion>
+
+                  {hasTickets && (
+                    <GridTile
+                      title={hasTicketHandler ? "Tickets" : "IT Support"}
+                      description="Report Issues and track resolutions"
+                      icon={<Ticket width="2.5rem" />}
+                      onClick={() => navigate('/tickets')}
+                      badge={hasTicketHandler && openTicketsCount !== null && openTicketsCount > 0 ? openTicketsCount : undefined}
+                    />
+                  )}
                 </div>
               </>
             ) : (
