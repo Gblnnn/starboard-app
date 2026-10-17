@@ -6,9 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Archive,
   DownloadCloud,
-  Inbox,
   RefreshCcw,
   UploadCloud,
 } from "lucide-react";
@@ -17,9 +15,7 @@ interface Props {
   trigger?: any;
   onExport?: any;
   onAccess?: any;
-  onArchives?: any;
   onUpload?: any;
-  onInbox?: any;
   className?: any;
   onExportExpiring: () => void;
   onImportExpiring: () => void;
@@ -69,19 +65,6 @@ export default function DbDropDown(props: Props) {
               <KeyRound className="mr-2 " color="mediumslateblue" />
               <span style={{ width: "100%" }}>Access Control</span>
             </DropdownMenuItem> */}
-
-            <DropdownMenuItem
-              onClick={props.onArchives}
-              style={{ width: "100%" }}
-            >
-              <Archive className="mr-2 " color="goldenrod" />
-              <span style={{ width: "100%" }}>Archives</span>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem onClick={props.onInbox} style={{ width: "100%" }}>
-              <Inbox className="mr-2 " color="crimson" />
-              <span style={{ width: "100%" }}>Inbox</span>
-            </DropdownMenuItem>
 
             <DropdownMenuItem
               onClick={() => window.location.reload()}
