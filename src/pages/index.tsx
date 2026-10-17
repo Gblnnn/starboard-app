@@ -544,13 +544,21 @@ export default function Index() {
 
                   <Accordion
                     type="multiple"
-                    style={{ gridColumn: "1 / -1", display: "grid", gap: "0.6rem" }}
+                    style={{ display: "contents" }}
                   >
                   {hasRecruitmentModules && (
-                    <AccordionItem value="recruitment" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
-                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Recruitment</AccordionTrigger>
-                      <AccordionContent>
-                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                    <AccordionItem value="recruitment" className="[&[data-state=open]]:z-30" style={{ minWidth: 0, position: "relative", border: 0 }}>
+                      <AccordionTrigger style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "0.7rem", width: "100%", minHeight: "4.3rem", padding: "0.62rem 0.7rem", background: "rgba(246 248 252 / 0.78)", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "0.88rem", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", color: "#1f2937", textAlign: "left", textDecoration: "none" }}>
+                        <span style={{ width: "2.5rem", height: "2.5rem", borderRadius: "0.72rem", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "rgba(255,255,255,0.96)", color: "darkblue", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8), 0 4px 10px rgba(15,23,42,0.08)" }}>
+                          <UserCheck width="2.5rem" style={{ transform: "scale(0.85)" }} />
+                        </span>
+                        <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: "0.2rem" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 500, lineHeight: 1.1 }}>Recruitment</span>
+                          <span style={{ fontSize: "0.7rem", lineHeight: 1.2, color: "rgba(75, 85, 99, 0.82)" }}>Hiring and onboarding</span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent style={{ position: "absolute", top: "calc(100% + 0.35rem)", left: 0, width: "min(320px, calc(100vw - 2.5rem))", zIndex: 30, padding: "0 0.75rem", border: "1px solid rgba(255,255,255,0.75)", borderRadius: "0.88rem", background: "rgba(246,248,252,0.98)", boxShadow: "0 12px 28px rgba(15,23,42,0.18)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", rowGap: "0.5rem" }}>
                         {hasModuleAccess('new_hire') && (
                           <GridTile
                             title="New Hire"
@@ -581,10 +589,18 @@ export default function Index() {
                   )}
 
                   {hasUtilitiesModules && (
-                    <AccordionItem value="utilities" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
-                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Utilities</AccordionTrigger>
-                      <AccordionContent>
-                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                    <AccordionItem value="utilities" className="[&[data-state=open]]:z-30" style={{ minWidth: 0, position: "relative", border: 0 }}>
+                      <AccordionTrigger style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "0.7rem", width: "100%", minHeight: "4.3rem", padding: "0.62rem 0.7rem", background: "rgba(246 248 252 / 0.78)", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "0.88rem", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", color: "#1f2937", textAlign: "left", textDecoration: "none" }}>
+                        <span style={{ width: "2.5rem", height: "2.5rem", borderRadius: "0.72rem", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "rgba(255,255,255,0.96)", color: "darkblue", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8), 0 4px 10px rgba(15,23,42,0.08)" }}>
+                          <Link width="2.5rem" style={{ transform: "scale(0.85)" }} />
+                        </span>
+                        <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: "0.2rem" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 500, lineHeight: 1.1 }}>Utilities</span>
+                          <span style={{ fontSize: "0.7rem", lineHeight: 1.2, color: "rgba(75, 85, 99, 0.82)" }}>Shortcuts and document tools</span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent style={{ position: "absolute", top: "calc(100% + 0.35rem)", left: 0, width: "min(320px, calc(100vw - 2.5rem))", zIndex: 30, padding: "0 0.75rem", border: "1px solid rgba(255,255,255,0.75)", borderRadius: "0.88rem", background: "rgba(246,248,252,0.98)", boxShadow: "0 12px 28px rgba(15,23,42,0.18)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", rowGap: "0.5rem" }}>
                         {hasModuleAccess('quick_links') && (
                           <GridTile
                             title="Links"
@@ -615,10 +631,18 @@ export default function Index() {
                   )}
 
                   {hasHumanResourcesModules && (
-                    <AccordionItem value="human-resources" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
-                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Human Resources</AccordionTrigger>
-                      <AccordionContent>
-                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                    <AccordionItem value="human-resources" className="[&[data-state=open]]:z-30" style={{ minWidth: 0, position: "relative", border: 0 }}>
+                      <AccordionTrigger style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "0.7rem", width: "100%", minHeight: "4.3rem", padding: "0.62rem 0.7rem", background: "rgba(246 248 252 / 0.78)", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "0.88rem", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", color: "#1f2937", textAlign: "left", textDecoration: "none" }}>
+                        <span style={{ width: "2.5rem", height: "2.5rem", borderRadius: "0.72rem", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "rgba(255,255,255,0.96)", color: "darkblue", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8), 0 4px 10px rgba(15,23,42,0.08)" }}>
+                          <BookMarked width="2.5rem" style={{ transform: "scale(0.85)" }} />
+                        </span>
+                        <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: "0.2rem" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 500, lineHeight: 1.1 }}>Human Resources</span>
+                          <span style={{ fontSize: "0.7rem", lineHeight: 1.2, color: "rgba(75, 85, 99, 0.82)" }}>Employee services and records</span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent style={{ position: "absolute", top: "calc(100% + 0.35rem)", left: 0, width: "min(320px, calc(100vw - 2.5rem))", zIndex: 30, padding: "0 0.75rem", border: "1px solid rgba(255,255,255,0.75)", borderRadius: "0.88rem", background: "rgba(246,248,252,0.98)", boxShadow: "0 12px 28px rgba(15,23,42,0.18)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", rowGap: "0.5rem" }}>
                         {hasModuleAccess('passports') && (
                           <GridTile
                             title="Passports"
@@ -649,10 +673,18 @@ export default function Index() {
                   )}
 
                   {hasTimeAttendanceModules && (
-                    <AccordionItem value="time-attendance" style={{ padding: "0 0.85rem", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "1rem", background: "rgba(255,255,255,0.42)" }}>
-                      <AccordionTrigger style={{ padding: "0.85rem 0", fontSize: "0.95rem", fontWeight: 700, textDecoration: "none" }}>Time &amp; Attendance</AccordionTrigger>
-                      <AccordionContent>
-                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                    <AccordionItem value="time-attendance" className="[&[data-state=open]]:z-30" style={{ minWidth: 0, position: "relative", border: 0 }}>
+                      <AccordionTrigger style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "0.7rem", width: "100%", minHeight: "4.3rem", padding: "0.62rem 0.7rem", background: "rgba(246 248 252 / 0.78)", border: "1px solid rgba(255,255,255,0.65)", borderRadius: "0.88rem", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", color: "#1f2937", textAlign: "left", textDecoration: "none" }}>
+                        <span style={{ width: "2.5rem", height: "2.5rem", borderRadius: "0.72rem", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "rgba(255,255,255,0.96)", color: "darkblue", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8), 0 4px 10px rgba(15,23,42,0.08)" }}>
+                          <Clock3 width="2.5rem" style={{ transform: "scale(0.85)" }} />
+                        </span>
+                        <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: "0.2rem" }}>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 500, lineHeight: 1.1 }}>Time &amp; Attendance</span>
+                          <span style={{ fontSize: "0.7rem", lineHeight: 1.2, color: "rgba(75, 85, 99, 0.82)" }}>Shifts, transfers and punch logs</span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent style={{ position: "absolute", top: "calc(100% + 0.35rem)", left: 0, width: "min(320px, calc(100vw - 2.5rem))", zIndex: 30, padding: "0 0.75rem", border: "1px solid rgba(255,255,255,0.75)", borderRadius: "0.88rem", background: "rgba(246,248,252,0.98)", boxShadow: "0 12px 28px rgba(15,23,42,0.18)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", rowGap: "0.5rem" }}>
                         {hasShiftManagement && (
                           <GridTile
                             title="Shift Management"
