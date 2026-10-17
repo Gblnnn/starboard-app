@@ -203,32 +203,35 @@ export default function Index() {
     return modulePermissions[moduleId] === true;
   };
 
-  // Check if user has any modules allocated
-  const hasAnyModules = () => {
-    const hasAdministrator = userData?.role === 'admin';
-    const hasRecordsMaster = hasModuleAccess('records_master');
-    const hasNewHire = hasModuleAccess('new_hire');
-    const hasQuickLinks = hasModuleAccess('quick_links');
-    const hasQRGenerator = hasModuleAccess('qr_generator');
-    const hasAttendance = hasModuleAccess('attendance');
-    const hasPettyCash = hasModuleAccess('petty_cash');
-    const hasOfferLetters = hasModuleAccess('offer_letters');
-    const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
-    const hasEmployeeClearanceForm = hasModuleAccess('employee_clearance_form');
-    const hasShiftLogs = hasModuleAccess('shift_logs');
-    const hasTransferRequests = hasModuleAccess('transfer_requests');
-    const hasOffboarding = hasModuleAccess('offboarding');
-    const hasDocumentEditor = hasModuleAccess('document_editor');
-    const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
-
-    return hasAdministrator || hasRecordsMaster || hasNewHire || hasQuickLinks ||
-      hasQRGenerator || hasAttendance ||
-      hasPettyCash || hasOfferLetters || hasEmployeeClearanceForm || hasShiftLogs ||
-      hasTransferRequests || hasOffboarding || hasTickets || hasDocumentEditor || hasShiftManagement;
-  };
-
-  const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
+  const hasRecruitmentModules =
+    hasModuleAccess('new_hire') ||
+    hasModuleAccess('manpower_requirements') ||
+    hasModuleAccess('offer_letters');
+  const hasUtilitiesModules =
+    hasModuleAccess('quick_links') ||
+    hasModuleAccess('qr_generator') ||
+    hasModuleAccess('document_editor');
+  const hasHumanResourcesModules =
+    hasModuleAccess('passports') ||
+    hasModuleAccess('employee_clearance_form') ||
+    hasModuleAccess('offboarding');
   const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
+  const hasTimeAttendanceModules =
+    hasShiftManagement ||
+    hasModuleAccess('transfer_requests') ||
+    hasModuleAccess('shift_logs');
+  const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
+
+  const hasAnyModules = () =>
+    userData?.role === 'admin' ||
+    hasModuleAccess('records_master') ||
+    hasRecruitmentModules ||
+    hasUtilitiesModules ||
+    hasHumanResourcesModules ||
+    hasTimeAttendanceModules ||
+    hasModuleAccess('attendance') ||
+    hasModuleAccess('petty_cash') ||
+    hasTickets;
 
   // const getAccessibleModuleCount = () => {
   //   let count = 0;
@@ -510,34 +513,6 @@ export default function Index() {
                     />
                   )}
 
-                  {hasModuleAccess('new_hire') && (
-                    <GridTile
-                      title="New Hire"
-                      description="Onboarding and new joiner workflow"
-                      icon={<UserCheck width="2.5rem" />}
-                      onClick={() => authenticateModule('new_hire', '/new-hire', 'New Hire')}
-                    />
-                  )}
-
-                  {hasModuleAccess('quick_links') && (
-                    <GridTile
-                      title="Links"
-                      description="Frequently used operational shortcuts"
-                      icon={<Link width="2.5rem" />}
-                      onClick={() => authenticateModule('quick_links', '/quick-links', 'Links')}
-                    />
-                  )}
-
-                  {hasModuleAccess('qr_generator') && (
-                    <GridTile
-                      title="QR"
-                      description="Generate QR codes for assets and docs"
-                      icon={<QrCode width="2.5rem" />}
-                      onClick={() => authenticateModule('qr_generator', '/qr-code-generator', 'QR Generator')}
-                    />
-                  )}
-
-
                   {hasTickets && (
                     <GridTile
                       title={hasTicketHandler ? "Tickets" : "IT Support"}
@@ -545,43 +520,6 @@ export default function Index() {
                       icon={<Ticket width="2.5rem" />}
                       onClick={() => navigate('/tickets')}
                       badge={hasTicketHandler && openTicketsCount !== null && openTicketsCount > 0 ? openTicketsCount : undefined}
-                    />
-                  )}
-
-
-                  {hasModuleAccess('manpower_requirements') && (
-                    <GridTile
-                      title="Manpower Requirements"
-                      description="Workforce planning and requirements"
-                      icon={<Users width="2.5rem" />}
-                      onClick={() => authenticateModule('manpower_requirements', '/manpower-requirements', 'Manpower Requirements')}
-                    />
-                  )}
-
-                  {hasModuleAccess('attendance') && (
-                    <GridTile
-                      title="Attendance"
-                      description="Attendance and workforce time tracking"
-                      icon={<Clock3Icon width="2.5rem" />}
-                      onClick={() => authenticateModule('attendance', '/attendance', 'Attendance')}
-                    />
-                  )}
-
-                  {hasShiftManagement && (
-                    <GridTile
-                      title="Shift Management"
-                      description="Project shifts, rosters and daily attendance"
-                      icon={<Clock3 width="2.5rem" />}
-                      onClick={() => navigate('/shift-management')}
-                    />
-                  )}
-
-                  {hasModuleAccess('passports') && (
-                    <GridTile
-                      title="Passports"
-                      description="Passport tracking and renewals"
-                      icon={<BookMarked width="2.5rem" />}
-                      onClick={() => authenticateModule('passports', '/passports', 'Passports')}
                     />
                   )}
 
@@ -594,58 +532,141 @@ export default function Index() {
                     />
                   )}
 
-                  {hasModuleAccess('offer_letters') && (
+                  {hasModuleAccess('attendance') && (
                     <GridTile
-                      title="Offer Letters"
-                      description="Compose, format and export offers"
-                      icon={<FileText width="2.5rem" />}
-                      onClick={() => authenticateModule('offer_letters', '/offer-letters', 'Offer Letters')}
+                      title="Attendance"
+                      description="Attendance and workforce time tracking"
+                      icon={<Clock3Icon width="2.5rem" />}
+                      onClick={() => authenticateModule('attendance', '/attendance', 'Attendance')}
                     />
                   )}
 
-                  {hasModuleAccess('employee_clearance_form') && (
-                    <GridTile
-                      title="Forms"
-                      description="Forms and approvals"
-                      icon={<File width="2.5rem" />}
-                      onClick={() => authenticateModule('employee_clearance_form', '/employee-clearance-form', 'Forms')}
-                    />
+                  {hasRecruitmentModules && (
+                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
+                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Recruitment</h2>
+                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                        {hasModuleAccess('new_hire') && (
+                          <GridTile
+                            title="New Hire"
+                            description="Onboarding and new joiner workflow"
+                            icon={<UserCheck width="2.5rem" />}
+                            onClick={() => authenticateModule('new_hire', '/new-hire', 'New Hire')}
+                          />
+                        )}
+                        {hasModuleAccess('manpower_requirements') && (
+                          <GridTile
+                            title="Manpower Requirements"
+                            description="Workforce planning and requirements"
+                            icon={<Users width="2.5rem" />}
+                            onClick={() => authenticateModule('manpower_requirements', '/manpower-requirements', 'Manpower Requirements')}
+                          />
+                        )}
+                        {hasModuleAccess('offer_letters') && (
+                          <GridTile
+                            title="Offer Letters"
+                            description="Compose, format and export offers"
+                            icon={<FileText width="2.5rem" />}
+                            onClick={() => authenticateModule('offer_letters', '/offer-letters', 'Offer Letters')}
+                          />
+                        )}
+                      </div>
+                    </section>
                   )}
 
-                  {hasModuleAccess('shift_logs') && (
-                    <GridTile
-                      title="Mobile Punching Logs"
-                      description="Mobile punch-in and punch-out records"
-                      icon={<Clock3 width="2.5rem" />}
-                      onClick={() => authenticateModule('shift_logs', '/shift-logs', 'Mobile Punching Logs')}
-                    />
+                  {hasUtilitiesModules && (
+                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
+                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Utilities</h2>
+                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                        {hasModuleAccess('quick_links') && (
+                          <GridTile
+                            title="Links"
+                            description="Frequently used operational shortcuts"
+                            icon={<Link width="2.5rem" />}
+                            onClick={() => authenticateModule('quick_links', '/quick-links', 'Links')}
+                          />
+                        )}
+                        {hasModuleAccess('qr_generator') && (
+                          <GridTile
+                            title="QR"
+                            description="Generate QR codes for assets and docs"
+                            icon={<QrCode width="2.5rem" />}
+                            onClick={() => authenticateModule('qr_generator', '/qr-code-generator', 'QR Generator')}
+                          />
+                        )}
+                        {hasModuleAccess('document_editor') && (
+                          <GridTile
+                            title="Document Editor"
+                            description="Create, format and manage rich documents"
+                            icon={<FileText width="2.5rem" />}
+                            onClick={() => authenticateModule('document_editor', '/document-editor', 'Document Editor')}
+                          />
+                        )}
+                      </div>
+                    </section>
                   )}
 
-                  {hasModuleAccess('transfer_requests') && (
-                    <GridTile
-                      title="Transfers"
-                      description="Staff movement and transfer requests"
-                      icon={<ArrowRightLeft width="2.5rem" />}
-                      onClick={() => authenticateModule('transfer_requests', '/transfer-requests', 'Transfers')}
-                    />
+                  {hasHumanResourcesModules && (
+                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
+                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Human Resources</h2>
+                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                        {hasModuleAccess('passports') && (
+                          <GridTile
+                            title="Passports"
+                            description="Passport tracking and renewals"
+                            icon={<BookMarked width="2.5rem" />}
+                            onClick={() => authenticateModule('passports', '/passports', 'Passports')}
+                          />
+                        )}
+                        {hasModuleAccess('employee_clearance_form') && (
+                          <GridTile
+                            title="Forms"
+                            description="Forms and approvals"
+                            icon={<File width="2.5rem" />}
+                            onClick={() => authenticateModule('employee_clearance_form', '/employee-clearance-form', 'Forms')}
+                          />
+                        )}
+                        {hasModuleAccess('offboarding') && (
+                          <GridTile
+                            title="Offboarding"
+                            description="Exit process and clearance closure"
+                            icon={<LogOut width="2.5rem" />}
+                            onClick={() => authenticateModule('offboarding', '/offboarding', 'Offboarding')}
+                          />
+                        )}
+                      </div>
+                    </section>
                   )}
 
-                  {hasModuleAccess('offboarding') && (
-                    <GridTile
-                      title="Offboarding"
-                      description="Exit process and clearance closure"
-                      icon={<LogOut width="2.5rem" />}
-                      onClick={() => authenticateModule('offboarding', '/offboarding', 'Offboarding')}
-                    />
-                  )}
-
-                  {hasModuleAccess('document_editor') && (
-                    <GridTile
-                      title="Document Editor"
-                      description="Create, format and manage rich documents"
-                      icon={<FileText width="2.5rem" />}
-                      onClick={() => authenticateModule('document_editor', '/document-editor', 'Document Editor')}
-                    />
+                  {hasTimeAttendanceModules && (
+                    <section style={{ gridColumn: "1 / -1", padding: "0.85rem", borderRadius: "1rem", background: "rgba(255,255,255,0.42)", border: "1px solid rgba(255,255,255,0.65)" }}>
+                      <h2 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 700 }}>Time &amp; Attendance</h2>
+                      <div style={{ display: "grid", gridTemplateColumns: getGridColumns(), columnGap: "0.6rem", rowGap: "0.6rem" }}>
+                        {hasShiftManagement && (
+                          <GridTile
+                            title="Shift Management"
+                            description="Project shifts, rosters and daily attendance"
+                            icon={<Clock3 width="2.5rem" />}
+                            onClick={() => navigate('/shift-management')}
+                          />
+                        )}
+                        {hasModuleAccess('transfer_requests') && (
+                          <GridTile
+                            title="Transfers"
+                            description="Staff movement and transfer requests"
+                            icon={<ArrowRightLeft width="2.5rem" />}
+                            onClick={() => authenticateModule('transfer_requests', '/transfer-requests', 'Transfers')}
+                          />
+                        )}
+                        {hasModuleAccess('shift_logs') && (
+                          <GridTile
+                            title="Mobile Punching Logs"
+                            description="Mobile punch-in and punch-out records"
+                            icon={<Clock3 width="2.5rem" />}
+                            onClick={() => authenticateModule('shift_logs', '/shift-logs', 'Mobile Punching Logs')}
+                          />
+                        )}
+                      </div>
+                    </section>
                   )}
                 </div>
               </>
