@@ -4,12 +4,11 @@ import RefreshButton from "@/components/refresh-button";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { db } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 import { ensureOcrWorker, getOcrLoadState, resetOcrWorker, subscribeOcrLoadState } from "@/utils/ocrWorker";
 import { PSM } from "tesseract.js";
 import { parseMRZ as parseFastMRZ } from "mrz-fast";
 import { parse as parseMRZText } from "mrz";
-import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where, orderBy } from "firebase/firestore";
 import { motion } from "framer-motion";
 import { 
   AlertTriangle, Calendar, Camera, CheckCircle2, ChevronRight, Clock, Globe,
@@ -33,9 +32,41 @@ type PassportRecord = {
   nationality: string;
   sex?: string;
   userId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 };
+
+type PassportRow = {
+  id: string;
+  passport_number: string;
+  full_name: string;
+  date_of_birth: string | null;
+  place_of_birth: string | null;
+  place_of_issue: string | null;
+  date_of_issue: string | null;
+  date_of_expiry: string | null;
+  nationality: string | null;
+  sex: string | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+const mapPassportRow = (row: PassportRow): PassportRecord => ({
+  id: row.id,
+  passportNumber: row.passport_number,
+  fullName: row.full_name,
+  dateOfBirth: row.date_of_birth ?? "",
+  placeOfBirth: row.place_of_birth ?? "",
+  placeOfIssue: row.place_of_issue ?? "",
+  dateOfIssue: row.date_of_issue ?? "",
+  dateOfExpiry: row.date_of_expiry ?? "",
+  nationality: row.nationality ?? "",
+  sex: row.sex ?? undefined,
+  userId: row.user_id,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
 
 // Shared input style for the form
 const fieldStyle: React.CSSProperties = {
@@ -1064,19 +1095,14 @@ export default function Passports() {
 
       if (!user?.id) return;
 
-      const q = query(
-        collection(db, "passports"),
-        where("userId", "==", user.id),
-        orderBy("createdAt", "desc")
-      );
+      const { data, error } = await supabase
+        .from("passports")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
 
-      const snapshot = await getDocs(q);
-      const fetchedPassports: PassportRecord[] = [];
-      snapshot.forEach((doc) => {
-        fetchedPassports.push({ id: doc.id, ...doc.data() } as PassportRecord);
-      });
-
-      setPassports(fetchedPassports);
+      setPassports(((data ?? []) as PassportRow[]).map(mapPassportRow));
 
       if (isManualRefresh) {
         setRefreshCompleted(true);
@@ -1117,27 +1143,33 @@ export default function Passports() {
     setSubmitting(true);
     try {
       const passportData = {
-        passportNumber,
-        fullName,
-        dateOfBirth,
-        placeOfBirth,
-        placeOfIssue,
-        dateOfIssue,
-        dateOfExpiry,
+        passport_number: passportNumber,
+        full_name: fullName,
+        date_of_birth: dateOfBirth || null,
+        place_of_birth: placeOfBirth || null,
+        place_of_issue: placeOfIssue || null,
+        date_of_issue: dateOfIssue || null,
+        date_of_expiry: dateOfExpiry || null,
         nationality,
         sex,
-        userId: user.id,
-        updatedAt: new Date(),
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
       };
 
       if (editingPassport) {
-        await updateDoc(doc(db, "passports", editingPassport.id), passportData);
+        const { data, error } = await supabase
+          .from("passports")
+          .update(passportData)
+          .eq("id", editingPassport.id)
+          .eq("user_id", user.id)
+          .select("id")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("Passport was not found or cannot be updated.");
         toast.success("Passport updated successfully");
       } else {
-        await addDoc(collection(db, "passports"), {
-          ...passportData,
-          createdAt: new Date(),
-        });
+        const { error } = await supabase.from("passports").insert(passportData);
+        if (error) throw error;
         toast.success("Passport added successfully");
       }
 
@@ -1188,7 +1220,16 @@ export default function Passports() {
     if (!deletingId) return;
 
     try {
-      await deleteDoc(doc(db, "passports", deletingId));
+      if (!user?.id) throw new Error("You must be signed in to delete a passport.");
+      const { data, error } = await supabase
+        .from("passports")
+        .delete()
+        .eq("id", deletingId)
+        .eq("user_id", user.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Passport was not found or cannot be deleted.");
       toast.success("Passport deleted");
       setDeleteDialogOpen(false);
       setDrawerDetailOpen(false);
