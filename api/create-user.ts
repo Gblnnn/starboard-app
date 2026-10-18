@@ -152,13 +152,19 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const { error: rollbackError } = await supabase.auth.admin.deleteUser(createdAuth.user.id);
       if (rollbackError) console.error("Failed to roll back newly created auth user:", rollbackError);
       console.error("Failed to insert user profile:", insertError);
+      const databaseError = [
+        insertError.message,
+        insertError.code ? `code ${insertError.code}` : "",
+        insertError.details || "",
+        insertError.hint ? `Hint: ${insertError.hint}` : "",
+      ].filter(Boolean).join(" — ");
       sendJson(
         response,
         500,
         {
           error: rollbackError
-            ? "The profile could not be saved and the auth account could not be removed. Contact an administrator before retrying."
-            : "Unable to save the user profile. Please retry.",
+            ? `The profile could not be saved and the auth account could not be removed. Contact an administrator before retrying. Database error: ${databaseError}`
+            : `Unable to save the user profile. Database error: ${databaseError}`,
         },
       );
       return;
