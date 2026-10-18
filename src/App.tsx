@@ -70,6 +70,16 @@ const TimesheetEdit = lazy(() => import("./pages/TimesheetEdit"));
 const ProjectTimingBreak = lazy(() => import("./pages/ProjectTimingBreak"));
 const ShiftManagement = lazy(() => import("./pages/shift-management"));
 
+// Petty Cash Management
+const PettyCash = lazy(() => import("./pages/petty-cash-management"));
+const PettyCashNewRequest = lazy(() => import("./pages/petty-cash-management/new-request"));
+const PettyCashSubmitBills = lazy(() => import("./pages/petty-cash-management/submit-bills"));
+const PettyCashApprovals = lazy(() => import("./pages/petty-cash-management/approvals"));
+const PettyCashFinance = lazy(() => import("./pages/petty-cash-management/finance"));
+const PettyCashAssignments = lazy(() => import("./pages/petty-cash-management/assignments"));
+const PettyCashCategories = lazy(() => import("./pages/petty-cash-management/categories"));
+const PettyCashDashboard = lazy(() => import("./pages/petty-cash-management/dashboard"));
+
 // Loading fallback component
 const PageLoader = () => (
   <div style={{
@@ -205,6 +215,16 @@ export default function App() {
             <Route path="/vale-records" element={<ValeRecords />} />
             <Route path="/medicals" element={<Medicals />} />
             <Route path="/history" element={<History />} />
+
+            {/* Petty Cash Management */}
+            <Route path="/petty-cash" element={<PettyCash />} />
+            <Route path="/petty-cash/new-request" element={<PettyCashNewRequest />} />
+            <Route path="/petty-cash/submit-bills" element={<PettyCashSubmitBills />} />
+            <Route path="/petty-cash/approvals" element={<PettyCashApprovals />} />
+            <Route path="/petty-cash/finance" element={<PettyCashFinance />} />
+            <Route path="/petty-cash/assignments" element={<PettyCashAssignments />} />
+            <Route path="/petty-cash/categories" element={<PettyCashCategories />} />
+            <Route path="/petty-cash/dashboard" element={<PettyCashDashboard />} />
           </Route>
 
           <Route path="*" element={<PageNotFound />} />
