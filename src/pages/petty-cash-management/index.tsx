@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { type PettyCashBalance, type PettyCashUser, formatOMR, statusColor, statusLabel } from "./types";
+import { usePettyCashAccess } from "./usePettyCashAccess";
 
 const CARD_STYLE: React.CSSProperties = {
   background: "var(--card, rgba(255,255,255,0.04))",
@@ -42,8 +43,20 @@ export default function PettyCashIndex() {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
-  const isAdmin = userData?.role === "admin";
-  const isFinance = isAdmin || userData?.role === "management";
+  const permissions = usePettyCashAccess();
+  const {
+    isAdmin,
+    isCustodian,
+    isApprover,
+    isFinanceApprover,
+    canAccessDashboard,
+    canAccessFinance,
+    canAccessCategories,
+    canAccessApprovals,
+    canRequestCash,
+    canSubmitBills,
+    canManageAssignments,
+  } = permissions;
 
   const [assignments, setAssignments] = useState<(PettyCashUser & { balance: PettyCashBalance | null })[]>([]);
   const [myRequests, setMyRequests] = useState<any[]>([]);
@@ -104,7 +117,7 @@ export default function PettyCashIndex() {
       }
 
       // Pending approvals count
-      if (isFinance || isAdmin) {
+      if (canAccessFinance) {
         const { count: reqPending } = await supabase
           .from("petty_cash_request")
           .select("id", { count: "exact", head: true })
@@ -114,7 +127,7 @@ export default function PettyCashIndex() {
           .select("id", { count: "exact", head: true })
           .in("status", ["pending_petty_cash_approval", "pending_finance_approval"]);
         setPendingApprovals((reqPending || 0) + (subPending || 0));
-      } else if (empId) {
+      } else if (empId && canAccessApprovals) {
         // approvals where this emp is an approver
         const { count: approvableReq } = await supabase
           .from("petty_cash_request")
@@ -138,7 +151,7 @@ export default function PettyCashIndex() {
 
   useEffect(() => {
     loadData();
-  }, [empId]);
+  }, [empId, canAccessFinance, canAccessApprovals]);
 
   const totalAvailable = assignments.reduce(
     (s, a) => s + (a.balance?.available_balance ?? 0),
@@ -188,34 +201,39 @@ export default function PettyCashIndex() {
           </p>
 
           {/* Quick action buttons */}
-          <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-            {empId && (
-              <>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => navigate("/petty-cash/new-request")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "0.4rem",
-                    padding: "0.6rem 1rem", borderRadius: "0.6rem",
-                    background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)",
-                    color: "white", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  <Plus width="0.9rem" /> Request Cash
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => navigate("/petty-cash/submit-bills")}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "0.4rem",
-                    padding: "0.6rem 1rem", borderRadius: "0.6rem",
-                    background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)",
-                    color: "white", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  <FileText width="0.9rem" /> Submit Bills
-                </motion.button>
-              </>
+          <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+            {canRequestCash && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate("/petty-cash/new-request")}
+                style={{
+                  display: "flex", alignItems: "center", gap: "0.4rem",
+                  padding: "0.6rem 1rem", borderRadius: "0.6rem",
+                  background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)",
+                  color: "white", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <Plus width="0.9rem" /> Request Cash
+              </motion.button>
+            )}
+            {canSubmitBills && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate("/petty-cash/submit-bills")}
+                style={{
+                  display: "flex", alignItems: "center", gap: "0.4rem",
+                  padding: "0.6rem 1rem", borderRadius: "0.6rem",
+                  background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)",
+                  color: "white", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                <FileText width="0.9rem" /> Submit Bills
+              </motion.button>
+            )}
+            {!isCustodian && (isFinanceApprover || isApprover) && (
+              <span style={{ fontSize: "0.78rem", background: "rgba(255,255,255,0.15)", padding: "0.35rem 0.75rem", borderRadius: "999px" }}>
+                Role: <strong>{isFinanceApprover ? "Finance Approver" : "Approver"}</strong>
+              </span>
             )}
           </div>
         </motion.div>
@@ -302,11 +320,11 @@ export default function PettyCashIndex() {
         {/* Quick Nav Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginTop: "0.5rem", marginBottom: "1.5rem" }}>
           {[
-            { label: "Approvals", icon: <ClipboardList width="1.25rem" />, path: "/petty-cash/approvals", badge: pendingApprovals > 0 ? pendingApprovals : 0, color: "#d97706" },
-            { label: "Finance", icon: <CreditCard width="1.25rem" />, path: "/petty-cash/finance", badge: 0, color: "#7c3aed", show: isFinance },
-            { label: "Dashboard", icon: <BadgeDollarSign width="1.25rem" />, path: "/petty-cash/dashboard", badge: 0, color: "#1e3a5f", show: isFinance },
-            { label: "Assignments", icon: <AlertCircle width="1.25rem" />, path: "/petty-cash/assignments", badge: 0, color: "#16a34a", show: isAdmin },
-            { label: "Categories", icon: <FileText width="1.25rem" />, path: "/petty-cash/categories", badge: 0, color: "#0891b2", show: isAdmin },
+            { label: "Approvals", icon: <ClipboardList width="1.25rem" />, path: "/petty-cash/approvals", badge: pendingApprovals > 0 ? pendingApprovals : 0, color: "#d97706", show: canAccessApprovals },
+            { label: "Finance", icon: <CreditCard width="1.25rem" />, path: "/petty-cash/finance", badge: 0, color: "#7c3aed", show: canAccessFinance },
+            { label: "Dashboard", icon: <BadgeDollarSign width="1.25rem" />, path: "/petty-cash/dashboard", badge: 0, color: "#1e3a5f", show: canAccessDashboard },
+            { label: "Categories", icon: <FileText width="1.25rem" />, path: "/petty-cash/categories", badge: 0, color: "#0891b2", show: canAccessCategories },
+            { label: "Assignments", icon: <AlertCircle width="1.25rem" />, path: "/petty-cash/assignments", badge: 0, color: "#16a34a", show: canManageAssignments },
           ]
             .filter(item => item.show !== false)
             .map((item) => (
