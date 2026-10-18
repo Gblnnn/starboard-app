@@ -1018,18 +1018,19 @@ export default function Users() {
         throw new Error("Your Supabase session has expired. Sign in again and retry.");
       }
 
-      const response = await fetch("/.netlify/functions/create-user", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${sessionData.session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          employeeId: selectedEmployee.id,
-          password,
-          clearance: createUserModulePermissions,
-        }),
+      const headers = {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+        "Content-Type": "application/json",
+      };
+      const body = JSON.stringify({
+        employeeId: selectedEmployee.id,
+        password,
+        clearance: createUserModulePermissions,
       });
+      let response = await fetch("/api/create-user", { method: "POST", headers, body });
+      if (response.status === 404) {
+        response = await fetch("/.netlify/functions/create-user", { method: "POST", headers, body });
+      }
       const responseText = await response.text();
       let result: { error?: string } = {};
       try {
