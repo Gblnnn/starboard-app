@@ -87,6 +87,18 @@ const TIMESHEET_FINALIZER_KEY = "timesheet_finalizer";
 const TIMESHEET_VIEWER_KEY = "timesheet_viewer";
 const TIMESHEET_SUMMARY_REPORT_KEY = "timesheet_summary_report";
 
+interface EmployeeRecord {
+  id: string | number;
+  name?: string | null;
+  emp_id?: string | number | null;
+  email?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  project?: string | null;
+  phone?: string | null;
+  status?: string | null;
+}
+
 const ATTENDANCE_SUBOPTIONS = [
   { key: ATTENDANCE_EDIT_KEY, label: 'Editing Privileges' },
   { key: ATTENDANCE_TRANSFERS_KEY, label: 'Transfers Page' },
@@ -788,8 +800,11 @@ export default function Users() {
   const { userData: currentUserData } = useAuth();
 
   const [refreshCompleted, setRefreshCompleted] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeRecord | null>(null);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeesError, setEmployeesError] = useState("");
   const [password, setPassword] = useState("");
   const [passconfirm, setpassconfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -809,6 +824,21 @@ export default function Users() {
   const [modulePermissions, setModulePermissions] = useState<Record<string, boolean>>({});
   const [createUserClearanceDrawerOpen, setCreateUserClearanceDrawerOpen] = useState(false);
   const [createUserModulePermissions, setCreateUserModulePermissions] = useState<Record<string, boolean>>({});
+
+  const filteredEmployees = useMemo(() => {
+    const query = employeeSearch.trim().toLowerCase();
+    if (!query) return employees;
+    return employees.filter((employee) =>
+      [
+        employee.name,
+        employee.emp_id,
+        employee.email,
+        employee.designation,
+        employee.department,
+        employee.project,
+      ].some((value) => String(value || "").toLowerCase().includes(query)),
+    );
+  }, [employees, employeeSearch]);
 
   // const privilegedUsersCount = users.filter((user: any) =>
   //   ["admin", "site_admin", "hr"].includes(String(user.role || "").toLowerCase())
@@ -901,13 +931,43 @@ export default function Users() {
     setAddUserDialog(open);
     if (!open) {
       // Reset form fields when dialog closes
-      setName("");
-      setEmail("");
+      setSelectedEmployee(null);
+      setEmployeeSearch("");
       setPassword("");
       setpassconfirm("");
       setCreateUserModulePermissions({});
     }
   };
+
+  useEffect(() => {
+    if (!addUserDialog) return;
+
+    let cancelled = false;
+    const loadEmployees = async () => {
+      setEmployeesLoading(true);
+      setEmployeesError("");
+      try {
+        const { data, error } = await supabase
+          .from("employees")
+          .select("*")
+          .order("name", { ascending: true });
+        if (error) throw error;
+        if (!cancelled) setEmployees((data || []) as EmployeeRecord[]);
+      } catch (error) {
+        console.error("Error loading employees for user creation:", error);
+        if (!cancelled) {
+          setEmployeesError(error instanceof Error ? error.message : String(error));
+        }
+      } finally {
+        if (!cancelled) setEmployeesLoading(false);
+      }
+    };
+
+    void loadEmployees();
+    return () => {
+      cancelled = true;
+    };
+  }, [addUserDialog]);
 
   // Detect mobile/desktop
   useEffect(() => {
@@ -945,6 +1005,13 @@ export default function Users() {
   const createUser = async () => {
     try {
       setLoading(true);
+      if (!selectedEmployee) {
+        throw new Error("Select an employee before creating a user.");
+      }
+      if (!selectedEmployee.email?.trim()) {
+        throw new Error("The selected employee does not have an email address.");
+      }
+
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
       if (!sessionData.session) {
@@ -958,13 +1025,27 @@ export default function Users() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
+          employeeId: selectedEmployee.id,
           password,
           clearance: createUserModulePermissions,
         }),
       });
-      const result = await response.json();
+      const responseText = await response.text();
+      let result: { error?: string } = {};
+      try {
+        const parsedResult: unknown = responseText ? JSON.parse(responseText) : {};
+        if (!parsedResult || typeof parsedResult !== "object" || Array.isArray(parsedResult)) {
+          throw new Error("The response body was not a JSON object.");
+        }
+        result = parsedResult as { error?: string };
+      } catch {
+        const responseSummary = responseText.trim().slice(0, 180);
+        throw new Error(
+          `User creation endpoint returned an invalid response (HTTP ${response.status}). ${
+            responseSummary || "Check that the Netlify function is deployed and available."
+          }`,
+        );
+      }
       if (!response.ok) {
         throw new Error(result.error || "Unable to create user.");
       }
@@ -972,8 +1053,8 @@ export default function Users() {
       message.success("User created");
       setAddUserDialog(false);
       setCreateUserModulePermissions({});
-      setName("");
-      setEmail("");
+      setSelectedEmployee(null);
+      setEmployeeSearch("");
       setPassword("");
       setpassconfirm("");
       await fetchUsers();
@@ -1472,34 +1553,115 @@ export default function Users() {
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem", justifyContent: "center" }}>
             <h2 style={{ fontSize: "1.25rem", fontWeight: "600" }}>Add User</h2>
           </div>
-          <input
-            placeholder="Enter Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={{
-              borderRadius: "0.5rem",
-              backgroundColor: "rgba(100, 100, 100, 0.05)",
-              border: "1px solid rgba(100, 100, 100, 0.1)",
-              padding: "0.875rem 1rem",
-              color: "inherit",
-              fontSize: "1rem"
-            }}
-          />
-          <input
-            placeholder="Enter Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="off"
-            style={{
-              borderRadius: "0.5rem",
-              backgroundColor: "rgba(100, 100, 100, 0.05)",
-              border: "1px solid rgba(100, 100, 100, 0.1)",
-              padding: "0.875rem 1rem",
-              color: "inherit",
-              fontSize: "1rem"
-            }}
-          />
+          {selectedEmployee ? (
+            <div style={{
+              borderRadius: "0.75rem",
+              border: "1px solid rgba(100, 100, 100, 0.15)",
+              padding: "1rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.35rem",
+              backgroundColor: "rgba(100, 100, 100, 0.04)",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "center" }}>
+                <strong>{selectedEmployee.name || "Unnamed employee"}</strong>
+                <button
+                  type="button"
+                  onClick={() => setSelectedEmployee(null)}
+                  style={{ border: 0, background: "transparent", color: "darkblue", cursor: "pointer" }}
+                >
+                  Change
+                </button>
+              </div>
+              {selectedEmployee.emp_id && <span>ID: {selectedEmployee.emp_id}</span>}
+              <span>{selectedEmployee.email || "No email address on employee record"}</span>
+              {(selectedEmployee.designation || selectedEmployee.department) && (
+                <span>{[selectedEmployee.designation, selectedEmployee.department].filter(Boolean).join(" · ")}</span>
+              )}
+              {(selectedEmployee.project || selectedEmployee.phone) && (
+                <span>{[selectedEmployee.project, selectedEmployee.phone].filter(Boolean).join(" · ")}</span>
+              )}
+              {!selectedEmployee.email?.trim() && (
+                <span role="alert" style={{ color: "darkred" }}>
+                  Add an email to this employee record before creating a user account.
+                </span>
+              )}
+            </div>
+          ) : (
+            <>
+              <input
+                placeholder="Search employees by name, ID, email, department, or project"
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+                autoComplete="off"
+                aria-label="Search employees"
+                style={{
+                  borderRadius: "0.5rem",
+                  backgroundColor: "rgba(100, 100, 100, 0.05)",
+                  border: "1px solid rgba(100, 100, 100, 0.1)",
+                  padding: "0.875rem 1rem",
+                  color: "inherit",
+                  fontSize: "1rem"
+                }}
+              />
+              {employeesLoading && <span>Loading employees...</span>}
+              {employeesError && (
+                <span role="alert" style={{ color: "darkred" }}>
+                  Unable to load employees: {employeesError}
+                </span>
+              )}
+              {!employeesLoading && !employeesError && employees.length === 0 && (
+                <span>No employees found in the employees table.</span>
+              )}
+              {!employeesLoading && filteredEmployees.length > 0 && (
+                <div role="listbox" aria-label="Employees" style={{
+                  maxHeight: "14rem",
+                  overflowY: "auto",
+                  border: "1px solid rgba(100, 100, 100, 0.15)",
+                  borderRadius: "0.5rem",
+                }}>
+                  {filteredEmployees.slice(0, 50).map((employee) => (
+                    <button
+                      key={employee.id}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => setSelectedEmployee(employee)}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                        gap: "0.2rem",
+                        width: "100%",
+                        padding: "0.75rem 1rem",
+                        border: 0,
+                        borderBottom: "1px solid rgba(100, 100, 100, 0.1)",
+                        background: "transparent",
+                        color: "inherit",
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <strong>{employee.name || "Unnamed employee"}</strong>
+                      <span style={{ fontSize: "0.85rem", opacity: 0.75 }}>
+                        {[employee.emp_id && `ID: ${employee.emp_id}`, employee.email, employee.designation, employee.department]
+                          .filter(Boolean)
+                          .join(" · ") || "No additional employee details"}
+                      </span>
+                    </button>
+                  ))}
+                  {filteredEmployees.length > 50 && (
+                    <span style={{ display: "block", padding: "0.65rem 1rem", fontSize: "0.85rem", opacity: 0.7 }}>
+                      Showing first 50 matches. Refine your search to find another employee.
+                    </span>
+                  )}
+                </div>
+              )}
+              {!employeesLoading && employeeSearch.trim() && filteredEmployees.length === 0 && (
+                <span>No employees match “{employeeSearch}”.</span>
+              )}
+            </>
+          )}
           <input
             placeholder="Enter Password"
             type="password"
@@ -1540,16 +1702,16 @@ export default function Users() {
             whileTap={{ scale: 0.97 }}
             whileHover={{ scale: 1.01 }}
             onClick={createUser}
-            disabled={!name || !email || !passconfirm || password !== passconfirm || loading}
+            disabled={!selectedEmployee?.email?.trim() || !passconfirm || password !== passconfirm || loading}
             style={{
               width: "100%",
               padding: "1rem",
               borderRadius: "1rem",
-              background: (!name || !email || !passconfirm || password !== passconfirm || loading) ? "rgba(100, 100, 100, 0.3)" : "black",
+              background: (!selectedEmployee?.email?.trim() || !passconfirm || password !== passconfirm || loading) ? "rgba(100, 100, 100, 0.3)" : "black",
               color: "white",
               fontSize: "1.0625rem",
               border: "none",
-              cursor: (!name || !email || !passconfirm || password !== passconfirm || loading) ? "not-allowed" : "pointer",
+              cursor: (!selectedEmployee?.email?.trim() || !passconfirm || password !== passconfirm || loading) ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
