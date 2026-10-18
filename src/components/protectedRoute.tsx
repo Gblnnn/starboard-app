@@ -39,7 +39,8 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
   attendance_edit: ["/timesheet-edit", "/project-timing-break"],
   shift_management: ["/shift-management"],
   document_editor: ["/document-editor"],
-  mobile_punch: ["/mobile-punch"]
+  mobile_punch: ["/mobile-punch"],
+  petty_cash: ["/petty-cash", "/petty-cash/new-request", "/petty-cash/submit-bills", "/petty-cash/approvals", "/petty-cash/finance", "/petty-cash/assignments", "/petty-cash/categories", "/petty-cash/dashboard"]
 };
 
 const routeMatchesPath = (route: string, path: string): boolean => {
@@ -109,6 +110,11 @@ export default function ProtectedRoutes() {
     Boolean(userData.emp_id) ||
     modulePermissions.shift_management === true
   );
+  const hasPettyCashAccess = currentPath.startsWith("/petty-cash") && (
+    userData.role === "admin" ||
+    Boolean(userData.emp_id) ||
+    modulePermissions.petty_cash === true
+  );
 
   const isPathAllowed = (path: string, routes: string[]): boolean => {
     if (routes.includes("*")) return true;
@@ -120,16 +126,16 @@ export default function ProtectedRoutes() {
     .some((routes) => routes.includes(currentPath));
 
   if (isModuleProtected) {
-    if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess) {
+    if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess) {
       const defaultRoute = allowedRoutes && allowedRoutes.length > 0 ? allowedRoutes[0] : "/index";
       return <Navigate to={defaultRoute} replace />;
     }
   } else {
     if (allowedRoutes && allowedRoutes.length > 0 && !allowedRoutes.includes("*")) {
-      if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess) {
+      if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess) {
         return <Navigate to={allowedRoutes[0]} replace />;
       }
-    } else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess && !hasShiftManagementAccess) {
+    } else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess) {
       return <Navigate to="/index" replace />;
     }
   }
