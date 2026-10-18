@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { formatOMR } from "./types";
+import { usePettyCashAccess } from "./usePettyCashAccess";
+import AccessDenied from "./AccessDenied";
 
 interface ProjectOption {
   project_code: string;
@@ -38,6 +40,7 @@ export default function NewRequest() {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
+  const { loading: accessLoading, canRequestCash } = usePettyCashAccess();
 
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -128,6 +131,15 @@ export default function NewRequest() {
       fn(false);
     }
   };
+
+  if (!accessLoading && !canRequestCash) {
+    return (
+      <AccessDenied
+        title="Request Restricted"
+        message="Only designated project custodians and administrators can submit petty cash advance requests."
+      />
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: "100svh", paddingBottom: "2rem" }}>
