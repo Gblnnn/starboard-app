@@ -7,6 +7,8 @@ import moment from "moment";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { type PettyCashRequest, type PettyCashSubmission, formatOMR, statusColor, statusLabel } from "./types";
+import { usePettyCashAccess } from "./usePettyCashAccess";
+import AccessDenied from "./AccessDenied";
 
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
@@ -27,6 +29,7 @@ const PILL = (color: string, children: React.ReactNode) => (
 export default function Finance() {
   const { userData } = useAuth();
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
+  const { loading: accessLoading, canAccessFinance } = usePettyCashAccess();
 
   const [tab, setTab] = useState<"funding" | "reimbursements">("funding");
   const [approvedRequests, setApprovedRequests] = useState<(PettyCashRequest & { total_paid: number })[]>([]);
@@ -137,6 +140,15 @@ export default function Finance() {
       setPaying(false);
     }
   };
+
+  if (!accessLoading && !canAccessFinance) {
+    return (
+      <AccessDenied
+        title="Finance Restricted"
+        message="Access to finance disbursements and reimbursement settlements is restricted to Finance Approvers and Administrators."
+      />
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: "100svh", paddingBottom: "2rem" }}>
