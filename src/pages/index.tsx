@@ -222,7 +222,7 @@ export default function Index() {
     hasModuleAccess('transfer_requests') ||
     hasModuleAccess('shift_logs');
   const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
-  const hasPettyCash = admin || hasModuleAccess('petty_cash');
+  const hasPettyCash = admin || hasModuleAccess('petty_cash') || Boolean(userData?.emp_id);
 
   const hasAnyModules = () =>
     userData?.role === 'admin' ||
