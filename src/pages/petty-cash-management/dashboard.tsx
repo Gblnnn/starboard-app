@@ -8,6 +8,8 @@ import moment from "moment";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { type PettyCashBalance, formatOMR } from "./types";
+import { usePettyCashAccess } from "./usePettyCashAccess";
+import AccessDenied from "./AccessDenied";
 
 const CARD: React.CSSProperties = {
   border: "1px solid rgba(100,100,100,0.12)",
@@ -16,6 +18,7 @@ const CARD: React.CSSProperties = {
 };
 
 export default function Dashboard() {
+  const { loading: accessLoading, canAccessDashboard } = usePettyCashAccess();
 
   const [balances, setBalances] = useState<PettyCashBalance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,6 +136,15 @@ export default function Dashboard() {
   const printLedger = () => {
     window.print();
   };
+
+  if (!accessLoading && !canAccessDashboard) {
+    return (
+      <AccessDenied
+        title="Dashboard Restricted"
+        message="Access to the petty cash dashboard is restricted to Finance Approvers, Petty Cash Approvers, and Administrators."
+      />
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: "100svh", paddingBottom: "2rem" }}>
