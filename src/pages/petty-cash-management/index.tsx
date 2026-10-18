@@ -80,6 +80,13 @@ export default function PettyCashIndex() {
       const { data: assignData, error: assignErr } = await assignQuery;
       if (assignErr) throw assignErr;
 
+      const custodianIds = [...new Set((assignData || []).map((assignment) => assignment.emp_id))];
+      const { data: employees, error: employeesError } = custodianIds.length
+        ? await supabase.from("employees").select("emp_id, name").in("emp_id", custodianIds)
+        : { data: [], error: null };
+      if (employeesError) throw employeesError;
+      const custodianNames = new Map((employees || []).map((employee) => [employee.emp_id, employee.name]));
+
       // Load balance for each assignment
       const assignmentsWithBalance = await Promise.all(
         (assignData || []).map(async (a) => {
@@ -90,7 +97,7 @@ export default function PettyCashIndex() {
             .eq("emp_id", a.emp_id)
             .eq("active", true)
             .maybeSingle();
-          return { ...a, balance: bal ?? null };
+          return { ...a, custodian_name: custodianNames.get(a.emp_id) || "", balance: bal ?? null };
         })
       );
       setAssignments(assignmentsWithBalance);
@@ -238,85 +245,6 @@ export default function PettyCashIndex() {
           </div>
         </motion.div>
 
-        {/* Project Balances */}
-        {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "3rem 0" }}>
-            <Loader2 className="animate-spin" />
-          </div>
-        ) : (
-          <>
-            {assignments.length === 0 && (
-              <div style={{ ...CARD_STYLE, textAlign: "center", padding: "2rem", color: "#64748b" }}>
-                <Wallet width="2rem" style={{ margin: "0 auto 0.75rem", opacity: 0.4 }} />
-                <p style={{ fontWeight: 600, marginBottom: "0.25rem" }}>No Active Assignments</p>
-                <p style={{ fontSize: "0.8rem" }}>
-                  {isAdmin ? "Create a petty cash assignment from the Assignments screen." : "You have no active petty cash assignments."}
-                </p>
-                {isAdmin && (
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => navigate("/petty-cash/assignments")}
-                    style={{
-                      marginTop: "1rem", padding: "0.6rem 1.25rem",
-                      borderRadius: "0.6rem", background: "#1e3a5f",
-                      color: "white", border: "none", fontSize: "0.85rem",
-                      fontWeight: 600, cursor: "pointer",
-                    }}
-                  >
-                    Manage Assignments
-                  </motion.button>
-                )}
-              </div>
-            )}
-
-            {assignments.map((a) => (
-              <motion.div
-                key={a.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                style={{ ...CARD_STYLE, marginBottom: "0.75rem" }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>{a.project_code}</p>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b" }}>Custodian: {a.emp_id}</p>
-                  </div>
-                  <span style={PILL_STYLE("#16a34a")}>
-                    <CheckCircle2 width="0.65rem" /> Active
-                  </span>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                  <div>
-                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Available Balance</p>
-                    <p style={{ fontWeight: 700, fontSize: "1.1rem", color: (a.balance?.available_balance ?? 0) < 0 ? "#dc2626" : "inherit" }}>
-                      {formatOMR(a.balance?.available_balance)}
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Pending Claims</p>
-                    <p style={{ fontWeight: 600, fontSize: "0.95rem", color: "#d97706" }}>
-                      {formatOMR(a.balance?.pending_expense_claims)}
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Outstanding Reimbursement</p>
-                    <p style={{ fontWeight: 600, fontSize: "0.95rem", color: (a.balance?.outstanding_reimbursement ?? 0) > 0 ? "#dc2626" : "inherit" }}>
-                      {formatOMR(a.balance?.outstanding_reimbursement)}
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Funding Awaiting Payment</p>
-                    <p style={{ fontWeight: 600, fontSize: "0.95rem", color: "#7c3aed" }}>
-                      {formatOMR(a.balance?.approved_funding_awaiting_payment)}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </>
-        )}
-
         {/* Quick Nav Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginTop: "0.5rem", marginBottom: "1.5rem" }}>
           {[
@@ -358,6 +286,87 @@ export default function PettyCashIndex() {
               </motion.button>
             ))}
         </div>
+
+        {/* Project Balances */}
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: "3rem 0" }}>
+            <Loader2 className="animate-spin" />
+          </div>
+        ) : (
+          <>
+            {assignments.length === 0 && (
+              <div style={{ ...CARD_STYLE, textAlign: "center", padding: "2rem", color: "#64748b" }}>
+                <Wallet width="2rem" style={{ margin: "0 auto 0.75rem", opacity: 0.4 }} />
+                <p style={{ fontWeight: 600, marginBottom: "0.25rem" }}>No Active Assignments</p>
+                <p style={{ fontSize: "0.8rem" }}>
+                  {isAdmin ? "Create a petty cash assignment from the Assignments screen." : "You have no active petty cash assignments."}
+                </p>
+                {isAdmin && (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigate("/petty-cash/assignments")}
+                    style={{
+                      marginTop: "1rem", padding: "0.6rem 1.25rem",
+                      borderRadius: "0.6rem", background: "#1e3a5f",
+                      color: "white", border: "none", fontSize: "0.85rem",
+                      fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Manage Assignments
+                  </motion.button>
+                )}
+              </div>
+            )}
+
+            {assignments.map((a) => (
+              <motion.div
+                key={a.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{ ...CARD_STYLE, marginBottom: "0.75rem" }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>{a.project_code}</p>
+                    <p style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                      Custodian: {a.emp_id}{a.custodian_name ? ` · ${a.custodian_name}` : ""}
+                    </p>
+                  </div>
+                  <span style={PILL_STYLE("#16a34a")}>
+                    <CheckCircle2 width="0.65rem" /> Active
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <div>
+                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Available Balance</p>
+                    <p style={{ fontWeight: 700, fontSize: "1.1rem", color: (a.balance?.available_balance ?? 0) < 0 ? "#dc2626" : "inherit" }}>
+                      {formatOMR(a.balance?.available_balance)}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Pending Claims</p>
+                    <p style={{ fontWeight: 600, fontSize: "0.95rem", color: "#d97706" }}>
+                      {formatOMR(a.balance?.pending_expense_claims)}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Outstanding Reimbursement</p>
+                    <p style={{ fontWeight: 600, fontSize: "0.95rem", color: (a.balance?.outstanding_reimbursement ?? 0) > 0 ? "#dc2626" : "inherit" }}>
+                      {formatOMR(a.balance?.outstanding_reimbursement)}
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.15rem" }}>Funding Awaiting Payment</p>
+                    <p style={{ fontWeight: 600, fontSize: "0.95rem", color: "#7c3aed" }}>
+                      {formatOMR(a.balance?.approved_funding_awaiting_payment)}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </>
+        )}
 
         {/* My Recent Requests */}
         {myRequests.length > 0 && (
