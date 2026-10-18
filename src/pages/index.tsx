@@ -222,6 +222,7 @@ export default function Index() {
     hasModuleAccess('transfer_requests') ||
     hasModuleAccess('shift_logs');
   const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
+  const hasPettyCash = admin || hasModuleAccess('petty_cash');
 
   const hasAnyModules = () =>
     userData?.role === 'admin' ||
@@ -231,7 +232,7 @@ export default function Index() {
     hasHumanResourcesModules ||
     hasTimeAttendanceModules ||
     hasModuleAccess('attendance') ||
-    hasModuleAccess('petty_cash') ||
+    hasPettyCash ||
     hasTickets;
 
   // const getAccessibleModuleCount = () => {
@@ -255,7 +256,7 @@ export default function Index() {
 
   // Authenticate for specific module
   const authenticateModule = (moduleId: string, path: string, moduleName: string) => {
-    if (hasModuleAccess(moduleId)) {
+    if (admin || hasModuleAccess(moduleId)) {
       navigate(path);
     } else {
       toast.error(`No clearance to access ${moduleName}`);
@@ -514,12 +515,18 @@ export default function Index() {
                     />
                   )}
 
-                  {hasModuleAccess('petty_cash') && (
+                  {hasPettyCash && (
                     <GridTile
                       title="Petty Cash"
                       description="Expense logging and petty cash control"
                       icon={<Wallet width="2.5rem" />}
-                      onClick={() => authenticateModule('petty_cash', '/petty-cash', 'Petty Cash')}
+                      onClick={() => {
+                        if (admin || hasModuleAccess('petty_cash')) {
+                          navigate('/petty-cash');
+                        } else {
+                          toast.error('No clearance to access Petty Cash');
+                        }
+                      }}
                     />
                   )}
 
