@@ -6,6 +6,8 @@ import { Loader2, Plus, Tag, Pencil, Power, PowerOff, X, Check } from "lucide-re
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { type PettyCashExpenseCategory } from "./types";
+import { usePettyCashAccess } from "./usePettyCashAccess";
+import AccessDenied from "./AccessDenied";
 
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
@@ -20,6 +22,7 @@ const INPUT_STYLE: React.CSSProperties = {
 export default function Categories() {
   const { userData } = useAuth();
   const isAdmin = userData?.role === "admin";
+  const { loading: accessLoading, canAccessCategories } = usePettyCashAccess();
 
   const [categories, setCategories] = useState<PettyCashExpenseCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,11 +115,20 @@ export default function Categories() {
     return true;
   });
 
+  if (!accessLoading && !canAccessCategories) {
+    return (
+      <AccessDenied
+        title="Categories Restricted"
+        message="Access to expense categories is restricted to Finance Approvers and Administrators."
+      />
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: "100svh", paddingBottom: "2rem" }}>
       <Back fixed blurBG title="Expense Categories" icon={<Tag width="1.125rem" />}
         extra={
-          isAdmin && (
+          canAccessCategories && (
             <button
               onClick={openCreate}
               style={{ display: "flex", alignItems: "center", gap: "0.35rem", padding: "0.5rem 0.875rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
