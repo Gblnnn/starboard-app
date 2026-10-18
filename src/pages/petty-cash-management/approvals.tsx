@@ -17,6 +17,8 @@ import {
   statusColor,
   statusLabel,
 } from "./types";
+import { usePettyCashAccess } from "./usePettyCashAccess";
+import AccessDenied from "./AccessDenied";
 
 const PILL = (color: string, children: React.ReactNode) => (
   <span style={{
@@ -43,6 +45,7 @@ export default function Approvals() {
   const { userData } = useAuth();
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
   const isAdmin = userData?.role === "admin";
+  const { loading: accessLoading, canAccessApprovals } = usePettyCashAccess();
   const isFinance = isAdmin || userData?.role === "management";
 
   const [tab, setTab] = useState<"requests" | "submissions">("requests");
@@ -272,6 +275,15 @@ export default function Approvals() {
   const canApproveSubFin = (sub: PettyCashSubmission) =>
     sub.status === "pending_finance_approval" &&
     (isFinance || sub.fin_approver_id === empId);
+
+  if (!accessLoading && !canAccessApprovals) {
+    return (
+      <AccessDenied
+        title="Approvals Restricted"
+        message="Access to the approvals section is restricted to designated Petty Cash Approvers and Administrators."
+      />
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: "100svh", paddingBottom: "2rem" }}>
