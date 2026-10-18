@@ -96,7 +96,7 @@ function SearchableSelect({
           alignItems: "center",
           justifyContent: "space-between",
           cursor: disabled ? "not-allowed" : "pointer",
-          background: "var(--background, #fff)",
+          background: "#fff",
           color: selectedOption ? "inherit" : "rgba(100,100,100,0.6)",
           textAlign: "left",
         }}
@@ -138,7 +138,7 @@ function SearchableSelect({
             left: 0,
             right: 0,
             zIndex: 150,
-            background: "var(--background, #fff)",
+            background: "#fff",
             border: "1px solid rgba(100,100,100,0.25)",
             borderRadius: "0.75rem",
             boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
@@ -517,7 +517,7 @@ export default function Assignments() {
       {createDialog && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100 }}>
           <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-            style={{ background: "var(--background, #fff)", borderRadius: "1.25rem 1.25rem 0 0", padding: "1.5rem", width: "100%", maxWidth: 520, maxHeight: "90svh", overflowY: "auto" }}>
+            style={{ background: "#fff", color: "#111827", opacity: 1, borderRadius: "1.25rem 1.25rem 0 0", padding: "1.5rem", width: "100%", maxWidth: 520, maxHeight: "90svh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
               <h3 style={{ fontWeight: 700 }}>{editTarget ? "Edit Assignment" : "New Assignment"}</h3>
               <button onClick={() => setCreateDialog(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><X width="1.25rem" /></button>
