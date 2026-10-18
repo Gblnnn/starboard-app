@@ -1,4 +1,4 @@
-import createUser from "../netlify/functions/create-user.mts";
+import createUserHandler from "../server/create-user-handler";
 
 interface ApiRequest {
   method?: string;
@@ -39,7 +39,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       new URL(request.url || "/api/create-user", "http://localhost"),
       { method: "POST", headers, body },
     );
-    const functionResponse = await createUser(functionRequest);
+    const functionResponse = await createUserHandler(functionRequest);
 
     response.statusCode = functionResponse.status;
     functionResponse.headers.forEach((value, name) => response.setHeader(name, value));
