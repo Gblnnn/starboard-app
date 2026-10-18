@@ -6,7 +6,6 @@ import { ResponsiveModal } from "@/components/responsive-modal";
 import RoleSelect from "@/components/role-select";
 import DefaultDialog from "@/components/ui/default-dialog";
 import { message } from "antd";
-import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -773,6 +772,7 @@ export default function Users() {
   const [showModuleIcons, setShowModuleIcons] = useState(false);
   const [fetchingData, setfetchingData] = useState(false);
   const [users, setUsers] = useState([]);
+  const [usersError, setUsersError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredUsers = useMemo(() => {
@@ -809,8 +809,6 @@ export default function Users() {
   const [modulePermissions, setModulePermissions] = useState<Record<string, boolean>>({});
   const [createUserClearanceDrawerOpen, setCreateUserClearanceDrawerOpen] = useState(false);
   const [createUserModulePermissions, setCreateUserModulePermissions] = useState<Record<string, boolean>>({});
-
-  const auth = getAuth();
 
   // const privilegedUsersCount = users.filter((user: any) =>
   //   ["admin", "site_admin", "hr"].includes(String(user.role || "").toLowerCase())
@@ -947,42 +945,44 @@ export default function Users() {
   const createUser = async () => {
     try {
       setLoading(true);
-
-      const { data: recordsSnapshot, error: recordsError } = await supabase
-        .from("employees")
-        .select("*")
-        .eq("email", email.trim());
-
-      if (recordsError || !recordsSnapshot || recordsSnapshot.length === 0) {
-        setLoading(false);
-        message.error("Cannot create user. Record Master entry is required first.");
-        return;
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        throw new Error("Your Supabase session has expired. Sign in again and retry.");
       }
 
-      const recordData = recordsSnapshot[0];
-      await createUserWithEmailAndPassword(auth, email, password);
-      await supabase.from("users").insert({
-        name: recordData.name || name,
-        email: email.trim(),
-        role: "profile",  // system access role
-        designation: recordData.designation || "",  // job title
-        clearance: JSON.stringify(createUserModulePermissions),
-        editor: "false",
-        sensitive_data: "false",
+      const response = await fetch("/.netlify/functions/create-user", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          clearance: createUserModulePermissions,
+        }),
       });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to create user.");
+      }
+
       message.success("User created");
-      setLoading(false);
       setAddUserDialog(false);
       setCreateUserModulePermissions({});
-      // Reset create user form fields
       setName("");
       setEmail("");
       setPassword("");
       setpassconfirm("");
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Error creating user:", error);
+      message.error(errorMessage);
+    } finally {
       setLoading(false);
-      message.error(String(error));
     }
   };
 
@@ -1010,49 +1010,50 @@ export default function Users() {
 
   const fetchUsers = async () => {
     setfetchingData(true);
-    const { data: querySnapshot, error } = await supabase
-      .from("users")
-      .select("*");
+    setUsersError("");
+    try {
+      const { data: querySnapshot, error } = await supabase
+        .from("users")
+        .select("*");
 
-    if (error) {
-      console.error(error);
-      setfetchingData(false);
-      return;
-    }
+      if (error) throw error;
 
-    let fetchedData: any = querySnapshot || [];
+      let fetchedData: any = querySnapshot || [];
 
-    // Fetch employees to map the true names using emp_id
-    const userEmpIds = fetchedData.map((u: any) => String(u.emp_id)).filter(Boolean);
-    if (userEmpIds.length > 0) {
-      const { data: empData, error: empErr } = await supabase
-        .from('employees')
-        .select('name, emp_id')
-        .in('emp_id', userEmpIds);
-        
-      if (!empErr && empData) {
-        fetchedData = fetchedData.map((user: any) => {
-          const emp = empData.find((e: any) => String(e.emp_id) === String(user.emp_id));
-          return {
-            ...user,
-            name: emp?.name || user.name
-          };
-        });
+      const userEmpIds = fetchedData.map((u: any) => String(u.emp_id)).filter(Boolean);
+      if (userEmpIds.length > 0) {
+        const { data: empData, error: empErr } = await supabase
+          .from('employees')
+          .select('name, emp_id')
+          .in('emp_id', userEmpIds);
+
+        if (!empErr && empData) {
+          fetchedData = fetchedData.map((user: any) => {
+            const emp = empData.find((e: any) => String(e.emp_id) === String(user.emp_id));
+            return {
+              ...user,
+              name: emp?.name || user.name
+            };
+          });
+        }
       }
-    }
 
-    // Sort users by last active time descending, putting inactive users at the end
-    fetchedData.sort((a: any, b: any) => {
-      const timeA = a.last_active ? new Date(a.last_active).getTime() : 0;
-      const timeB = b.last_active ? new Date(b.last_active).getTime() : 0;
-      return timeB - timeA;
-    });
-    setfetchingData(false);
-    setUsers(fetchedData);
-    setRefreshCompleted(true);
-    setTimeout(() => {
-      setRefreshCompleted(false);
-    }, 1000);
+      fetchedData.sort((a: any, b: any) => {
+        const timeA = a.last_active ? new Date(a.last_active).getTime() : 0;
+        const timeB = b.last_active ? new Date(b.last_active).getTime() : 0;
+        return timeB - timeA;
+      });
+      setUsers(fetchedData);
+      setRefreshCompleted(true);
+      setTimeout(() => {
+        setRefreshCompleted(false);
+      }, 1000);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      setUsersError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setfetchingData(false);
+    }
   };
 
   const updateUser = async () => {
@@ -1257,6 +1258,20 @@ export default function Users() {
               paddingBottom: "7rem"
             }}
           >
+            {usersError && (
+              <div
+                role="alert"
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: "1rem",
+                  borderRadius: "0.75rem",
+                  color: "darkred",
+                  background: "rgba(220, 38, 38, 0.08)",
+                }}
+              >
+                Unable to load users: {usersError}
+              </div>
+            )}
             {filteredUsers.length === 0 && searchQuery.trim() && (
               <div
                 style={{
