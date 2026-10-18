@@ -36,12 +36,14 @@ export default async (request: Request) => {
     return jsonResponse({ error: "Invalid request body." }, 400);
   }
 
-  const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
-  const name = typeof payload.name === "string" ? payload.name.trim() : "";
+  const employeeId =
+    typeof payload.employeeId === "string" || typeof payload.employeeId === "number"
+      ? String(payload.employeeId).trim()
+      : "";
   const password = typeof payload.password === "string" ? payload.password : "";
   const clearance = payload.clearance;
-  if (!email.includes("@") || !name || password.length < 6) {
-    return jsonResponse({ error: "Enter a valid email, name, and password of at least 6 characters." }, 400);
+  if (!employeeId || password.length < 6) {
+    return jsonResponse({ error: "Select an employee and provide a password of at least 6 characters." }, 400);
   }
   if (
     !clearance ||
@@ -74,12 +76,22 @@ export default async (request: Request) => {
 
     const { data: employeeRows, error: employeeError } = await supabase
       .from("employees")
-      .select("name, designation")
-      .eq("email", email)
+      .select("*")
+      .eq("id", employeeId)
       .limit(1);
     if (employeeError) throw employeeError;
     if (!employeeRows?.length) {
-      return jsonResponse({ error: "Cannot create user. Record Master entry is required first." }, 400);
+      return jsonResponse({ error: "The selected employee could not be found." }, 404);
+    }
+
+    const employee = employeeRows[0];
+    const email = typeof employee.email === "string" ? employee.email.trim().toLowerCase() : "";
+    const name = typeof employee.name === "string" ? employee.name.trim() : "";
+    if (!email.includes("@")) {
+      return jsonResponse({ error: "Add a valid email address to the employee record before creating a user." }, 400);
+    }
+    if (!name) {
+      return jsonResponse({ error: "Add a name to the employee record before creating a user." }, 400);
     }
 
     const { data: existingUsers, error: existingUserError } = await supabase
@@ -106,10 +118,11 @@ export default async (request: Request) => {
     }
 
     const { error: insertError } = await supabase.from("users").insert({
-      name: employeeRows[0].name || name,
+      name,
       email,
+      emp_id: employee.emp_id ?? null,
       role: "profile",
-      designation: employeeRows[0].designation || "",
+      designation: employee.designation || "",
       clearance: JSON.stringify(clearance),
       editor: "false",
       sensitive_data: "false",
