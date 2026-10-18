@@ -15,6 +15,8 @@ import {
   type FuelLogEntry,
   formatOMR,
 } from "./types";
+import { usePettyCashAccess } from "./usePettyCashAccess";
+import AccessDenied from "./AccessDenied";
 
 interface BillLine {
   id: string; // client-side temp id
@@ -58,6 +60,7 @@ export default function SubmitBills() {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
+  const { loading: accessLoading, canSubmitBills } = usePettyCashAccess();
 
   // Assignment / project state
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
@@ -303,6 +306,15 @@ export default function SubmitBills() {
       fn(false);
     }
   };
+
+  if (!accessLoading && !canSubmitBills) {
+    return (
+      <AccessDenied
+        title="Submission Restricted"
+        message="Only designated project custodians and administrators can submit expense bills and claims."
+      />
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: "100svh", paddingBottom: "3rem" }}>
