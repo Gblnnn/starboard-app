@@ -2,7 +2,7 @@ import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { Loader2, PlusCircle, Send, Save } from "lucide-react";
+import { Loader2, PlusCircle, Printer, Send, Save } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,20 @@ interface ProjectOption {
   emp_id: string;
   assignment_id: number;
   balance: number;
+}
+
+interface UnsettledRequest {
+  id: number;
+  request_number: string;
+  request_date: string;
+  project_code: string;
+  emp_id: string;
+  custodian_name: string;
+  particulars: string;
+  request_amount: number;
+  approved_amount: number;
+  total_paid: number;
+  outstanding: number;
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -51,6 +65,11 @@ export default function NewRequest() {
   const [requestAmount, setRequestAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reportFrom, setReportFrom] = useState(moment().startOf("month").format("YYYY-MM-DD"));
+  const [reportTo, setReportTo] = useState(moment().format("YYYY-MM-DD"));
+  const [unsettledRequests, setUnsettledRequests] = useState<UnsettledRequest[]>([]);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [reportLoaded, setReportLoaded] = useState(false);
 
   useEffect(() => {
     if (!empId) return;
@@ -93,6 +112,74 @@ export default function NewRequest() {
   }, [empId]);
 
   const selectedProjectData = projects.find((p) => p.project_code === selectedProject);
+
+  const loadUnsettledRequests = async () => {
+    if (!reportFrom || !reportTo || reportFrom > reportTo) {
+      toast.error("Select a valid date range");
+      return;
+    }
+
+    setLoadingReport(true);
+    setReportLoaded(false);
+    try {
+      const { data, error } = await supabase
+        .from("petty_cash_request")
+        .select("id,request_number,request_date,project_code,emp_id,particulars,request_amount,approved_amount,petty_cash_request_payment(payment_amount)")
+        .in("status", ["approved", "partially_paid"])
+        .gte("request_date", reportFrom)
+        .lte("request_date", reportTo)
+        .order("request_date", { ascending: true });
+      if (error) throw error;
+
+      const custodianIds = [...new Set((data || []).map((request) => request.emp_id))];
+      const { data: employees, error: employeesError } = custodianIds.length
+        ? await supabase.from("employees").select("emp_id, name").in("emp_id", custodianIds)
+        : { data: [], error: null };
+      if (employeesError) throw employeesError;
+      const custodianNames = new Map((employees || []).map((employee) => [employee.emp_id, employee.name]));
+      const rows = (data || []).map((request) => {
+        const approvedAmount = Number(request.approved_amount ?? 0);
+        const totalPaid = (request.petty_cash_request_payment || []).reduce(
+          (total, payment) => total + Number(payment.payment_amount || 0),
+          0
+        );
+        return {
+          id: request.id,
+          request_number: request.request_number,
+          request_date: request.request_date,
+          project_code: request.project_code,
+          emp_id: request.emp_id,
+          custodian_name: custodianNames.get(request.emp_id) || (request.emp_id === empId ? userData?.name || "" : ""),
+          particulars: request.particulars,
+          request_amount: Number(request.request_amount),
+          approved_amount: approvedAmount,
+          total_paid: totalPaid,
+          outstanding: Math.max(0, approvedAmount - totalPaid),
+        };
+      }).filter((request) => request.outstanding > 0.0001);
+
+      setUnsettledRequests(rows);
+      setReportLoaded(true);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to load unsettled cash requests");
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const printUnsettledRequests = () => {
+    document.body.classList.add("pc-print-mode");
+    window.print();
+  };
+
+  useEffect(() => {
+    const clearPrintMode = () => document.body.classList.remove("pc-print-mode");
+    window.addEventListener("afterprint", clearPrintMode);
+    return () => {
+      window.removeEventListener("afterprint", clearPrintMode);
+      clearPrintMode();
+    };
+  }, []);
 
   const handleSave = async (submitForApproval: boolean) => {
     if (!empId) { toast.error("Employee ID not found"); return; }
@@ -268,7 +355,76 @@ export default function NewRequest() {
             Submit for Approval
           </motion.button>
         </div>
+
+        {/* Unsettled cash request report */}
+        <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
+          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Unsettled Cash Requests</h3>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Only approved requests with an outstanding unpaid amount are included.</p>
+          <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+            <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
+            <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
+          </div>
+          <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <button type="button" onClick={loadUnsettledRequests} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+              {loadingReport ? "Loading..." : "Load Unsettled Requests"}
+            </button>
+            {reportLoaded && unsettledRequests.length > 0 && (
+              <button type="button" onClick={printUnsettledRequests} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <Printer width="0.9rem" /> Print
+              </button>
+            )}
+          </div>
+          {reportLoaded && (
+            <div className="pc-print-report" style={{ overflowX: "auto" }}>
+              <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
+                <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
+                <p>Petty Cash Request / Reimbursement Report</p>
+                <p>{moment(reportFrom).format("DD MMM YYYY")} – {moment(reportTo).format("DD MMM YYYY")}</p>
+              </header>
+              {unsettledRequests.length === 0 ? (
+                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No unsettled cash requests in this date range.</p>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                  <thead><tr style={{ background: "#e5e7eb" }}>
+                    {["Date", "Request No.", "Project", "Custodian", "Particulars", "Requested", "Approved", "Paid", "Outstanding"].map((heading) => (
+                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Requested", "Approved", "Paid", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {unsettledRequests.map((request) => (
+                      <tr key={request.id}>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(request.request_date).format("DD MMM YYYY")}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.request_number}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.project_code}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.emp_id}{request.custodian_name ? ` · ${request.custodian_name}` : ""}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.particulars}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.request_amount)}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.approved_amount)}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.total_paid)}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.outstanding)}</td>
+                      </tr>
+                    ))}
+                    <tr><td colSpan={8} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
+                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(unsettledRequests.reduce((total, request) => total + request.outstanding, 0))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+              <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", marginTop: "2rem" }}>
+                <span>Custodian</span><span>Approved By</span><span>Accounts/Finance</span>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
+      <style>{`@media print {
+        @page { size: A4 landscape; margin: 10mm; }
+        body.pc-print-mode * { visibility: hidden !important; }
+        body.pc-print-mode .pc-print-report, body.pc-print-mode .pc-print-report * { visibility: visible !important; }
+        body.pc-print-mode .pc-print-report { position: fixed; inset: 0; width: 100%; overflow: visible !important; background: white; color: black; padding: 0; font-size: 10px; }
+        body.pc-print-mode .pc-report-controls { display: none !important; }
+        body.pc-print-mode .pc-report-heading { margin-bottom: 8px !important; }
+      }`}</style>
     </motion.div>
   );
 }
