@@ -3,10 +3,10 @@ import Back from "@/components/back";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import {
-  AlertCircle, Check, Loader2, Plus, UserCog, X,
+  AlertCircle, Check, ChevronDown, Loader2, Plus, Search, UserCog, X,
 } from "lucide-react";
 import moment from "moment";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { type PettyCashUser, formatOMR } from "./types";
 
@@ -33,6 +33,228 @@ const INPUT_STYLE: React.CSSProperties = {
 const LABEL_STYLE: React.CSSProperties = {
   fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.3rem", display: "block", opacity: 0.7,
 };
+
+interface SearchableOption {
+  value: string;
+  label: string;
+}
+
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "Select...",
+  disabled = false,
+  allowClear = false,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: SearchableOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  allowClear?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const filtered = options.filter(
+    (o) =>
+      o.label.toLowerCase().includes(query.trim().toLowerCase()) ||
+      o.value.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (!disabled) {
+            setOpen((prev) => !prev);
+            setQuery("");
+          }
+        }}
+        style={{
+          ...INPUT_STYLE,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          cursor: disabled ? "not-allowed" : "pointer",
+          background: "var(--background, #fff)",
+          color: selectedOption ? "inherit" : "rgba(100,100,100,0.6)",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: "0.5rem" }}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0 }}>
+          {allowClear && value && !disabled && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("");
+              }}
+              style={{ padding: "0.15rem", borderRadius: "999px", opacity: 0.6, cursor: "pointer", display: "flex" }}
+            >
+              <X width="0.85rem" height="0.85rem" />
+            </span>
+          )}
+          <ChevronDown
+            width="0.95rem"
+            height="0.95rem"
+            style={{
+              transition: "transform 0.2s ease",
+              transform: open ? "rotate(180deg)" : "rotate(0deg)",
+              opacity: 0.6,
+            }}
+          />
+        </div>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 150,
+            background: "var(--background, #fff)",
+            border: "1px solid rgba(100,100,100,0.25)",
+            borderRadius: "0.75rem",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+            padding: "0.5rem",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              padding: "0.4rem 0.6rem",
+              borderRadius: "0.5rem",
+              border: "1px solid rgba(100,100,100,0.2)",
+              background: "rgba(100,100,100,0.05)",
+              marginBottom: "0.4rem",
+            }}
+          >
+            <Search width="0.85rem" height="0.85rem" style={{ opacity: 0.5, flexShrink: 0 }} />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Type to search..."
+              style={{
+                width: "100%",
+                border: "none",
+                background: "transparent",
+                outline: "none",
+                fontSize: "0.82rem",
+                fontFamily: "inherit",
+                color: "inherit",
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, opacity: 0.5, display: "flex" }}
+              >
+                <X width="0.8rem" height="0.8rem" />
+              </button>
+            )}
+          </div>
+
+          <div style={{ maxHeight: "180px", overflowY: "auto" }}>
+            {allowClear && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "0.5rem 0.6rem",
+                  borderRadius: "0.45rem",
+                  border: "none",
+                  background: !value ? "rgba(30,58,95,0.08)" : "transparent",
+                  color: !value ? "#1e3a5f" : "inherit",
+                  fontWeight: !value ? 700 : 400,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                  display: "block",
+                }}
+              >
+                {placeholder}
+              </button>
+            )}
+            {filtered.length === 0 ? (
+              <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.8rem", opacity: 0.6 }}>
+                No results found
+              </div>
+            ) : (
+              filtered.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.5rem 0.6rem",
+                      borderRadius: "0.45rem",
+                      border: "none",
+                      background: isSelected ? "rgba(30,58,95,0.1)" : "transparent",
+                      color: isSelected ? "#1e3a5f" : "inherit",
+                      fontWeight: isSelected ? 700 : 400,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {opt.label}
+                    </span>
+                    {isSelected && <Check width="0.85rem" height="0.85rem" style={{ flexShrink: 0, color: "#1e3a5f" }} />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Assignments() {
   const { userData } = useAuth();
@@ -75,6 +297,7 @@ export default function Assignments() {
       const { data: empData } = await supabase
         .from("employees")
         .select("emp_id, name")
+        .eq("emp_type", "staff")
         .not("emp_id", "is", null)
         .order("name");
       setEmployees((empData || []).map((e) => ({ emp_id: String(e.emp_id), name: e.name || "" })));
@@ -293,34 +516,56 @@ export default function Assignments() {
             {!editTarget && (
               <div style={{ marginBottom: "1rem" }}>
                 <label style={LABEL_STYLE}>Project *</label>
-                <select value={formProject} onChange={(e) => setFormProject(e.target.value)} style={INPUT_STYLE}>
-                  <option value="">— Select Project —</option>
-                  {projects.map((p) => <option key={p.project_code} value={p.project_code}>{p.project_code} — {p.project_name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={formProject}
+                  onChange={setFormProject}
+                  options={projects.map((p) => ({
+                    value: p.project_code,
+                    label: `${p.project_code} — ${p.project_name}`,
+                  }))}
+                  placeholder="— Select Project —"
+                />
               </div>
             )}
             {!editTarget && (
               <div style={{ marginBottom: "1rem" }}>
                 <label style={LABEL_STYLE}>Custodian *</label>
-                <select value={formEmpId} onChange={(e) => setFormEmpId(e.target.value)} style={INPUT_STYLE}>
-                  <option value="">— Select Employee —</option>
-                  {employees.map((e) => <option key={e.emp_id} value={e.emp_id}>{e.emp_id} — {e.name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={formEmpId}
+                  onChange={setFormEmpId}
+                  options={employees.map((e) => ({
+                    value: e.emp_id,
+                    label: `${e.emp_id} — ${e.name}`,
+                  }))}
+                  placeholder="— Select Employee —"
+                />
               </div>
             )}
             <div style={{ marginBottom: "1rem" }}>
               <label style={LABEL_STYLE}>Petty Cash Approver</label>
-              <select value={formApprover} onChange={(e) => setFormApprover(e.target.value)} style={INPUT_STYLE}>
-                <option value="">— None —</option>
-                {employees.map((e) => <option key={e.emp_id} value={e.emp_id}>{e.emp_id} — {e.name}</option>)}
-              </select>
+              <SearchableSelect
+                value={formApprover}
+                onChange={setFormApprover}
+                options={employees.map((e) => ({
+                  value: e.emp_id,
+                  label: `${e.emp_id} — ${e.name}`,
+                }))}
+                placeholder="— None —"
+                allowClear
+              />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <label style={LABEL_STYLE}>Finance Approver</label>
-              <select value={formFinApprover} onChange={(e) => setFormFinApprover(e.target.value)} style={INPUT_STYLE}>
-                <option value="">— None —</option>
-                {employees.map((e) => <option key={e.emp_id} value={e.emp_id}>{e.emp_id} — {e.name}</option>)}
-              </select>
+              <SearchableSelect
+                value={formFinApprover}
+                onChange={setFormFinApprover}
+                options={employees.map((e) => ({
+                  value: e.emp_id,
+                  label: `${e.emp_id} — ${e.name}`,
+                }))}
+                placeholder="— None —"
+                allowClear
+              />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1.25rem" }}>
               <div>
@@ -385,12 +630,17 @@ export default function Assignments() {
                   <>
                     <div style={{ marginBottom: "1rem" }}>
                       <label style={LABEL_STYLE}>New Custodian *</label>
-                      <select value={handoverNewEmp} onChange={(e) => setHandoverNewEmp(e.target.value)} style={INPUT_STYLE}>
-                        <option value="">— Select New Custodian —</option>
-                        {employees.filter((e) => e.emp_id !== handoverDialog.emp_id).map((e) => (
-                          <option key={e.emp_id} value={e.emp_id}>{e.emp_id} — {e.name}</option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={handoverNewEmp}
+                        onChange={setHandoverNewEmp}
+                        options={employees
+                          .filter((e) => e.emp_id !== handoverDialog.emp_id)
+                          .map((e) => ({
+                            value: e.emp_id,
+                            label: `${e.emp_id} — ${e.name}`,
+                          }))}
+                        placeholder="— Select New Custodian —"
+                      />
                     </div>
                     <div style={{ marginBottom: "1.25rem" }}>
                       <label style={LABEL_STYLE}>Opening Balance for New Custodian (OMR)</label>
