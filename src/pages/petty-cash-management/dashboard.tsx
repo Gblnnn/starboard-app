@@ -21,6 +21,8 @@ export default function Dashboard() {
   const { loading: accessLoading, canAccessDashboard } = usePettyCashAccess();
 
   const [balances, setBalances] = useState<PettyCashBalance[]>([]);
+  const [custodianNames, setCustodianNames] = useState<Record<string, string>>({});
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthExpenses, setMonthExpenses] = useState(0);
   const [pendingRequests, setPendingRequests] = useState(0);
@@ -38,11 +40,19 @@ export default function Dashboard() {
     setLoading(true);
     try {
       // All project balances
-      const { data: balData } = await supabase
+      const { data: balData, error: balError } = await supabase
         .from("v_petty_cash_balance")
         .select("*")
         .eq("active", true);
+      if (balError) throw balError;
       setBalances(balData || []);
+
+      const custodianIds = [...new Set((balData || []).map((balance) => balance.emp_id))];
+      const { data: employees, error: employeesError } = custodianIds.length
+        ? await supabase.from("employees").select("emp_id, name").in("emp_id", custodianIds)
+        : { data: [], error: null };
+      if (employeesError) throw employeesError;
+      setCustodianNames(Object.fromEntries((employees || []).map((employee) => [employee.emp_id, employee.name])));
 
       const totals = (balData || []).reduce((acc, b) => ({
         fundingAwaiting: acc.fundingAwaiting + b.approved_funding_awaiting_payment,
@@ -73,23 +83,34 @@ export default function Dashboard() {
     }
   };
 
-  const loadLedger = async () => {
+  const loadLedger = async (projectCode: string | null = selectedProject) => {
+    if (!fromDate || !toDate || fromDate > toDate) {
+      toast.error("Select a valid date range");
+      return;
+    }
+
     setLoadingLedger(true);
     try {
       // Build ledger from payments and transactions
-      const payments = await supabase
+      let paymentsQuery = supabase
         .from("petty_cash_request_payment")
         .select("*, petty_cash_request(project_code, emp_id, request_number)")
         .gte("payment_date", fromDate)
         .lte("payment_date", toDate)
         .order("payment_date");
+      if (projectCode) paymentsQuery = paymentsQuery.eq("project_code", projectCode);
+      const payments = await paymentsQuery;
+      if (payments.error) throw payments.error;
 
-      const expenses = await supabase
+      let expensesQuery = supabase
         .from("petty_cash_transaction")
         .select("*, petty_cash_submission!inner(project_code, emp_id, submission_number, fin_approval_date, status)")
         .eq("petty_cash_submission.status", "approved")
         .gte("petty_cash_submission.fin_approval_date", fromDate)
         .lte("petty_cash_submission.fin_approval_date", toDate + "T23:59:59");
+      if (projectCode) expensesQuery = expensesQuery.eq("project_code", projectCode);
+      const expenses = await expensesQuery;
+      if (expenses.error) throw expenses.error;
 
       const rows: any[] = [];
 
@@ -192,10 +213,20 @@ export default function Dashboard() {
             {/* Project-wise Balances */}
             <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.75rem" }}>Project Balances</h3>
             {balances.map((b) => (
-              <div key={`${b.project_code}-${b.emp_id}`} style={{ ...CARD, marginBottom: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <button
+                key={`${b.project_code}-${b.emp_id}`}
+                type="button"
+                onClick={() => {
+                  setSelectedProject(b.project_code);
+                  void loadLedger(b.project_code);
+                }}
+                style={{ ...CARD, width: "100%", marginBottom: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left", color: "inherit", background: selectedProject === b.project_code ? "rgba(30,58,95,0.06)" : "transparent", cursor: "pointer" }}
+              >
                 <div>
                   <p style={{ fontWeight: 700 }}>{b.project_code}</p>
-                  <p style={{ fontSize: "0.72rem", color: "#64748b" }}>Custodian: {b.emp_id}</p>
+                  <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                    Custodian: {b.emp_id}{custodianNames[b.emp_id] ? ` · ${custodianNames[b.emp_id]}` : ""}
+                  </p>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <p style={{ fontWeight: 700, color: b.available_balance < 0 ? "#dc2626" : "#16a34a" }}>{formatOMR(b.available_balance)}</p>
@@ -203,12 +234,24 @@ export default function Dashboard() {
                     <p style={{ fontSize: "0.7rem", color: "#dc2626" }}>Reimb: {formatOMR(b.outstanding_reimbursement)}</p>
                   )}
                 </div>
-              </div>
+                </button>
             ))}
 
             {/* Ledger section */}
             <div style={{ marginTop: "1.75rem" }}>
-              <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.875rem" }}>Transaction Ledger</h3>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.875rem" }}>
+                <h3 style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                {selectedProject ? `${selectedProject} Details` : "Transaction Ledger"}
+                </h3>
+                {selectedProject && (
+                <button type="button" onClick={() => setSelectedProject(null)} style={{ border: "none", background: "transparent", color: "#1e3a5f", fontWeight: 600, cursor: "pointer" }}>
+                  All projects
+                </button>
+                )}
+              </div>
+              <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.75rem" }}>
+                Click a project above to load its transactions for this date range.
+              </p>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.875rem" }}>
                 <div>
@@ -222,7 +265,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-                <button onClick={loadLedger} disabled={loadingLedger} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem" }}>
+                <button onClick={() => loadLedger()} disabled={loadingLedger} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem" }}>
                   {loadingLedger ? <Loader2 className="animate-spin" width="0.9rem" /> : "Load Ledger"}
                 </button>
                 {ledgerRows.length > 0 && (
