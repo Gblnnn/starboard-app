@@ -9,6 +9,7 @@ import moment from "moment";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { type PettyCashUser, formatOMR } from "./types";
+import AccessDenied from "./AccessDenied";
 
 interface EmployeeOption {
   emp_id: string;
@@ -431,6 +432,15 @@ export default function Assignments() {
     acc[a.project_code].push(a);
     return acc;
   }, {});
+
+  if (!isAdmin) {
+    return (
+      <AccessDenied
+        title="Assignments Restricted"
+        message="Only system administrators have clearance to manage petty cash project assignments and custodian handovers."
+      />
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: "100svh", paddingBottom: "2rem" }}>
