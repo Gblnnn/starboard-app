@@ -46,7 +46,6 @@ export default function Approvals() {
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
   const isAdmin = userData?.role === "admin";
   const { loading: accessLoading, canAccessApprovals } = usePettyCashAccess();
-  const isFinance = isAdmin || userData?.role === "management";
 
   const [tab, setTab] = useState<"requests" | "submissions">("requests");
   const [pendingRequests, setPendingRequests] = useState<PettyCashRequest[]>([]);
@@ -61,7 +60,7 @@ export default function Approvals() {
   // Action dialog
   const [actionDialog, setActionDialog] = useState<{
     type: "request_approve" | "request_reject" | "request_reduce"
-        | "sub_approve_pc" | "sub_approve_fin" | "sub_reject" | "sub_return";
+        | "sub_approve_pc" | "sub_reject" | "sub_return";
     id: number;
     requestedAmount?: number;
     approvedAmount?: number;
@@ -95,12 +94,9 @@ export default function Approvals() {
       let q = supabase
         .from("petty_cash_submission")
         .select("*")
-        .in("status", ["pending_petty_cash_approval", "pending_finance_approval"])
+        .eq("status", "pending_petty_cash_approval")
         .order("submission_date", { ascending: true });
-      if (!isAdmin && !isFinance && empId) {
-        // approver for PC level
-        q = q.or(`petty_cash_approver_id.eq.${empId},fin_approver_id.eq.${empId}`);
-      }
+      if (!isAdmin && empId) q = q.eq("petty_cash_approver_id", empId);
       const { data, error } = await q;
       if (error) throw error;
       setPendingSubmissions(data || []);
@@ -189,49 +185,27 @@ export default function Approvals() {
       const { id, type } = actionDialog;
 
       if (type === "sub_approve_pc") {
-        await supabase.from("petty_cash_submission").update({
-          status: "pending_finance_approval",
-          petty_cash_approver_id: empId,
-          petty_cash_approval_date: new Date().toISOString(),
-          approval_remarks: actionRemarks.trim() || null,
-          updated_at: new Date().toISOString(),
-        }).eq("id", id);
-
-        // Set approved_amount = exp_amount on all lines
+        const approvalDate = new Date().toISOString();
         const lines = subLines[id] || [];
-        for (const line of lines) {
-          await supabase.from("petty_cash_transaction").update({
+        const lineUpdates = await Promise.all(lines.map((line) =>
+          supabase.from("petty_cash_transaction").update({
             approved_amount: line.exp_amount,
-            updated_at: new Date().toISOString(),
-          }).eq("id", line.id);
-        }
-        toast.success("Submission approved — pending Finance");
-      } else if (type === "sub_approve_fin") {
-        await supabase.from("petty_cash_submission").update({
+            fin_approved_amount: line.exp_amount,
+            updated_at: approvalDate,
+          }).eq("id", line.id)
+        ));
+        const lineError = lineUpdates.find((result) => result.error)?.error;
+        if (lineError) throw lineError;
+
+        const { error } = await supabase.from("petty_cash_submission").update({
           status: "approved",
-          fin_approver_id: empId,
-          fin_approval_date: new Date().toISOString(),
+          petty_cash_approver_id: empId,
+          petty_cash_approval_date: approvalDate,
           approval_remarks: actionRemarks.trim() || null,
-          updated_at: new Date().toISOString(),
+          updated_at: approvalDate,
         }).eq("id", id);
-
-        // Set fin_approved_amount = approved_amount on all lines
-        const lines = subLines[id] || [];
-        for (const line of lines) {
-          await supabase.from("petty_cash_transaction").update({
-            fin_approved_amount: line.approved_amount ?? line.exp_amount,
-            updated_at: new Date().toISOString(),
-          }).eq("id", line.id);
-        }
-
-        // Update fuel bill status — release reservation and mark as claimed permanently
-        const fuelIds = lines.filter((l) => l.fuel_log_id).map((l) => l.fuel_log_id!);
-        if (fuelIds.length > 0) {
-          // Keep petty_cash_submission_id set (marks final approval)
-          // No further action needed — bill is already linked
-        }
-
-        toast.success("Submission finance-approved ✓");
+        if (error) throw error;
+        toast.success("Submission approved — ready for Finance payment");
       } else if (type === "sub_reject") {
         if (!actionRemarks.trim()) { toast.error("Rejection reason is required"); return; }
         await supabase.from("petty_cash_submission").update({
@@ -271,10 +245,6 @@ export default function Approvals() {
   const canApproveSubPC = (sub: PettyCashSubmission) =>
     sub.status === "pending_petty_cash_approval" &&
     (isAdmin || sub.petty_cash_approver_id === empId);
-
-  const canApproveSubFin = (sub: PettyCashSubmission) =>
-    sub.status === "pending_finance_approval" &&
-    (isFinance || sub.fin_approver_id === empId);
 
   if (!accessLoading && !canAccessApprovals) {
     return (
@@ -456,29 +426,13 @@ export default function Approvals() {
                                   onClick={async () => { await loadSubLines(sub.id); setActionDialog({ type: "sub_approve_pc", id: sub.id }); setActionRemarks(""); }}
                                   style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#16a34a", color: "white", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
                                 >
-                                  ✓ PC Approve
+                                  ✓ Approve
                                 </button>
                                 <button
                                   onClick={() => { setActionDialog({ type: "sub_return", id: sub.id }); setActionRemarks(""); }}
                                   style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#b45309", color: "white", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
                                 >
                                   <RotateCcw width="0.75rem" style={{ display: "inline" }} /> Return
-                                </button>
-                                <button
-                                  onClick={() => { setActionDialog({ type: "sub_reject", id: sub.id }); setActionRemarks(""); }}
-                                  style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#dc2626", color: "white", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
-                                >
-                                  ✗ Reject
-                                </button>
-                              </>
-                            )}
-                            {canApproveSubFin(sub) && (
-                              <>
-                                <button
-                                  onClick={async () => { await loadSubLines(sub.id); setActionDialog({ type: "sub_approve_fin", id: sub.id }); setActionRemarks(""); }}
-                                  style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#7c3aed", color: "white", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
-                                >
-                                  ✓ Finance Approve
                                 </button>
                                 <button
                                   onClick={() => { setActionDialog({ type: "sub_reject", id: sub.id }); setActionRemarks(""); }}
@@ -571,8 +525,7 @@ export default function Approvals() {
                 style={{
                   flex: 2, padding: "0.75rem", borderRadius: "0.65rem", border: "none",
                   background: actionDialog.type.includes("reject") ? "#dc2626" :
-                              actionDialog.type.includes("return") ? "#b45309" :
-                              actionDialog.type.includes("fin") ? "#7c3aed" : "#16a34a",
+                              actionDialog.type.includes("return") ? "#b45309" : "#16a34a",
                   color: "white", fontWeight: 700, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
                 }}
