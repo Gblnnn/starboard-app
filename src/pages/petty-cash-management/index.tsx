@@ -132,7 +132,7 @@ export default function PettyCashIndex() {
         const { count: subPending } = await supabase
           .from("petty_cash_submission")
           .select("id", { count: "exact", head: true })
-          .in("status", ["pending_petty_cash_approval", "pending_finance_approval"]);
+          .eq("status", "pending_petty_cash_approval");
         setPendingApprovals((reqPending || 0) + (subPending || 0));
       } else if (empId && canAccessApprovals) {
         // approvals where this emp is an approver
