@@ -73,7 +73,7 @@ export default function Finance() {
         .from("petty_cash_submission")
         .select("*")
         .eq("status", "approved")
-        .order("fin_approval_date", { ascending: true });
+        .order("petty_cash_approval_date", { ascending: true });
       if (error) throw error;
       // Only show those with outstanding reimbursement (we'll fetch from balance view)
       setApprovedSubmissions(data || []);
@@ -308,7 +308,7 @@ function ReimbursementCard({ sub, onPay }: { sub: PettyCashSubmission; onPay: (m
     <div style={{ border: "1px solid rgba(100,100,100,0.12)", borderRadius: "0.875rem", padding: "1rem", marginBottom: "0.75rem" }}>
       <p style={{ fontWeight: 700 }}>{sub.submission_number}</p>
       <p style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.75rem" }}>
-        {sub.project_code} · {sub.emp_id} · {moment(sub.fin_approval_date).format("DD MMM YYYY")}
+        {sub.project_code} · {sub.emp_id} · {moment(sub.petty_cash_approval_date).format("DD MMM YYYY")}
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.875rem" }}>
         <div>
