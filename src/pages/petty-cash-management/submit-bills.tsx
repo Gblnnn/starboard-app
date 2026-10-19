@@ -35,16 +35,17 @@ interface ProjectAssignment {
   assignment_id: number;
   available_balance: number;
   approver_id: string | null;
-  finapprover_id: string | null;
 }
 
-interface UnsettledBillSubmission {
+interface BillReportRow {
   id: number;
   submission_number: string;
   submission_date: string;
   project_code: string;
   emp_id: string;
   custodian_name: string;
+  petty_cash_approver_id: string | null;
+  approver_name: string;
   particulars: string[];
   approved_amount: number;
   reimbursed_amount: number;
@@ -101,13 +102,23 @@ export default function SubmitBills() {
   const [submitting, setSubmitting] = useState(false);
   const [reportFrom, setReportFrom] = useState(moment().startOf("month").format("YYYY-MM-DD"));
   const [reportTo, setReportTo] = useState(moment().format("YYYY-MM-DD"));
-  const [unsettledSubmissions, setUnsettledSubmissions] = useState<UnsettledBillSubmission[]>([]);
+  const [billReportRows, setBillReportRows] = useState<BillReportRow[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
 
   const selectedAssignment = assignments.find((a) => a.project_code === selectedProject);
+  const reportCustodians = [...new Set(billReportRows.map(
+    (submission) => `${submission.custodian_name || "Unknown"} (${submission.emp_id})`
+  ))];
+  const reportProjects = [...new Set(billReportRows.map((submission) => submission.project_code))];
+  const reportApprovers = [...new Map(billReportRows
+    .filter((submission) => submission.petty_cash_approver_id)
+    .map((submission) => [
+      submission.petty_cash_approver_id!,
+      `${submission.approver_name || "Unknown"} (${submission.petty_cash_approver_id})`,
+    ])).values()];
 
-  const loadUnsettledSubmissions = async () => {
+  const loadApprovedSubmissions = async () => {
     if (!reportFrom || !reportTo || reportFrom > reportTo) {
       toast.error("Select a valid date range");
       return;
@@ -118,23 +129,26 @@ export default function SubmitBills() {
     try {
       const { data, error } = await supabase
         .from("petty_cash_submission")
-        .select("id,submission_number,submission_date,project_code,emp_id,petty_cash_transaction(trans_date,particulars,exp_amount,fin_approved_amount),petty_cash_reimbursement_payment(payment_amount)")
+        .select("id,submission_number,submission_date,project_code,emp_id,petty_cash_approver_id,petty_cash_transaction(trans_date,particulars,exp_amount,approved_amount,fin_approved_amount),petty_cash_reimbursement_payment(payment_amount)")
         .eq("status", "approved")
         .gte("submission_date", reportFrom)
         .lte("submission_date", reportTo)
         .order("submission_date", { ascending: true });
       if (error) throw error;
 
-      const custodianIds = [...new Set((data || []).map((submission) => submission.emp_id))];
-      const { data: employees, error: employeesError } = custodianIds.length
-        ? await supabase.from("employees").select("emp_id, name").in("emp_id", custodianIds)
+      const employeeIds = [...new Set((data || []).flatMap((submission) => [
+        submission.emp_id,
+        ...(submission.petty_cash_approver_id ? [submission.petty_cash_approver_id] : []),
+      ]))];
+      const { data: employees, error: employeesError } = employeeIds.length
+        ? await supabase.from("employees").select("emp_id, name").in("emp_id", employeeIds)
         : { data: [], error: null };
       if (employeesError) throw employeesError;
-      const custodianNames = new Map((employees || []).map((employee) => [employee.emp_id, employee.name]));
-      const rows = (data || []).map((submission) => {
+      const employeeNames = new Map((employees || []).map((employee) => [employee.emp_id, employee.name]));
+      const rows: BillReportRow[] = (data || []).map((submission) => {
         const transactions = submission.petty_cash_transaction || [];
         const approvedAmount = transactions.reduce(
-          (total, transaction) => total + Number(transaction.fin_approved_amount ?? 0),
+          (total, transaction) => total + Number(transaction.fin_approved_amount ?? transaction.approved_amount ?? transaction.exp_amount),
           0
         );
         const reimbursedAmount = (submission.petty_cash_reimbursement_payment || []).reduce(
@@ -147,24 +161,25 @@ export default function SubmitBills() {
           submission_date: submission.submission_date,
           project_code: submission.project_code,
           emp_id: submission.emp_id,
-          custodian_name: custodianNames.get(submission.emp_id) || (submission.emp_id === empId ? userData?.name || "" : ""),
+          custodian_name: employeeNames.get(submission.emp_id) || (submission.emp_id === empId ? userData?.name || "" : ""),
+          petty_cash_approver_id: submission.petty_cash_approver_id,
+          approver_name: submission.petty_cash_approver_id ? employeeNames.get(submission.petty_cash_approver_id) || "" : "",
           particulars: transactions.map((transaction) => transaction.particulars),
           approved_amount: approvedAmount,
           reimbursed_amount: reimbursedAmount,
           outstanding: Math.max(0, approvedAmount - reimbursedAmount),
         };
-      }).filter((submission) => submission.outstanding > 0.0001);
-
-      setUnsettledSubmissions(rows);
+      });
+      setBillReportRows(rows);
       setReportLoaded(true);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load unreimbursed bills");
+      toast.error(err instanceof Error ? err.message : "Failed to load approved bill submissions");
     } finally {
       setLoadingReport(false);
     }
   };
 
-  const printUnsettledSubmissions = () => {
+  const printBillReport = () => {
     document.body.classList.add("pc-print-mode");
     window.print();
   };
@@ -186,7 +201,7 @@ export default function SubmitBills() {
       try {
         const { data, error } = await supabase
           .from("pettycash_user")
-          .select("id, project_code, emp_id, approver_id, finapprover_id")
+          .select("id, project_code, emp_id, approver_id")
           .eq("emp_id", empId)
           .eq("active", true);
         if (error) throw error;
@@ -205,7 +220,6 @@ export default function SubmitBills() {
               assignment_id: a.id,
               available_balance: Number(bal?.available_balance ?? 0),
               approver_id: a.approver_id,
-              finapprover_id: a.finapprover_id,
             };
           })
         );
@@ -344,7 +358,6 @@ export default function SubmitBills() {
           emp_id: empId,
           submitted_by: empId,
           petty_cash_approver_id: selectedAssignment?.approver_id ?? null,
-          fin_approver_id: selectedAssignment?.finapprover_id ?? null,
           status: "pending_petty_cash_approval",
         })
         .select("id, submission_number")
@@ -622,20 +635,20 @@ export default function SubmitBills() {
           </motion.button>
         </div>
 
-        {/* Unreimbursed bills report */}
+        {/* Approved bill submission report */}
         <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
-          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Unreimbursed Bills</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Only finance-approved submissions with an outstanding reimbursement are included. Filtered by submission date.</p>
+          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Approved Bill Submissions</h3>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>All approver-approved submissions in the selected submission-date range are included.</p>
           <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
             <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
           </div>
           <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadUnsettledSubmissions} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
-              {loadingReport ? "Loading..." : "Load Unreimbursed Bills"}
+            <button type="button" onClick={loadApprovedSubmissions} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+              {loadingReport ? "Loading..." : "Load Approved Submissions"}
             </button>
-            {reportLoaded && unsettledSubmissions.length > 0 && (
-              <button type="button" onClick={printUnsettledSubmissions} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            {reportLoaded && billReportRows.length > 0 && (
+              <button type="button" onClick={printBillReport} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
                 <Printer width="0.9rem" /> Print
               </button>
             )}
@@ -647,48 +660,65 @@ export default function SubmitBills() {
                 <p>Petty Cash Bill Submission Report</p>
                 <p>{moment(reportFrom).format("DD MMM YYYY")} – {moment(reportTo).format("DD MMM YYYY")}</p>
               </header>
-              {unsettledSubmissions.length === 0 ? (
-                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No unreimbursed bills in this date range.</p>
+              <div className="pc-report-details">
+                <p><strong>Custodian(s):</strong> {reportCustodians.join(", ") || "—"}</p>
+                <p><strong>Project(s):</strong> {reportProjects.join(", ") || "—"}</p>
+              </div>
+              {billReportRows.length === 0 ? (
+                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No approved bill submissions in this date range.</p>
               ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
+                  <colgroup>
+                    <col style={{ width: "5%" }} /><col style={{ width: "12%" }} /><col style={{ width: "14%" }} />
+                    <col style={{ width: "30%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} />
+                    <col style={{ width: "13%" }} />
+                  </colgroup>
                   <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["Date", "Submission No.", "Project", "Custodian", "Material / Service Details", "Approved", "Reimbursed", "Outstanding"].map((heading) => (
+                    {["S/N", "Date", "Submission No.", "Material / Service Details", "Approved", "Reimbursed", "Outstanding"].map((heading) => (
                       <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Approved", "Reimbursed", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
                     ))}
                   </tr></thead>
                   <tbody>
-                    {unsettledSubmissions.map((submission) => (
+                    {billReportRows.map((submission, index) => (
                       <tr key={submission.id}>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(submission.submission_date).format("DD MMM YYYY")}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submission.submission_number}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submission.project_code}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submission.emp_id}{submission.custodian_name ? ` · ${submission.custodian_name}` : ""}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submission.particulars.join("; ")}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(submission.approved_amount)}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(submission.reimbursed_amount)}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(submission.outstanding)}</td>
                       </tr>
                     ))}
-                    <tr><td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
-                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(unsettledSubmissions.reduce((total, submission) => total + submission.outstanding, 0))}</td>
+                    <tr><td colSpan={6} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
+                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(billReportRows.reduce((total, submission) => total + submission.outstanding, 0))}</td>
                     </tr>
                   </tbody>
                 </table>
               )}
-              <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", marginTop: "2rem" }}>
-                <span>Prepared By</span><span>Approved By</span>
+              <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", gap: "1rem", marginTop: "1.25rem" }}>
+                <div><div>Prepared By (Custodian)</div>{reportCustodians.map((custodian) => <div key={custodian}>{custodian}</div>)}</div>
+                <div><div>Approved By (Approver)</div>{reportApprovers.map((approver) => <div key={approver}>{approver}</div>)}</div>
               </div>
             </div>
           )}
         </section>
       </div>
       <style>{`@media print {
-        @page { size: A4 landscape; margin: 10mm; }
+        @page { size: A4 portrait; margin: 8mm; }
+        body.pc-print-mode { margin: 0 !important; overflow: visible !important; }
         body.pc-print-mode * { visibility: hidden !important; }
+        body.pc-print-mode *:not(.pc-print-report):not(.pc-print-report *):not(:has(.pc-print-report)) { display: none !important; }
+        body.pc-print-mode *:has(.pc-print-report):not(.pc-print-report) { display: contents !important; }
         body.pc-print-mode .pc-print-report, body.pc-print-mode .pc-print-report * { visibility: visible !important; }
-        body.pc-print-mode .pc-print-report { position: fixed; inset: 0; width: 100%; overflow: visible !important; background: white; color: black; padding: 0; font-size: 10px; }
+        body.pc-print-mode .pc-print-report { display: block !important; position: static; width: 100%; overflow: visible !important; background: white; color: black; padding: 0; font-size: 10px; }
         body.pc-print-mode .pc-report-controls { display: none !important; }
-        body.pc-print-mode .pc-report-heading { margin-bottom: 8px !important; }
+        body.pc-print-mode .pc-report-heading { margin: 0 0 6px !important; }
+        body.pc-print-mode .pc-report-details { margin-bottom: 6px; font-size: 0.63rem; }
+        body.pc-print-mode .pc-report-table th, body.pc-print-mode .pc-report-table td { padding: 2px 3px !important; overflow-wrap: anywhere; }
+        body.pc-print-mode .pc-report-table thead { display: table-header-group; }
+        body.pc-print-mode .pc-report-table tr, body.pc-print-mode .pc-report-signatures { break-inside: avoid; }
+        body.pc-print-mode .pc-report-signatures { font-size: 10px; }
       }`}</style>
     </motion.div>
   );
