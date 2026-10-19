@@ -65,16 +65,16 @@ export default function Dashboard() {
       const startOfMonth = moment().startOf("month").format("YYYY-MM-DD");
       const { data: monthData } = await supabase
         .from("petty_cash_transaction")
-        .select("fin_approved_amount, petty_cash_submission!inner(fin_approval_date, status)")
+        .select("fin_approved_amount, petty_cash_submission!inner(petty_cash_approval_date, status)")
         .eq("petty_cash_submission.status", "approved")
-        .gte("petty_cash_submission.fin_approval_date", startOfMonth);
+        .gte("petty_cash_submission.petty_cash_approval_date", startOfMonth);
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + Number(r.fin_approved_amount || 0), 0);
       setMonthExpenses(monthTotal);
 
       // Pending counts
       const { count: rCount } = await supabase.from("petty_cash_request").select("id", { count: "exact", head: true }).eq("status", "pending_approval");
       setPendingRequests(rCount || 0);
-      const { count: sCount } = await supabase.from("petty_cash_submission").select("id", { count: "exact", head: true }).in("status", ["pending_petty_cash_approval", "pending_finance_approval"]);
+      const { count: sCount } = await supabase.from("petty_cash_submission").select("id", { count: "exact", head: true }).eq("status", "pending_petty_cash_approval");
       setPendingSubmissions(sCount || 0);
     } catch (err: any) {
       toast.error(err?.message || "Failed to load dashboard");
@@ -104,10 +104,10 @@ export default function Dashboard() {
 
       let expensesQuery = supabase
         .from("petty_cash_transaction")
-        .select("*, petty_cash_submission!inner(project_code, emp_id, submission_number, fin_approval_date, status)")
+        .select("*, petty_cash_submission!inner(project_code, emp_id, submission_number, petty_cash_approval_date, status)")
         .eq("petty_cash_submission.status", "approved")
-        .gte("petty_cash_submission.fin_approval_date", fromDate)
-        .lte("petty_cash_submission.fin_approval_date", toDate + "T23:59:59");
+        .gte("petty_cash_submission.petty_cash_approval_date", fromDate)
+        .lte("petty_cash_submission.petty_cash_approval_date", toDate + "T23:59:59");
       if (projectCode) expensesQuery = expensesQuery.eq("project_code", projectCode);
       const expenses = await expensesQuery;
       if (expenses.error) throw expenses.error;
@@ -129,7 +129,7 @@ export default function Dashboard() {
 
       (expenses.data || []).forEach((t: any) => {
         rows.push({
-          date: t.petty_cash_submission?.fin_approval_date?.split("T")[0] || "",
+          date: t.petty_cash_submission?.petty_cash_approval_date?.split("T")[0] || "",
           type: "expense",
           reference: t.petty_cash_submission?.submission_number || "",
           project_code: t.project_code,
