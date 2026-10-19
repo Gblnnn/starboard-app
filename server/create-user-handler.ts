@@ -76,7 +76,7 @@ export default async function createUserHandler(request: Request): Promise<Respo
 
     const { data: employeeRows, error: employeeError } = await supabase
       .from("employees")
-      .select("name, email, emp_id")
+      .select("email, emp_id")
       .eq("id", employeeId)
       .limit(1);
     if (employeeError) throw employeeError;
@@ -86,12 +86,8 @@ export default async function createUserHandler(request: Request): Promise<Respo
 
     const employee = employeeRows[0];
     const email = typeof employee.email === "string" ? employee.email.trim().toLowerCase() : "";
-    const name = typeof employee.name === "string" ? employee.name.trim() : "";
     if (!email.includes("@")) {
       return jsonResponse({ error: "Add a valid email address to the employee record before creating a user." }, 400);
-    }
-    if (!name) {
-      return jsonResponse({ error: "Add a name to the employee record before creating a user." }, 400);
     }
 
     const { data: existingUsers, error: existingUserError } = await supabase
@@ -118,7 +114,6 @@ export default async function createUserHandler(request: Request): Promise<Respo
     }
 
     const { error: insertError } = await supabase.from("users").insert({
-      name,
       email,
       emp_id: employee.emp_id ?? null,
       role: "profile",
