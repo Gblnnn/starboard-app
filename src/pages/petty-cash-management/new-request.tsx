@@ -18,13 +18,15 @@ interface ProjectOption {
   balance: number;
 }
 
-interface UnsettledRequest {
+interface RequestReportRow {
   id: number;
   request_number: string;
   request_date: string;
   project_code: string;
   emp_id: string;
   custodian_name: string;
+  approver_id: string | null;
+  approver_name: string;
   particulars: string;
   request_amount: number;
   approved_amount: number;
@@ -66,7 +68,7 @@ export default function NewRequest() {
   const [submitting, setSubmitting] = useState(false);
   const [reportFrom, setReportFrom] = useState(moment().startOf("month").format("YYYY-MM-DD"));
   const [reportTo, setReportTo] = useState(moment().format("YYYY-MM-DD"));
-  const [unsettledRequests, setUnsettledRequests] = useState<UnsettledRequest[]>([]);
+  const [requestReportRows, setRequestReportRows] = useState<RequestReportRow[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
 
@@ -111,8 +113,18 @@ export default function NewRequest() {
   }, [empId]);
 
   const selectedProjectData = projects.find((p) => p.project_code === selectedProject);
+  const reportCustodians = [...new Set(requestReportRows.map(
+    (request) => `${request.custodian_name || "Unknown"} (${request.emp_id})`
+  ))];
+  const reportProjects = [...new Set(requestReportRows.map((request) => request.project_code))];
+  const reportApprovers = [...new Map(requestReportRows
+    .filter((request) => request.approver_id)
+    .map((request) => [
+      request.approver_id!,
+      `${request.approver_name || "Unknown"} (${request.approver_id})`,
+    ])).values()];
 
-  const loadUnsettledRequests = async () => {
+  const loadApprovedRequests = async () => {
     if (!reportFrom || !reportTo || reportFrom > reportTo) {
       toast.error("Select a valid date range");
       return;
@@ -123,20 +135,23 @@ export default function NewRequest() {
     try {
       const { data, error } = await supabase
         .from("petty_cash_request")
-        .select("id,request_number,request_date,project_code,emp_id,particulars,request_amount,approved_amount,petty_cash_request_payment(payment_amount)")
-        .in("status", ["approved", "partially_paid"])
+        .select("id,request_number,request_date,project_code,emp_id,approver_id,particulars,request_amount,approved_amount,petty_cash_request_payment(payment_amount)")
+        .in("status", ["approved", "partially_paid", "fully_paid"])
         .gte("request_date", reportFrom)
         .lte("request_date", reportTo)
         .order("request_date", { ascending: true });
       if (error) throw error;
 
-      const custodianIds = [...new Set((data || []).map((request) => request.emp_id))];
-      const { data: employees, error: employeesError } = custodianIds.length
-        ? await supabase.from("employees").select("emp_id, name").in("emp_id", custodianIds)
+      const employeeIds = [...new Set((data || []).flatMap((request) => [
+        request.emp_id,
+        ...(request.approver_id ? [request.approver_id] : []),
+      ]))];
+      const { data: employees, error: employeesError } = employeeIds.length
+        ? await supabase.from("employees").select("emp_id, name").in("emp_id", employeeIds)
         : { data: [], error: null };
       if (employeesError) throw employeesError;
-      const custodianNames = new Map((employees || []).map((employee) => [employee.emp_id, employee.name]));
-      const rows = (data || []).map((request) => {
+      const employeeNames = new Map((employees || []).map((employee) => [employee.emp_id, employee.name]));
+      const rows: RequestReportRow[] = (data || []).map((request) => {
         const approvedAmount = Number(request.approved_amount ?? 0);
         const totalPaid = (request.petty_cash_request_payment || []).reduce(
           (total, payment) => total + Number(payment.payment_amount || 0),
@@ -148,25 +163,27 @@ export default function NewRequest() {
           request_date: request.request_date,
           project_code: request.project_code,
           emp_id: request.emp_id,
-          custodian_name: custodianNames.get(request.emp_id) || (request.emp_id === empId ? userData?.name || "" : ""),
+          custodian_name: employeeNames.get(request.emp_id) || (request.emp_id === empId ? userData?.name || "" : ""),
+          approver_id: request.approver_id,
+          approver_name: request.approver_id ? employeeNames.get(request.approver_id) || "" : "",
           particulars: request.particulars,
           request_amount: Number(request.request_amount),
           approved_amount: approvedAmount,
           total_paid: totalPaid,
           outstanding: Math.max(0, approvedAmount - totalPaid),
         };
-      }).filter((request) => request.outstanding > 0.0001);
+      });
 
-      setUnsettledRequests(rows);
+      setRequestReportRows(rows);
       setReportLoaded(true);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load unsettled cash requests");
+      toast.error(err instanceof Error ? err.message : "Failed to load approved cash requests");
     } finally {
       setLoadingReport(false);
     }
   };
 
-  const printUnsettledRequests = () => {
+  const printRequestReport = () => {
     document.body.classList.add("pc-print-mode");
     window.print();
   };
@@ -334,20 +351,20 @@ export default function NewRequest() {
           </motion.button>
         </div>
 
-        {/* Unsettled cash request report */}
+        {/* Approved cash request report */}
         <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
-          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Unsettled Cash Requests</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Only approved requests with an outstanding unpaid amount are included.</p>
+          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Approved Cash Requests</h3>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>All approver-approved requests in the selected request-date range are included.</p>
           <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
             <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
           </div>
           <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadUnsettledRequests} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
-              {loadingReport ? "Loading..." : "Load Unsettled Requests"}
+            <button type="button" onClick={loadApprovedRequests} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+              {loadingReport ? "Loading..." : "Load Approved Requests"}
             </button>
-            {reportLoaded && unsettledRequests.length > 0 && (
-              <button type="button" onClick={printUnsettledRequests} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            {reportLoaded && requestReportRows.length > 0 && (
+              <button type="button" onClick={printRequestReport} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
                 <Printer width="0.9rem" /> Print
               </button>
             )}
@@ -356,25 +373,33 @@ export default function NewRequest() {
             <div className="pc-print-report" style={{ overflowX: "auto" }}>
               <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
                 <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
-                <p>Petty Cash Request / Reimbursement Report</p>
+                <p>Petty Cash Request Report</p>
                 <p>{moment(reportFrom).format("DD MMM YYYY")} – {moment(reportTo).format("DD MMM YYYY")}</p>
               </header>
-              {unsettledRequests.length === 0 ? (
-                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No unsettled cash requests in this date range.</p>
+              <div className="pc-report-details">
+                <p><strong>Custodian(s):</strong> {reportCustodians.join(", ") || "—"}</p>
+                <p><strong>Project(s):</strong> {reportProjects.join(", ") || "—"}</p>
+              </div>
+              {requestReportRows.length === 0 ? (
+                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No approved cash requests in this date range.</p>
               ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
+                  <colgroup>
+                    <col style={{ width: "5%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
+                    <col style={{ width: "33%" }} /><col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
+                    <col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
+                  </colgroup>
                   <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["Date", "Request No.", "Project", "Custodian", "Particulars", "Requested", "Approved", "Paid", "Outstanding"].map((heading) => (
+                    {["S/N", "Date", "Request No.", "Particulars", "Requested", "Approved", "Paid", "Outstanding"].map((heading) => (
                       <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Requested", "Approved", "Paid", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
                     ))}
                   </tr></thead>
                   <tbody>
-                    {unsettledRequests.map((request) => (
+                    {requestReportRows.map((request, index) => (
                       <tr key={request.id}>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(request.request_date).format("DD MMM YYYY")}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.request_number}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.project_code}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.emp_id}{request.custodian_name ? ` · ${request.custodian_name}` : ""}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.particulars}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.request_amount)}</td>
                         <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.approved_amount)}</td>
@@ -382,26 +407,35 @@ export default function NewRequest() {
                         <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.outstanding)}</td>
                       </tr>
                     ))}
-                    <tr><td colSpan={8} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
-                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(unsettledRequests.reduce((total, request) => total + request.outstanding, 0))}</td>
+                    <tr><td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
+                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(requestReportRows.reduce((total, request) => total + request.outstanding, 0))}</td>
                     </tr>
                   </tbody>
                 </table>
               )}
-              <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", marginTop: "2rem" }}>
-                <span>Custodian</span><span>Approved By</span><span>Accounts/Finance</span>
+              <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", gap: "1rem", marginTop: "1.25rem" }}>
+                <div><div>Prepared By (Custodian)</div>{reportCustodians.map((custodian) => <div key={custodian}>{custodian}</div>)}</div>
+                <div><div>Approved By (Approver)</div>{reportApprovers.map((approver) => <div key={approver}>{approver}</div>)}</div>
               </div>
             </div>
           )}
         </section>
       </div>
       <style>{`@media print {
-        @page { size: A4 landscape; margin: 10mm; }
+        @page { size: A4 portrait; margin: 8mm; }
+        body.pc-print-mode { margin: 0 !important; overflow: visible !important; }
         body.pc-print-mode * { visibility: hidden !important; }
+        body.pc-print-mode *:not(.pc-print-report):not(.pc-print-report *):not(:has(.pc-print-report)) { display: none !important; }
+        body.pc-print-mode *:has(.pc-print-report):not(.pc-print-report) { display: contents !important; }
         body.pc-print-mode .pc-print-report, body.pc-print-mode .pc-print-report * { visibility: visible !important; }
-        body.pc-print-mode .pc-print-report { position: fixed; inset: 0; width: 100%; overflow: visible !important; background: white; color: black; padding: 0; font-size: 10px; }
+        body.pc-print-mode .pc-print-report { display: block !important; position: static; width: 100%; overflow: visible !important; background: white; color: black; padding: 0; font-size: 10px; }
         body.pc-print-mode .pc-report-controls { display: none !important; }
-        body.pc-print-mode .pc-report-heading { margin-bottom: 8px !important; }
+        body.pc-print-mode .pc-report-heading { margin: 0 0 6px !important; }
+        body.pc-print-mode .pc-report-details { margin-bottom: 6px; font-size: 0.63rem; }
+        body.pc-print-mode .pc-report-table th, body.pc-print-mode .pc-report-table td { padding: 2px 3px !important; overflow-wrap: anywhere; }
+        body.pc-print-mode .pc-report-table thead { display: table-header-group; }
+        body.pc-print-mode .pc-report-table tr, body.pc-print-mode .pc-report-signatures { break-inside: avoid; }
+        body.pc-print-mode .pc-report-signatures { font-size: 10px; }
       }`}</style>
     </motion.div>
   );
