@@ -14,7 +14,6 @@ export type PettyCashRequestStatus =
 export type PettyCashSubmissionStatus =
   | 'draft'
   | 'pending_petty_cash_approval'
-  | 'pending_finance_approval'
   | 'approved'
   | 'rejected'
   | 'returned_for_correction'
@@ -177,7 +176,6 @@ export const statusLabel: Record<string, string> = {
   fully_paid: 'Fully Paid',
   cancelled: 'Cancelled',
   pending_petty_cash_approval: 'Pending PC Approval',
-  pending_finance_approval: 'Pending Finance',
   returned_for_correction: 'Returned',
 };
 
@@ -185,7 +183,6 @@ export const statusColor: Record<string, string> = {
   draft: '#64748b',
   pending_approval: '#d97706',
   pending_petty_cash_approval: '#d97706',
-  pending_finance_approval: '#7c3aed',
   approved: '#16a34a',
   fully_paid: '#16a34a',
   rejected: '#dc2626',
