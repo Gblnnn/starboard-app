@@ -2,7 +2,7 @@ import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { Loader2, PlusCircle, Printer, Send, Save } from "lucide-react";
+import { Loader2, PlusCircle, Printer, Send } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -64,7 +64,6 @@ export default function NewRequest() {
   const [particulars, setParticulars] = useState("");
   const [requestAmount, setRequestAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [reportFrom, setReportFrom] = useState(moment().startOf("month").format("YYYY-MM-DD"));
   const [reportTo, setReportTo] = useState(moment().format("YYYY-MM-DD"));
   const [unsettledRequests, setUnsettledRequests] = useState<UnsettledRequest[]>([]);
@@ -181,17 +180,15 @@ export default function NewRequest() {
     };
   }, []);
 
-  const handleSave = async (submitForApproval: boolean) => {
+  const handleSubmit = async () => {
     if (!empId) { toast.error("Employee ID not found"); return; }
     if (!selectedProject) { toast.error("Select a project"); return; }
     if (!particulars.trim()) { toast.error("Enter the purpose of this request"); return; }
     const amount = parseFloat(requestAmount);
     if (!amount || amount <= 0) { toast.error("Enter a valid request amount"); return; }
 
-    const fn = submitForApproval ? setSubmitting : setSaving;
-    fn(true);
+    setSubmitting(true);
     try {
-      const status = submitForApproval ? "pending_approval" : "draft";
       const { data, error } = await supabase
         .from("petty_cash_request")
         .insert({
@@ -200,22 +197,18 @@ export default function NewRequest() {
           emp_id: empId,
           particulars: particulars.trim(),
           request_amount: amount,
-          status,
+          status: "pending_approval",
           created_by: empId,
         })
         .select("request_number")
         .single();
       if (error) throw error;
-      toast.success(
-        submitForApproval
-          ? `Request ${data.request_number} submitted for approval`
-          : `Draft ${data.request_number} saved`
-      );
+      toast.success(`Request ${data.request_number} submitted for approval`);
       navigate("/petty-cash");
     } catch (err: any) {
       toast.error(err?.message || "Failed to save request");
     } finally {
-      fn(false);
+      setSubmitting(false);
     }
   };
 
@@ -326,28 +319,13 @@ export default function NewRequest() {
         <div style={{ display: "flex", gap: "0.75rem" }}>
           <motion.button
             whileTap={{ scale: 0.97 }}
-            disabled={saving || submitting}
-            onClick={() => handleSave(false)}
+            disabled={submitting}
+            onClick={handleSubmit}
             style={{
               flex: 1, padding: "0.875rem", borderRadius: "0.75rem",
-              border: "1px solid rgba(100,100,100,0.3)",
-              background: "transparent", fontSize: "0.9rem",
-              fontWeight: 600, cursor: saving || submitting ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
-            }}
-          >
-            {saving ? <Loader2 className="animate-spin" width="1rem" /> : <Save width="1rem" />}
-            Save Draft
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            disabled={saving || submitting}
-            onClick={() => handleSave(true)}
-            style={{
-              flex: 2, padding: "0.875rem", borderRadius: "0.75rem",
               border: "none", background: "#1e3a5f",
               color: "white", fontSize: "0.9rem",
-              fontWeight: 600, cursor: saving || submitting ? "not-allowed" : "pointer",
+              fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
             }}
           >
