@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle, CheckSquare, FileText, Fuel, Loader2, Printer,
-  Plus, Save, Send, Square, Trash2,
+  Plus, Send, Square, Trash2,
 } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
@@ -98,7 +98,6 @@ export default function SubmitBills() {
   const [loadingFuel, setLoadingFuel] = useState(false);
   const [selectedFuelIds, setSelectedFuelIds] = useState<Set<number>>(new Set());
 
-  const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [reportFrom, setReportFrom] = useState(moment().startOf("month").format("YYYY-MM-DD"));
   const [reportTo, setReportTo] = useState(moment().format("YYYY-MM-DD"));
@@ -329,16 +328,13 @@ export default function SubmitBills() {
   const totalClaimed = bills.reduce((s, b) => s + parseFloat(b.exp_amount || "0"), 0);
   const personalFunded = Math.max(0, totalClaimed - (selectedAssignment?.available_balance ?? 0));
 
-  const handleSave = async (submitForApproval: boolean) => {
+  const handleSubmit = async () => {
     if (!empId) { toast.error("Employee ID not found"); return; }
     if (!selectedProject) { toast.error("Select a project"); return; }
     if (bills.length === 0) { toast.error("Add at least one expense bill"); return; }
 
-    const fn = submitForApproval ? setSubmitting : setSaving;
-    fn(true);
+    setSubmitting(true);
     try {
-      const status = submitForApproval ? "pending_petty_cash_approval" : "draft";
-
       // Insert submission header
       const { data: subData, error: subErr } = await supabase
         .from("petty_cash_submission")
@@ -349,7 +345,7 @@ export default function SubmitBills() {
           submitted_by: empId,
           petty_cash_approver_id: selectedAssignment?.approver_id ?? null,
           fin_approver_id: selectedAssignment?.finapprover_id ?? null,
-          status,
+          status: "pending_petty_cash_approval",
         })
         .select("id, submission_number")
         .single();
@@ -371,28 +367,21 @@ export default function SubmitBills() {
         .insert(lines);
       if (txnErr) throw txnErr;
 
-      // Reserve fuel bills if submitting
-      if (submitForApproval) {
-        const fuelIds = bills.filter((b) => b.fuel_log_id).map((b) => b.fuel_log_id!);
-        if (fuelIds.length > 0) {
-          const { error: fuelErr } = await supabase.rpc("pc_reserve_fuel_bills", {
-            p_submission_id: subData.id,
-            p_fuel_log_ids: fuelIds,
-          });
-          if (fuelErr) throw fuelErr;
-        }
+      const fuelIds = bills.filter((b) => b.fuel_log_id).map((b) => b.fuel_log_id!);
+      if (fuelIds.length > 0) {
+        const { error: fuelErr } = await supabase.rpc("pc_reserve_fuel_bills", {
+          p_submission_id: subData.id,
+          p_fuel_log_ids: fuelIds,
+        });
+        if (fuelErr) throw fuelErr;
       }
 
-      toast.success(
-        submitForApproval
-          ? `Submission ${subData.submission_number} submitted for approval`
-          : `Draft ${subData.submission_number} saved`
-      );
+      toast.success(`Submission ${subData.submission_number} submitted for approval`);
       navigate("/petty-cash");
     } catch (err: any) {
       toast.error(err?.message || "Failed to save submission");
     } finally {
-      fn(false);
+      setSubmitting(false);
     }
   };
 
@@ -618,28 +607,13 @@ export default function SubmitBills() {
         <div style={{ display: "flex", gap: "0.75rem" }}>
           <motion.button
             whileTap={{ scale: 0.97 }}
-            disabled={saving || submitting}
-            onClick={() => handleSave(false)}
+            disabled={submitting}
+            onClick={handleSubmit}
             style={{
               flex: 1, padding: "0.875rem", borderRadius: "0.75rem",
-              border: "1px solid rgba(100,100,100,0.3)", background: "transparent",
-              fontSize: "0.9rem", fontWeight: 600,
-              cursor: saving || submitting ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
-            }}
-          >
-            {saving ? <Loader2 className="animate-spin" width="1rem" /> : <Save width="1rem" />}
-            Save Draft
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            disabled={saving || submitting}
-            onClick={() => handleSave(true)}
-            style={{
-              flex: 2, padding: "0.875rem", borderRadius: "0.75rem",
               border: "none", background: "#1e3a5f",
               color: "white", fontSize: "0.9rem", fontWeight: 600,
-              cursor: saving || submitting ? "not-allowed" : "pointer",
+              cursor: submitting ? "not-allowed" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
             }}
           >
