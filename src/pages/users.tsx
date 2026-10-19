@@ -92,11 +92,6 @@ interface EmployeeRecord {
   name?: string | null;
   emp_id?: string | number | null;
   email?: string | null;
-  designation?: string | null;
-  department?: string | null;
-  project?: string | null;
-  phone?: string | null;
-  status?: string | null;
 }
 
 const ATTENDANCE_SUBOPTIONS = [
@@ -801,6 +796,7 @@ export default function Users() {
 
   const [refreshCompleted, setRefreshCompleted] = useState(false);
   const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
+  const [employeesLoaded, setEmployeesLoaded] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeRecord | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeesLoading, setEmployeesLoading] = useState(false);
@@ -833,9 +829,6 @@ export default function Users() {
         employee.name,
         employee.emp_id,
         employee.email,
-        employee.designation,
-        employee.department,
-        employee.project,
       ].some((value) => String(value || "").toLowerCase().includes(query)),
     );
   }, [employees, employeeSearch]);
@@ -940,7 +933,7 @@ export default function Users() {
   };
 
   useEffect(() => {
-    if (!addUserDialog) return;
+    if (!addUserDialog || employeesLoaded) return;
 
     let cancelled = false;
     const loadEmployees = async () => {
@@ -949,10 +942,13 @@ export default function Users() {
       try {
         const { data, error } = await supabase
           .from("employees")
-          .select("*")
+          .select("id, name, emp_id, email")
           .order("name", { ascending: true });
         if (error) throw error;
-        if (!cancelled) setEmployees((data || []) as EmployeeRecord[]);
+        if (!cancelled) {
+          setEmployees((data || []) as EmployeeRecord[]);
+          setEmployeesLoaded(true);
+        }
       } catch (error) {
         console.error("Error loading employees for user creation:", error);
         if (!cancelled) {
@@ -967,7 +963,7 @@ export default function Users() {
     return () => {
       cancelled = true;
     };
-  }, [addUserDialog]);
+  }, [addUserDialog, employeesLoaded]);
 
   // Detect mobile/desktop
   useEffect(() => {
@@ -1576,12 +1572,6 @@ export default function Users() {
               </div>
               {selectedEmployee.emp_id && <span>ID: {selectedEmployee.emp_id}</span>}
               <span>{selectedEmployee.email || "No email address on employee record"}</span>
-              {(selectedEmployee.designation || selectedEmployee.department) && (
-                <span>{[selectedEmployee.designation, selectedEmployee.department].filter(Boolean).join(" · ")}</span>
-              )}
-              {(selectedEmployee.project || selectedEmployee.phone) && (
-                <span>{[selectedEmployee.project, selectedEmployee.phone].filter(Boolean).join(" · ")}</span>
-              )}
               {!selectedEmployee.email?.trim() && (
                 <span role="alert" style={{ color: "darkred" }}>
                   Add an email to this employee record before creating a user account.
@@ -1591,7 +1581,7 @@ export default function Users() {
           ) : (
             <>
               <input
-                placeholder="Search employees by name, ID, email, department, or project"
+                placeholder="Search employees by name, ID, or email"
                 value={employeeSearch}
                 onChange={(e) => setEmployeeSearch(e.target.value)}
                 autoComplete="off"
@@ -1645,7 +1635,7 @@ export default function Users() {
                     >
                       <strong>{employee.name || "Unnamed employee"}</strong>
                       <span style={{ fontSize: "0.85rem", opacity: 0.75 }}>
-                        {[employee.emp_id && `ID: ${employee.emp_id}`, employee.email, employee.designation, employee.department]
+                        {[employee.emp_id && `ID: ${employee.emp_id}`, employee.email]
                           .filter(Boolean)
                           .join(" · ") || "No additional employee details"}
                       </span>
