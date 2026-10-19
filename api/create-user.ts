@@ -92,7 +92,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
 
     const { data: employeeRows, error: employeeError } = await supabase
       .from("employees")
-      .select("*")
+      .select("name, email, emp_id")
       .eq("id", employeeId)
       .limit(1);
     if (employeeError) throw employeeError;
@@ -143,7 +143,6 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       email,
       emp_id: employee.emp_id ?? null,
       role: "profile",
-      designation: employee.designation || "",
       clearance: JSON.stringify(clearance),
       editor: "false",
       sensitive_data: "false",
