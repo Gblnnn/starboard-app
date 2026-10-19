@@ -92,7 +92,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
 
     const { data: employeeRows, error: employeeError } = await supabase
       .from("employees")
-      .select("name, email, emp_id")
+      .select("email, emp_id")
       .eq("id", employeeId)
       .limit(1);
     if (employeeError) throw employeeError;
@@ -103,13 +103,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
 
     const employee = employeeRows[0];
     const email = typeof employee.email === "string" ? employee.email.trim().toLowerCase() : "";
-    const name = typeof employee.name === "string" ? employee.name.trim() : "";
     if (!email.includes("@")) {
       sendJson(response, 400, { error: "Add a valid email address to the employee record before creating a user." });
-      return;
-    }
-    if (!name) {
-      sendJson(response, 400, { error: "Add a name to the employee record before creating a user." });
       return;
     }
 
@@ -139,7 +134,6 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
 
     const { error: insertError } = await supabase.from("users").insert({
-      name,
       email,
       emp_id: employee.emp_id ?? null,
       role: "profile",
