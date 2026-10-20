@@ -5,9 +5,9 @@
 // =============================================================================
 
 import * as XLSX from '@e965/xlsx';
-import { format, parseISO } from 'date-fns';
-import type { HTMProjectConfig, HTMEmployeeConfig, HTMAttendance, PayrollLineResult } from './types';
-import { formatOMR, PAY_CATEGORY_LABELS } from './types';
+import { format } from 'date-fns';
+import type { HTMProjectConfig, HTMAttendance, PayrollLineResult } from './types';
+import { PAY_CATEGORY_LABELS } from './types';
 import { generateDateRange, validateDecimalHours } from './payrollEngine';
 
 // Sanitize a cell value to prevent formula injection
