@@ -8,7 +8,7 @@ import { Check, Loader2, Pencil, Plus, RefreshCw, Users, X } from 'lucide-react'
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useHTMAccess } from './useHTMAccess';
-import type { HTMEmployeeConfig, HTMProjectConfig, PayCategory, OTMultiplier } from './types';
+import type { HTMEmployeeConfig, HTMProjectConfig, PayCategory } from './types';
 import { PAY_CATEGORY_LABELS, OT_MULTIPLIER_OPTIONS, formatOMR } from './types';
 
 const CARD: React.CSSProperties = {
@@ -64,7 +64,7 @@ export default function EmployeeConfig() {
     try {
       const [{ data: cfgData, error: cfgErr }, { data: projData, error: projErr }, { data: empData, error: empErr }] = await Promise.all([
         supabase.from('hourly_tm_employee_config').select('*').order('project_code').order('emp_id'),
-        supabase.from('hourly_tm_project_config').select('id, project_code, regular_hours, active').eq('active', true).order('project_code'),
+        supabase.from('hourly_tm_project_config').select('*').eq('active', true).order('project_code'),
         supabase.from('employees').select('emp_id, name').order('name'),
       ]);
       if (cfgErr) throw cfgErr;
