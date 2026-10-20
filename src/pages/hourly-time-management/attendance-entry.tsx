@@ -5,12 +5,12 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
-import { AlertCircle, Check, Clock, Download, Loader2, RefreshCw, Save } from 'lucide-react';
+import { AlertCircle, Clock, Download, Loader2, RefreshCw, Save } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useHTMAccess } from './useHTMAccess';
-import type { HTMProjectConfig, HTMEmployeeConfig, HTMAttendance, HTMHoliday } from './types';
+import type { HTMProjectConfig, HTMAttendance, HTMHoliday } from './types';
 import { validateDecimalHours, generateDateRange, findEffectiveConfig } from './payrollEngine';
 import { downloadAttendanceTemplate } from './excelUtils';
 
@@ -43,8 +43,6 @@ export default function AttendanceEntry() {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [dates, setDates] = useState<string[]>([]);
   const [employees, setEmployees] = useState<{ emp_id: string; name: string }[]>([]);
-  const [empConfigs, setEmpConfigs] = useState<HTMEmployeeConfig[]>([]);
-  const [attendance, setAttendance] = useState<HTMAttendance[]>([]);
   const [holidays, setHolidays] = useState<HTMHoliday[]>([]);
   const [cells, setCells] = useState<Record<string, AttendanceCell>>({}); // key: `${emp_id}::${date}`
   const [lockedDates, setLockedDates] = useState<Set<string>>(new Set());
@@ -92,7 +90,6 @@ export default function AttendanceEntry() {
       const activeCfgs = (cfgData ?? []).filter(
         (c) => !c.effective_to || c.effective_to >= startDate,
       );
-      setEmpConfigs(activeCfgs);
 
       const empIds = [...new Set(activeCfgs.map((c) => c.emp_id))];
 
@@ -115,7 +112,6 @@ export default function AttendanceEntry() {
         .gte('attendance_date', startDate)
         .lte('attendance_date', endDate);
       if (attErr) throw attErr;
-      setAttendance(attData ?? []);
 
       // Load holidays
       const { data: holData } = await supabase
@@ -263,7 +259,6 @@ export default function AttendanceEntry() {
   const holidaySet = new Set(holidays.map((h) => h.holiday_date));
   const isFriday = (d: string) => new Date(d).getDay() === 5;
   const isSaturday = (d: string) => new Date(d).getDay() === 6;
-  const isWeekend = (d: string) => isFriday(d) || isSaturday(d);
   const isHoliday = (d: string) => holidaySet.has(d);
 
   const empIds = [...new Set(employees.map((e) => e.emp_id))];
