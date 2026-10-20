@@ -11,7 +11,7 @@
 // =============================================================================
 
 import { format, parseISO, getDay } from 'date-fns';
-import type { PayCategory, OTMultiplier, PayrollLineResult, HTMEmployeeConfig, HTMProjectConfig, HTMAttendance, HTMHoliday } from './types';
+import type { PayrollLineResult, HTMEmployeeConfig, HTMProjectConfig, HTMAttendance, HTMHoliday } from './types';
 
 // ---------------------------------------------------------------------------
 // Day-type helpers
