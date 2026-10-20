@@ -75,6 +75,10 @@ const HourlyTM = lazy(() => import("./pages/hourly-time-management"));
 const HourlyTMProjectConfig = lazy(() => import("./pages/hourly-time-management/project-config"));
 const HourlyTMEmployeeConfig = lazy(() => import("./pages/hourly-time-management/employee-config"));
 const HourlyTMAttendance = lazy(() => import("./pages/hourly-time-management/attendance-entry"));
+const HourlyTMExcelUpload = lazy(() => import("./pages/hourly-time-management/excel-upload"));
+const HourlyTMPayroll = lazy(() => import("./pages/hourly-time-management/payroll"));
+const HourlyTMFinalize = lazy(() => import("./pages/hourly-time-management/finalize"));
+const HourlyTMHolidays = lazy(() => import("./pages/hourly-time-management/holidays"));
 
 // Petty Cash Management
 const PettyCash = lazy(() => import("./pages/petty-cash-management"));
@@ -215,6 +219,10 @@ export default function App() {
             <Route path="/hourly-tm/project-config" element={<HourlyTMProjectConfig />} />
             <Route path="/hourly-tm/employee-config" element={<HourlyTMEmployeeConfig />} />
             <Route path="/hourly-tm/attendance" element={<HourlyTMAttendance />} />
+            <Route path="/hourly-tm/excel-upload" element={<HourlyTMExcelUpload />} />
+            <Route path="/hourly-tm/payroll" element={<HourlyTMPayroll />} />
+            <Route path="/hourly-tm/finalize" element={<HourlyTMFinalize />} />
+            <Route path="/hourly-tm/holidays" element={<HourlyTMHolidays />} />
             <Route path="/shift-management" element={<ShiftManagement />} />
             <Route path="/employee-timesheet-summary" element={<EmployeeTimesheetSummaryReport />} />
             <Route path="/timesheet-edit" element={<TimesheetEdit />} />
