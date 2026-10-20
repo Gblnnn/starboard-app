@@ -23,6 +23,7 @@ import {
   Clock3Icon,
   File,
   FileArchive,
+  FileSpreadsheet,
   FileText,
   KeyRound,
   Link,
@@ -216,8 +217,10 @@ export default function Index() {
     hasModuleAccess('passports') ||
     hasModuleAccess('employee_clearance_form') ||
     hasModuleAccess('offboarding');
+  const hasHourlyTimeManagement = admin || userData?.role === 'management' || hasModuleAccess('hourly_time_management');
   const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
   const hasTimeAttendanceModules =
+    hasHourlyTimeManagement ||
     hasShiftManagement ||
     hasModuleAccess('transfer_requests') ||
     hasModuleAccess('shift_logs');
@@ -682,6 +685,20 @@ export default function Index() {
                       </AccordionTrigger>
                       <AccordionContent style={{ position: "absolute", top: "calc(100% + 0.35rem)", left: 0, width: "min(320px, calc(100vw - 2.5rem))", zIndex: 30, padding: "0 0.75rem", border: "1px solid rgba(255,255,255,0.75)", borderRadius: "0.88rem", background: "rgba(246,248,252,0.98)", boxShadow: "0 12px 28px rgba(15,23,42,0.18)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr", rowGap: "0.5rem" }}>
+                        {hasHourlyTimeManagement && (
+                          <GridTile
+                            title="Hourly Time Management"
+                            description="Project-based hourly payroll and attendance"
+                            icon={<FileSpreadsheet width="2.5rem" />}
+                            onClick={() => {
+                              if (admin || userData?.role === 'management' || hasModuleAccess('hourly_time_management')) {
+                                navigate('/hourly-tm');
+                              } else {
+                                toast.error('No clearance to access Hourly Time Management');
+                              }
+                            }}
+                          />
+                        )}
                         {hasShiftManagement && (
                           <GridTile
                             title="Shift Management"
