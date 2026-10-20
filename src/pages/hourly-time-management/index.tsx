@@ -1,4 +1,3 @@
-import { useAuth } from '@/components/AuthProvider';
 import Back from '@/components/back';
 import { supabase } from '@/lib/supabase';
 import { motion } from 'framer-motion';
@@ -21,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useHTMAccess } from './useHTMAccess';
 import type { HTMProjectConfig, HTMPayrollPeriod } from './types';
-import { formatOMR, payrollPeriodStatusColor, payrollPeriodStatusLabel } from './types';
+import { payrollPeriodStatusColor, payrollPeriodStatusLabel } from './types';
 
 const CARD: React.CSSProperties = {
   background: 'var(--card, rgba(255,255,255,0.04))',
@@ -31,7 +30,6 @@ const CARD: React.CSSProperties = {
 };
 
 export default function HourlyTMIndex() {
-  const { userData } = useAuth();
   const navigate = useNavigate();
   const perms = useHTMAccess();
 
