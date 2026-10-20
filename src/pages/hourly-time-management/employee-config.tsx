@@ -50,6 +50,8 @@ export default function EmployeeConfig() {
   const [configs, setConfigs] = useState<HTMEmployeeConfig[]>([]);
   const [projects, setProjects] = useState<HTMProjectConfig[]>([]);
   const [employees, setEmployees] = useState<{ emp_id: string; name: string }[]>([]);
+  const [projectEmployees, setProjectEmployees] = useState<{ emp_id: string; name: string }[]>([]);
+  const [loadingProjectEmployees, setLoadingProjectEmployees] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -88,6 +90,55 @@ export default function EmployeeConfig() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (!showForm || editId !== null || !form.project_code) {
+      setProjectEmployees([]);
+      setLoadingProjectEmployees(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadProjectEmployees = async () => {
+      setProjectEmployees([]);
+      setLoadingProjectEmployees(true);
+      try {
+        const { data: projectEmployeeRows, error: projectEmployeesError } = await supabase
+          .from('v_employee_latest_project')
+          .select('emp_id')
+          .eq('project_code', form.project_code);
+        if (projectEmployeesError) throw projectEmployeesError;
+
+        const empIds = Array.from(new Set(
+          (projectEmployeeRows ?? [])
+            .map((row) => row.emp_id)
+            .filter((empId): empId is string => Boolean(empId)),
+        ));
+        if (!empIds.length) {
+          if (!cancelled) setProjectEmployees([]);
+          return;
+        }
+
+        const { data: employeeRows, error: employeesError } = await supabase
+          .from('employees')
+          .select('emp_id, name')
+          .in('emp_id', empIds)
+          .order('name');
+        if (employeesError) throw employeesError;
+        if (!cancelled) setProjectEmployees(employeeRows ?? []);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setProjectEmployees([]);
+          toast.error(err instanceof Error ? err.message : 'Failed to load employees for this project');
+        }
+      } finally {
+        if (!cancelled) setLoadingProjectEmployees(false);
+      }
+    };
+
+    void loadProjectEmployees();
+    return () => { cancelled = true; };
+  }, [editId, form.project_code, showForm]);
 
   const openCreate = () => {
     setEditId(null);
@@ -345,34 +396,6 @@ export default function EmployeeConfig() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-                {/* Searchable Employee */}
-                <div>
-                  {editId !== null ? (
-                    <div>
-                      <label style={modalLabelStyle}>Employee</label>
-                      <div style={{ padding: '0.65rem 0.85rem', background: '#f1f5f9', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontWeight: 700, color: '#0f172a' }}>{form.emp_id}</span>
-                        {employees.find((e) => e.emp_id === form.emp_id) && (
-                          <span style={{ color: '#475569', marginLeft: '0.5rem' }}>
-                            — {employees.find((e) => e.emp_id === form.emp_id)?.name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <SearchableSelect
-                      label="Employee *"
-                      placeholder="Search employee by ID or name..."
-                      value={form.emp_id}
-                      onChange={(val) => setForm((f) => ({ ...f, emp_id: val }))}
-                      options={employees.map((e) => ({
-                        value: e.emp_id,
-                        label: e.name,
-                      }))}
-                    />
-                  )}
-                </div>
-
                 {/* Searchable Project */}
                 <div>
                   {editId !== null ? (
@@ -392,13 +415,48 @@ export default function EmployeeConfig() {
                       label="Project *"
                       placeholder="Search project by code or name..."
                       value={form.project_code}
-                      onChange={(val) => setForm((f) => ({ ...f, project_code: val }))}
+                      onChange={(val) => setForm((f) => ({ ...f, project_code: val, emp_id: '' }))}
                       options={projects.map((p) => ({
                         value: p.project_code,
                         label: p.project_name ?? p.project_code,
                         subLabel: `${p.regular_hours}h regular`,
                       }))}
                     />
+                  )}
+                </div>
+
+                {/* Searchable Employee */}
+                <div>
+                  {editId !== null ? (
+                    <div>
+                      <label style={modalLabelStyle}>Employee</label>
+                      <div style={{ padding: '0.65rem 0.85rem', background: '#f1f5f9', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>{form.emp_id}</span>
+                        {employees.find((e) => e.emp_id === form.emp_id) && (
+                          <span style={{ color: '#475569', marginLeft: '0.5rem' }}>
+                            — {employees.find((e) => e.emp_id === form.emp_id)?.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : form.project_code ? (
+                    <SearchableSelect
+                      label="Employee *"
+                      placeholder={loadingProjectEmployees ? 'Loading project employees...' : 'Search employee by ID or name...'}
+                      value={form.emp_id}
+                      onChange={(val) => setForm((f) => ({ ...f, emp_id: val }))}
+                      options={projectEmployees.map((e) => ({
+                        value: e.emp_id,
+                        label: e.name,
+                      }))}
+                    />
+                  ) : (
+                    <div>
+                      <label style={modalLabelStyle}>Employee *</label>
+                      <div style={{ padding: '0.65rem 0.85rem', background: '#f1f5f9', borderRadius: '0.5rem', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '0.875rem' }}>
+                        Select a project first
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -770,4 +828,3 @@ const modalInputStyle: React.CSSProperties = {
   color: '#0f172a',
   borderRadius: '0.5rem',
 };
-
