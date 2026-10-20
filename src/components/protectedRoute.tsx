@@ -39,8 +39,18 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
   attendance_edit: ["/timesheet-edit", "/project-timing-break"],
   shift_management: ["/shift-management"],
   document_editor: ["/document-editor"],
-  mobile_punch: ["/mobile-punch"],
-  petty_cash: ["/petty-cash", "/petty-cash/new-request", "/petty-cash/submit-bills", "/petty-cash/approvals", "/petty-cash/finance", "/petty-cash/assignments", "/petty-cash/categories", "/petty-cash/dashboard"]
+  petty_cash: ["/petty-cash", "/petty-cash/new-request", "/petty-cash/submit-bills", "/petty-cash/approvals", "/petty-cash/finance", "/petty-cash/assignments", "/petty-cash/categories", "/petty-cash/dashboard"],
+  hourly_time_management: [
+    "/hourly-tm",
+    "/hourly-time-management",
+    "/hourly-tm/project-config",
+    "/hourly-tm/employee-config",
+    "/hourly-tm/attendance",
+    "/hourly-tm/excel-upload",
+    "/hourly-tm/payroll",
+    "/hourly-tm/finalize",
+    "/hourly-tm/holidays"
+  ]
 };
 
 const routeMatchesPath = (route: string, path: string): boolean => {
@@ -115,6 +125,11 @@ export default function ProtectedRoutes() {
     Boolean(userData.emp_id) ||
     modulePermissions.petty_cash === true
   );
+  const hasHourlyTMAccess = (currentPath.startsWith("/hourly-tm") || currentPath === "/hourly-time-management") && (
+    userData.role === "admin" ||
+    userData.role === "management" ||
+    modulePermissions.hourly_time_management === true
+  );
 
   const isPathAllowed = (path: string, routes: string[]): boolean => {
     if (routes.includes("*")) return true;
@@ -126,16 +141,16 @@ export default function ProtectedRoutes() {
     .some((routes) => routes.includes(currentPath));
 
   if (isModuleProtected) {
-    if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess) {
+    if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess && !hasHourlyTMAccess) {
       const defaultRoute = allowedRoutes && allowedRoutes.length > 0 ? allowedRoutes[0] : "/index";
       return <Navigate to={defaultRoute} replace />;
     }
   } else {
     if (allowedRoutes && allowedRoutes.length > 0 && !allowedRoutes.includes("*")) {
-      if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess) {
+      if (!isPathAllowed(currentPath, allowedRoutes) && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess && !hasHourlyTMAccess) {
         return <Navigate to={allowedRoutes[0]} replace />;
       }
-    } else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess) {
+    } else if (!allowedRoutes && currentPath !== "/index" && !hasModuleRouteAccess && !hasShiftManagementAccess && !hasPettyCashAccess && !hasHourlyTMAccess) {
       return <Navigate to="/index" replace />;
     }
   }
