@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Loader2, Pencil, Plus, RefreshCw, Users, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Check, ChevronDown, Loader2, Pencil, Plus, RefreshCw, Search, Users, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useHTMAccess } from './useHTMAccess';
 import type { HTMEmployeeConfig, HTMProjectConfig, PayCategory } from './types';
@@ -296,58 +296,130 @@ export default function EmployeeConfig() {
       <AnimatePresence>
         {showForm && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '1rem', overflowY: 'auto' }}
-            onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.65)',
+              zIndex: 50,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+              overflowY: 'auto',
+              backdropFilter: 'blur(4px)',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowForm(false);
+            }}
           >
             <motion.div
-              initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
-              style={{ background: 'var(--background, #0f172a)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '1.25rem', padding: '1.5rem', width: '100%', maxWidth: 520, marginBottom: '1rem' }}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '1.25rem',
+                padding: '1.75rem',
+                width: '100%',
+                maxWidth: 520,
+                margin: 'auto',
+                color: '#0f172a',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <h3 style={{ fontWeight: 700, fontSize: '1.05rem' }}>
+                <h3 style={{ fontWeight: 700, fontSize: '1.1rem', color: '#0f172a' }}>
                   {editId !== null ? 'Edit Employee Configuration' : 'Add Employee Configuration'}
                 </h3>
-                <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
-                  <X width="1.1rem" />
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '0.25rem' }}
+                >
+                  <X width="1.2rem" />
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                {/* Employee */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                {/* Searchable Employee */}
                 <div>
-                  <label style={labelStyle}>Employee *</label>
                   {editId !== null ? (
-                    <p style={{ fontWeight: 700 }}>{form.emp_id} {form.emp_id}</p>
+                    <div>
+                      <label style={modalLabelStyle}>Employee</label>
+                      <div style={{ padding: '0.65rem 0.85rem', background: '#f1f5f9', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>{form.emp_id}</span>
+                        {employees.find((e) => e.emp_id === form.emp_id) && (
+                          <span style={{ color: '#475569', marginLeft: '0.5rem' }}>
+                            — {employees.find((e) => e.emp_id === form.emp_id)?.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   ) : (
-                    <select value={form.emp_id} onChange={(e) => setForm((f) => ({ ...f, emp_id: e.target.value }))} style={selectStyle}>
-                      <option value="">Select employee...</option>
-                      {employees.map((e) => (
-                        <option key={e.emp_id} value={e.emp_id}>{e.emp_id} — {e.name}</option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      label="Employee *"
+                      placeholder="Search employee by ID or name..."
+                      value={form.emp_id}
+                      onChange={(val) => setForm((f) => ({ ...f, emp_id: val }))}
+                      options={employees.map((e) => ({
+                        value: e.emp_id,
+                        label: e.name,
+                      }))}
+                    />
                   )}
                 </div>
 
-                {/* Project */}
+                {/* Searchable Project */}
                 <div>
-                  <label style={labelStyle}>Project *</label>
                   {editId !== null ? (
-                    <p style={{ fontWeight: 700 }}>{form.project_code}</p>
+                    <div>
+                      <label style={modalLabelStyle}>Project</label>
+                      <div style={{ padding: '0.65rem 0.85rem', background: '#f1f5f9', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontWeight: 700, color: '#0f172a' }}>{form.project_code}</span>
+                        {projects.find((p) => p.project_code === form.project_code)?.project_name && (
+                          <span style={{ color: '#475569', marginLeft: '0.5rem' }}>
+                            — {projects.find((p) => p.project_code === form.project_code)?.project_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   ) : (
-                    <select value={form.project_code} onChange={(e) => setForm((f) => ({ ...f, project_code: e.target.value }))} style={selectStyle}>
-                      <option value="">Select project...</option>
-                      {projects.map((p) => <option key={p.project_code} value={p.project_code}>{p.project_code}</option>)}
-                    </select>
+                    <SearchableSelect
+                      label="Project *"
+                      placeholder="Search project by code or name..."
+                      value={form.project_code}
+                      onChange={(val) => setForm((f) => ({ ...f, project_code: val }))}
+                      options={projects.map((p) => ({
+                        value: p.project_code,
+                        label: p.project_name ?? p.project_code,
+                        subLabel: `${p.regular_hours}h regular`,
+                      }))}
+                    />
                   )}
                 </div>
 
                 {/* Pay Category */}
                 <div>
-                  <label style={labelStyle}>Pay Category *</label>
-                  <select value={form.pay_category} onChange={(e) => setForm((f) => ({ ...f, pay_category: e.target.value as PayCategory, ot_multiplier: '' }))} style={selectStyle}>
+                  <label style={modalLabelStyle}>Pay Category *</label>
+                  <select
+                    value={form.pay_category}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        pay_category: e.target.value as PayCategory,
+                        ot_multiplier: '',
+                      }))
+                    }
+                    style={modalSelectStyle}
+                  >
                     {(Object.entries(PAY_CATEGORY_LABELS) as [PayCategory, string][]).map(([val, label]) => (
-                      <option key={val} value={val}>{label}</option>
+                      <option key={val} value={val}>
+                        {label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -355,12 +427,15 @@ export default function EmployeeConfig() {
                 {/* Monthly Salary */}
                 {needsSalary && (
                   <div>
-                    <label style={labelStyle}>Monthly Salary (OMR) *</label>
+                    <label style={modalLabelStyle}>Monthly Salary (OMR) *</label>
                     <Input
-                      type="number" min="0" step="0.001"
+                      type="number"
+                      min="0"
+                      step="0.001"
                       value={form.monthly_salary}
                       onChange={(e) => setForm((f) => ({ ...f, monthly_salary: e.target.value }))}
                       placeholder="e.g. 400.000"
+                      style={modalInputStyle}
                     />
                   </div>
                 )}
@@ -368,12 +443,15 @@ export default function EmployeeConfig() {
                 {/* Hourly Rate */}
                 {needsHourly && (
                   <div>
-                    <label style={labelStyle}>Hourly Rate (OMR) *</label>
+                    <label style={modalLabelStyle}>Hourly Rate (OMR) *</label>
                     <Input
-                      type="number" min="0" step="0.001"
+                      type="number"
+                      min="0"
+                      step="0.001"
                       value={form.hourly_rate}
                       onChange={(e) => setForm((f) => ({ ...f, hourly_rate: e.target.value }))}
                       placeholder="e.g. 1.500"
+                      style={modalInputStyle}
                     />
                   </div>
                 )}
@@ -381,10 +459,18 @@ export default function EmployeeConfig() {
                 {/* OT Multiplier */}
                 {needsOT && (
                   <div>
-                    <label style={labelStyle}>OT Multiplier *</label>
-                    <select value={form.ot_multiplier} onChange={(e) => setForm((f) => ({ ...f, ot_multiplier: e.target.value }))} style={selectStyle}>
-                      <option value="">Select...</option>
-                      {OT_MULTIPLIER_OPTIONS.map((v) => <option key={v} value={String(v)}>×{v}</option>)}
+                    <label style={modalLabelStyle}>OT Multiplier *</label>
+                    <select
+                      value={form.ot_multiplier}
+                      onChange={(e) => setForm((f) => ({ ...f, ot_multiplier: e.target.value }))}
+                      style={modalSelectStyle}
+                    >
+                      <option value="">Select multiplier...</option>
+                      {OT_MULTIPLIER_OPTIONS.map((v) => (
+                        <option key={v} value={String(v)}>
+                          ×{v}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -392,31 +478,60 @@ export default function EmployeeConfig() {
                 {/* Effective Dates */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
-                    <label style={labelStyle}>Effective From *</label>
+                    <label style={modalLabelStyle}>Effective From *</label>
                     <Input
                       type="date"
                       value={form.effective_from}
                       onChange={(e) => setForm((f) => ({ ...f, effective_from: e.target.value }))}
+                      style={modalInputStyle}
                     />
                   </div>
                   <div>
-                    <label style={labelStyle}>Effective To (leave blank = open)</label>
+                    <label style={modalLabelStyle}>Effective To (open if blank)</label>
                     <Input
                       type="date"
                       value={form.effective_to}
                       onChange={(e) => setForm((f) => ({ ...f, effective_to: e.target.value }))}
+                      style={modalInputStyle}
                     />
                   </div>
                 </div>
 
                 {/* Active */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <input type="checkbox" id="emp-active" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} style={{ width: '1rem', height: '1rem' }} />
-                  <label htmlFor="emp-active" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Active</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.2rem' }}>
+                  <input
+                    type="checkbox"
+                    id="emp-active"
+                    checked={form.active}
+                    onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+                    style={{ width: '1.1rem', height: '1.1rem', accentColor: '#16a34a', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="emp-active" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}>
+                    Active Configuration
+                  </label>
                 </div>
 
-                <Button onClick={handleSave} disabled={saving} style={{ marginTop: '0.5rem' }}>
-                  {saving ? <Loader2 className="animate-spin" width="1rem" /> : <Check width="1rem" />}
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    marginTop: '0.5rem',
+                    background: '#1e3a5f',
+                    color: '#ffffff',
+                    height: '2.6rem',
+                    fontWeight: 600,
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  {saving ? (
+                    <Loader2 className="animate-spin" width="1rem" />
+                  ) : (
+                    <Check width="1rem" />
+                  )}
                   {saving ? 'Saving...' : editId !== null ? 'Update Configuration' : 'Add Configuration'}
                 </Button>
               </div>
@@ -428,20 +543,231 @@ export default function EmployeeConfig() {
   );
 }
 
-const labelStyle: React.CSSProperties = {
+// ---------------------------------------------------------------------------
+// Searchable Select Component for Modal
+// ---------------------------------------------------------------------------
+function SearchableSelect({
+  label,
+  placeholder,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string; subLabel?: string }>;
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const selected = options.find((o) => o.value === value);
+
+  const filtered = options.filter((o) => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.toLowerCase();
+    return (
+      o.value.toLowerCase().includes(q) ||
+      o.label.toLowerCase().includes(q) ||
+      (o.subLabel && o.subLabel.toLowerCase().includes(q))
+    );
+  });
+
+  return (
+    <div style={{ position: 'relative' }} ref={containerRef}>
+      <label style={modalLabelStyle}>{label}</label>
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setSearchTerm('');
+        }}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0.65rem 0.85rem',
+          borderRadius: '0.5rem',
+          background: '#f8fafc',
+          border: '1px solid #cbd5e1',
+          color: selected ? '#0f172a' : '#94a3b8',
+          fontSize: '0.875rem',
+          cursor: 'pointer',
+          textAlign: 'left',
+          outline: 'none',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected ? (
+            <span>
+              <strong style={{ color: '#0f172a' }}>{selected.value}</strong>
+              {selected.label && selected.label !== selected.value && (
+                <span style={{ color: '#475569' }}> — {selected.label}</span>
+              )}
+            </span>
+          ) : (
+            placeholder
+          )}
+        </span>
+        <ChevronDown size={16} color="#64748b" style={{ flexShrink: 0, marginLeft: '0.5rem' }} />
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            background: '#ffffff',
+            border: '1px solid #cbd5e1',
+            borderRadius: '0.6rem',
+            boxShadow: '0 12px 24px -4px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.05)',
+            padding: '0.5rem',
+          }}
+        >
+          <div style={{ position: 'relative', marginBottom: '0.4rem' }}>
+            <Search
+              size={14}
+              style={{
+                position: 'absolute',
+                left: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#64748b',
+              }}
+            />
+            <input
+              type="text"
+              autoFocus
+              placeholder="Type to filter..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.45rem 0.6rem 0.45rem 2rem',
+                fontSize: '0.8rem',
+                borderRadius: '0.4rem',
+                border: '1px solid #cbd5e1',
+                background: '#f8fafc',
+                color: '#0f172a',
+                outline: 'none',
+              }}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#94a3b8',
+                }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.8rem', color: '#64748b' }}>
+                No matches found
+              </div>
+            ) : (
+              filtered.map((opt) => (
+                <div
+                  key={opt.value}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  style={{
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                    background: opt.value === value ? '#e0f2fe' : 'transparent',
+                    color: opt.value === value ? '#0369a1' : '#1e293b',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (opt.value !== value) e.currentTarget.style.background = '#f1f5f9';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (opt.value !== value) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: 700 }}>{opt.value}</span>
+                    {opt.label && opt.label !== opt.value && (
+                      <span style={{ marginLeft: '0.4rem', color: '#475569' }}>— {opt.label}</span>
+                    )}
+                  </div>
+                  {opt.subLabel && (
+                    <span style={{ fontSize: '0.72rem', color: '#64748b', flexShrink: 0, marginLeft: '0.5rem' }}>
+                      {opt.subLabel}
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const modalLabelStyle: React.CSSProperties = {
   fontSize: '0.78rem',
   fontWeight: 600,
-  color: '#94a3b8',
+  color: '#475569',
   display: 'block',
-  marginBottom: '0.3rem',
+  marginBottom: '0.35rem',
 };
 
-const selectStyle: React.CSSProperties = {
+const modalSelectStyle: React.CSSProperties = {
   width: '100%',
-  padding: '0.6rem',
+  padding: '0.6rem 0.85rem',
   borderRadius: '0.5rem',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.12)',
-  color: 'inherit',
+  background: '#f8fafc',
+  border: '1px solid #cbd5e1',
+  color: '#0f172a',
   fontSize: '0.875rem',
+  outline: 'none',
 };
+
+const modalInputStyle: React.CSSProperties = {
+  background: '#f8fafc',
+  borderColor: '#cbd5e1',
+  color: '#0f172a',
+  borderRadius: '0.5rem',
+};
+
