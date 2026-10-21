@@ -11,6 +11,7 @@ import VehicleLogBook from "@/pages/vehicle-log-book";
 import { useAuth } from "@/components/AuthProvider";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
+import AutoReports from "./auto-reports";
 import CompanyMaster from "./company-master";
 import HolidayMaster from "./holiday-master";
 
@@ -26,6 +27,7 @@ const masters = [
   { id: "users", label: "Users", component: Users },
   { id: "assets", label: "Assets Master", component: AssetMaster },
   { id: "companies", label: "Company Master", component: CompanyMaster },
+  { id: "auto-reports", label: "Auto Reports", component: AutoReports },
 ] as const;
 
 export default function Administrator() {
