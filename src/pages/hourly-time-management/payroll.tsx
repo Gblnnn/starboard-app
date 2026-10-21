@@ -500,19 +500,19 @@ export default function PayrollTimesheet() {
             </Button>
           </div>
         ) : (
-          <div style={{ ...CARD, padding: 0, overflow: 'hidden' }}>
+          <div style={{ ...CARD, padding: 0, overflow: 'hidden', background: '#fff', color: '#0f172a', borderColor: '#e2e8f0' }}>
             <div style={{ overflowX: 'auto', maxHeight: '65vh' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-                <thead style={{ position: 'sticky', top: 0, background: '#0b1329', zIndex: 10, borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#f1f5f9', zIndex: 10, borderBottom: '1px solid #cbd5e1' }}>
                   <tr>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 90, position: 'sticky', left: 0, background: '#0b1329', zIndex: 12 }}>Emp ID</th>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 160, position: 'sticky', left: 90, background: '#0b1329', zIndex: 12 }}>Name</th>
+                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 90, position: 'sticky', left: 0, background: '#f1f5f9', zIndex: 12 }}>Emp ID</th>
+                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 160, position: 'sticky', left: 90, background: '#f1f5f9', zIndex: 12 }}>Name</th>
                     {dates.map((d) => {
                       const dayOfWeek = parseISO(d).getDay();
                       const isFri = dayOfWeek === 5;
                       const isSat = dayOfWeek === 6;
                       const isHol = holidayDateSet.has(d);
-                      const bg = isHol ? '#7f1d1d' : isFri ? '#1e293b' : isSat ? '#1e293b' : 'transparent';
+                      const bg = isHol ? '#fee2e2' : isFri ? '#e0f2fe' : isSat ? '#f1f5f9' : 'transparent';
                       return (
                         <th
                           key={d}
@@ -521,8 +521,8 @@ export default function PayrollTimesheet() {
                             textAlign: 'center',
                             minWidth: 42,
                             background: bg,
-                            color: isHol ? '#fca5a5' : isFri ? '#38bdf8' : isSat ? '#94a3b8' : 'inherit',
-                            borderLeft: '1px solid rgba(255,255,255,0.04)',
+                            color: isHol ? '#b91c1c' : isFri ? '#0369a1' : isSat ? '#475569' : 'inherit',
+                            borderLeft: '1px solid #e2e8f0',
                           }}
                         >
                           <div style={{ fontSize: '0.68rem', fontWeight: 700 }}>{d.slice(8)}</div>
@@ -546,14 +546,14 @@ export default function PayrollTimesheet() {
                     <tr
                       key={line.emp_id}
                       style={{
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        background: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
+                        borderBottom: '1px solid #e2e8f0',
+                        background: idx % 2 === 0 ? '#fff' : '#f8fafc',
                       }}
                     >
-                      <td style={{ padding: '0.55rem 0.8rem', fontFamily: 'monospace', fontWeight: 600, position: 'sticky', left: 0, background: '#0f172a', zIndex: 2 }}>
+                      <td style={{ padding: '0.55rem 0.8rem', fontFamily: 'monospace', fontWeight: 600, position: 'sticky', left: 0, background: idx % 2 === 0 ? '#fff' : '#f8fafc', zIndex: 2 }}>
                         {line.emp_id}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', fontWeight: 500, position: 'sticky', left: 90, background: '#0f172a', zIndex: 2 }}>
+                      <td style={{ padding: '0.55rem 0.8rem', fontWeight: 500, position: 'sticky', left: 90, background: idx % 2 === 0 ? '#fff' : '#f8fafc', zIndex: 2 }}>
                         {line.employee_name}
                       </td>
                       {dates.map((d) => {
@@ -569,8 +569,9 @@ export default function PayrollTimesheet() {
                               textAlign: 'center',
                               fontFamily: 'monospace',
                               fontSize: '0.75rem',
-                              borderLeft: '1px solid rgba(255,255,255,0.04)',
-                              color: h === null ? '#475569' : h > (projectConfig?.regular_hours ?? 8) || isFri || isHol ? '#38bdf8' : 'inherit',
+                              borderLeft: '1px solid #e2e8f0',
+                              color: h === null ? '#64748b' : h > (projectConfig?.regular_hours ?? 8) || isFri || isHol ? '#0369a1' : 'inherit',
+                              background: isHol ? '#fef2f2' : isFri ? '#f0f9ff' : 'transparent',
                             }}
                           >
                             {h === null ? '·' : Number(h).toFixed(1)}
@@ -580,11 +581,11 @@ export default function PayrollTimesheet() {
                       <td style={{ padding: '0.55rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>
                         {line.total_hours_worked.toFixed(2)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: line.total_ot_hours > 0 ? '#0891b2' : 'inherit', fontWeight: line.total_ot_hours > 0 ? 600 : 400 }}>
+                      <td style={{ padding: '0.55rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: line.total_ot_hours > 0 ? '#0e7490' : 'inherit', fontWeight: line.total_ot_hours > 0 ? 600 : 400 }}>
                         {line.total_ot_hours.toFixed(2)}
                       </td>
                       <td style={{ padding: '0.55rem 0.8rem', fontSize: '0.72rem' }}>
-                        <span style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', background: line.pay_category === 'hourly_pay' ? 'rgba(8,145,178,0.15)' : 'rgba(124,58,237,0.15)', color: line.pay_category === 'hourly_pay' ? '#38bdf8' : '#c084fc' }}>
+                        <span style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', background: line.pay_category === 'hourly_pay' ? '#cffafe' : '#ede9fe', color: line.pay_category === 'hourly_pay' ? '#0e7490' : '#6d28d9' }}>
                           {PAY_CATEGORY_LABELS[line.pay_category]}
                         </span>
                       </td>
@@ -594,38 +595,38 @@ export default function PayrollTimesheet() {
                       <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
                         {formatOMR(line.normal_pay)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: line.ot_pay > 0 ? '#d97706' : 'inherit' }}>
+                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: line.ot_pay > 0 ? '#b45309' : 'inherit' }}>
                         {formatOMR(line.ot_pay)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#22c55e' }}>
+                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d' }}>
                         {formatOMR(line.gross_pay)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot style={{ position: 'sticky', bottom: 0, background: '#0b1329', zIndex: 10, borderTop: '2px solid rgba(255,255,255,0.2)', fontWeight: 700 }}>
+                <tfoot style={{ position: 'sticky', bottom: 0, background: '#f1f5f9', zIndex: 10, borderTop: '2px solid #cbd5e1', fontWeight: 700 }}>
                   <tr>
-                    <td style={{ padding: '0.75rem 0.8rem', position: 'sticky', left: 0, background: '#0b1329', zIndex: 12 }}>TOTAL</td>
-                    <td style={{ padding: '0.75rem 0.8rem', position: 'sticky', left: 90, background: '#0b1329', zIndex: 12 }}>
+                    <td style={{ padding: '0.75rem 0.8rem', position: 'sticky', left: 0, background: '#f1f5f9', zIndex: 12 }}>TOTAL</td>
+                    <td style={{ padding: '0.75rem 0.8rem', position: 'sticky', left: 90, background: '#f1f5f9', zIndex: 12 }}>
                       {lines.length} Employees
                     </td>
                     {dates.map((d) => (
-                      <td key={d} style={{ borderLeft: '1px solid rgba(255,255,255,0.04)' }} />
+                      <td key={d} style={{ borderLeft: '1px solid #e2e8f0' }} />
                     ))}
                     <td style={{ padding: '0.75rem 0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>
                       {totalHoursWorked.toFixed(2)}
                     </td>
-                    <td style={{ padding: '0.75rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#0891b2' }}>
+                    <td style={{ padding: '0.75rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#0e7490' }}>
                       {totalOTHours.toFixed(2)}
                     </td>
                     <td colSpan={2} />
                     <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
                       {formatOMR(totalNormalPay)}
                     </td>
-                    <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#d97706' }}>
+                    <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#b45309' }}>
                       {formatOMR(totalOTPay)}
                     </td>
-                    <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#22c55e', fontSize: '0.85rem' }}>
+                    <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#15803d', fontSize: '0.85rem' }}>
                       {formatOMR(totalGrossPay)}
                     </td>
                   </tr>
