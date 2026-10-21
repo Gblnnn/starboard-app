@@ -57,6 +57,7 @@ export default function FinalizePayroll() {
   const [periods, setPeriods] = useState<HTMPayrollPeriod[]>([]);
   const [loading, setLoading] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [finalizeTarget, setFinalizeTarget] = useState<HTMPayrollPeriod | null>(null);
 
   // New period modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -151,17 +152,15 @@ export default function FinalizePayroll() {
   };
 
   // Finalize & Lock Period handler
-  const handleFinalize = async (period: HTMPayrollPeriod) => {
+  const handleFinalize = async () => {
+    const period = finalizeTarget;
+    if (!period) return;
+
     const proj = projects.find((p) => p.project_code === period.project_code);
     if (!proj) {
       toast.error('Project configuration not found');
       return;
     }
-
-    const confirm = window.confirm(
-      `Are you sure you want to finalize and lock "${period.period_name}" (${period.start_date} to ${period.end_date})?\n\nThis will take an immutable snapshot of employee payroll and lock attendance edits for this date range.`,
-    );
-    if (!confirm) return;
 
     setFinalizing(true);
     try {
@@ -278,6 +277,7 @@ export default function FinalizePayroll() {
       if (updErr) throw updErr;
 
       toast.success(`Successfully finalized "${period.period_name}" with ${snapshotRows.length} employee lines!`);
+      setFinalizeTarget(null);
       loadPeriods();
     } catch (err: any) {
       toast.error('Finalization failed: ' + (err?.message || err));
@@ -551,7 +551,7 @@ export default function FinalizePayroll() {
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleFinalize(p)}
+                          onClick={() => setFinalizeTarget(p)}
                           disabled={finalizing}
                           style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#16a34a', color: 'white', fontSize: '0.78rem' }}
                         >
@@ -593,10 +593,12 @@ export default function FinalizePayroll() {
                   display: 'flex',
                   flexDirection: 'column',
                   overflow: 'hidden',
-                  background: '#0b1329',
+                  background: '#fff',
+                  color: '#0f172a',
+                  border: '1px solid #e2e8f0',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
                   <div>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
                       Finalized Snapshot: {viewingPeriod.period_name}
@@ -626,8 +628,8 @@ export default function FinalizePayroll() {
                 ) : (
                   <div style={{ flex: 1, overflowY: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                      <thead style={{ position: 'sticky', top: 0, background: '#0b1329', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <tr style={{ opacity: 0.7, textAlign: 'left' }}>
+                      <thead style={{ position: 'sticky', top: 0, background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                        <tr style={{ textAlign: 'left' }}>
                           <th style={{ padding: '0.5rem 0.6rem' }}>Emp ID</th>
                           <th style={{ padding: '0.5rem 0.6rem' }}>Name</th>
                           <th style={{ padding: '0.5rem 0.6rem' }}>Category</th>
@@ -643,8 +645,8 @@ export default function FinalizePayroll() {
                           <tr
                             key={s.id}
                             style={{
-                              borderBottom: '1px solid rgba(255,255,255,0.05)',
-                              background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                              borderBottom: '1px solid #e2e8f0',
+                              background: idx % 2 === 0 ? '#fff' : '#f8fafc',
                             }}
                           >
                             <td style={{ padding: '0.5rem 0.6rem', fontFamily: 'monospace', fontWeight: 600 }}>{s.emp_id}</td>
@@ -655,37 +657,37 @@ export default function FinalizePayroll() {
                             <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>
                               {Number(s.total_hours_worked).toFixed(2)}
                             </td>
-                            <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: s.total_ot_hours > 0 ? '#0891b2' : 'inherit' }}>
+                            <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: s.total_ot_hours > 0 ? '#0e7490' : 'inherit' }}>
                               {Number(s.total_ot_hours).toFixed(2)}
                             </td>
                             <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>
                               {formatOMR(s.normal_pay)}
                             </td>
-                            <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: s.ot_pay > 0 ? '#d97706' : 'inherit' }}>
+                            <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: s.ot_pay > 0 ? '#b45309' : 'inherit' }}>
                               {formatOMR(s.ot_pay)}
                             </td>
-                            <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#22c55e' }}>
+                            <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d' }}>
                               {formatOMR(s.gross_pay)}
                             </td>
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot style={{ borderTop: '2px solid rgba(255,255,255,0.2)', fontWeight: 700 }}>
+                      <tfoot style={{ borderTop: '2px solid #cbd5e1', background: '#f1f5f9', fontWeight: 700 }}>
                         <tr>
                           <td colSpan={3} style={{ padding: '0.6rem' }}>TOTAL ({snapshots.length} lines)</td>
                           <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>
                             {snapshots.reduce((acc, s) => acc + Number(s.total_hours_worked), 0).toFixed(2)}
                           </td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#0891b2' }}>
+                          <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#0e7490' }}>
                             {snapshots.reduce((acc, s) => acc + Number(s.total_ot_hours), 0).toFixed(2)}
                           </td>
                           <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>
                             {formatOMR(snapshots.reduce((acc, s) => acc + Number(s.normal_pay), 0))}
                           </td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#d97706' }}>
+                          <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#b45309' }}>
                             {formatOMR(snapshots.reduce((acc, s) => acc + Number(s.ot_pay), 0))}
                           </td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#22c55e' }}>
+                          <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#15803d' }}>
                             {formatOMR(snapshots.reduce((acc, s) => acc + Number(s.gross_pay), 0))}
                           </td>
                         </tr>
@@ -718,7 +720,7 @@ export default function FinalizePayroll() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                style={{ ...CARD, width: 'min(440px, 100%)', background: '#0f172a' }}
+                style={{ ...CARD, width: 'min(440px, 100%)', background: '#fff', color: '#0f172a', border: '1px solid #e2e8f0' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>New Payroll Period</h3>
@@ -745,9 +747,9 @@ export default function FinalizePayroll() {
                         width: '100%',
                         padding: '0.6rem 0.75rem',
                         borderRadius: '0.6rem',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(255,255,255,0.04)',
-                        color: 'inherit',
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                        color: '#0f172a',
                         fontSize: '0.85rem',
                       }}
                     />
@@ -767,9 +769,9 @@ export default function FinalizePayroll() {
                           width: '100%',
                           padding: '0.6rem 0.75rem',
                           borderRadius: '0.6rem',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          background: 'rgba(255,255,255,0.04)',
-                          color: 'inherit',
+                          border: '1px solid #cbd5e1',
+                          background: '#fff',
+                          color: '#0f172a',
                           fontSize: '0.85rem',
                         }}
                       />
@@ -788,9 +790,9 @@ export default function FinalizePayroll() {
                           width: '100%',
                           padding: '0.6rem 0.75rem',
                           borderRadius: '0.6rem',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          background: 'rgba(255,255,255,0.04)',
-                          color: 'inherit',
+                          border: '1px solid #cbd5e1',
+                          background: '#fff',
+                          color: '#0f172a',
                           fontSize: '0.85rem',
                         }}
                       />
@@ -806,6 +808,64 @@ export default function FinalizePayroll() {
                     </Button>
                   </div>
                 </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Finalize Confirmation Modal */}
+        <AnimatePresence>
+          {finalizeTarget && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.7)',
+                zIndex: 100,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1rem',
+                backdropFilter: 'blur(6px)',
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                style={{ ...CARD, width: 'min(460px, 100%)', background: '#fff', color: '#0f172a', border: '1px solid #e2e8f0' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Finalize Payroll Period</h3>
+                  <button
+                    type="button"
+                    onClick={() => setFinalizeTarget(null)}
+                    disabled={finalizing}
+                    style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: finalizing ? 'not-allowed' : 'pointer' }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                  Are you sure you want to finalize and lock <strong>{finalizeTarget.period_name}</strong>?
+                </p>
+                <p style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '1.25rem' }}>
+                  {finalizeTarget.start_date} to {finalizeTarget.end_date}. This creates an immutable payroll snapshot and locks attendance edits for this date range.
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                  <Button variant="outline" onClick={() => setFinalizeTarget(null)} disabled={finalizing}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleFinalize}
+                    disabled={finalizing}
+                    style={{ background: '#16a34a', color: 'white' }}
+                  >
+                    {finalizing ? 'Finalizing...' : 'Finalize & Lock'}
+                  </Button>
+                </div>
               </motion.div>
             </div>
           )}
@@ -831,10 +891,10 @@ export default function FinalizePayroll() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                style={{ ...CARD, width: 'min(460px, 100%)', background: '#0f172a' }}
+                style={{ ...CARD, width: 'min(460px, 100%)', background: '#fff', color: '#0f172a', border: '1px solid #e2e8f0' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#c084fc' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#7c3aed' }}>
                     Reopen Finalized Payroll Period
                   </h3>
                   <button
@@ -865,9 +925,9 @@ export default function FinalizePayroll() {
                         width: '100%',
                         padding: '0.6rem 0.75rem',
                         borderRadius: '0.6rem',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(255,255,255,0.04)',
-                        color: 'inherit',
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                        color: '#0f172a',
                         fontSize: '0.85rem',
                       }}
                     />
