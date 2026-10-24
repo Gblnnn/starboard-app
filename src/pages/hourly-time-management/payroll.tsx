@@ -11,6 +11,7 @@ import {
   Download,
   Loader2,
   Lock,
+  Printer,
   Search,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -172,8 +173,8 @@ export default function PayrollTimesheet() {
       });
 
       setLines(calculatedLines);
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to calculate payroll');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to calculate payroll');
     } finally {
       setLoading(false);
     }
@@ -229,29 +230,108 @@ export default function PayrollTimesheet() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: '100svh', paddingBottom: '2.5rem' }}>
-      <Back
-        fixed
-        blurBG
-        title="Payroll Timesheet"
-        icon={<BarChart3 width="1.1rem" />}
-        extra={
-          lines.length > 0 && perms.canExportPayroll ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleExport}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <Download size={14} /> Export .xlsx
-            </Button>
-          ) : undefined
+    <motion.div className="payroll-print-root" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: '100svh', paddingBottom: '2.5rem' }}>
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 5mm; }
+          html, body, #root { width: 100% !important; margin: 0 !important; }
+          body * { visibility: hidden !important; }
+          .payroll-print-root, .payroll-print-root * { visibility: visible !important; }
+          .payroll-print-root {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            min-height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: #fff !important;
+            color: #0f172a !important;
+          }
+          .payroll-no-print { display: none !important; }
+          .payroll-print-content {
+            width: 100% !important;
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .payroll-print-heading { display: flex !important; }
+          .payroll-print-table {
+            display: block !important;
+            width: 100% !important;
+            overflow: visible !important;
+            max-height: none !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          .payroll-print-table > div { overflow: visible !important; max-height: none !important; }
+          .payroll-print-table table {
+            width: 100% !important;
+            min-width: 0 !important;
+            table-layout: fixed !important;
+            font-size: 4.5pt !important;
+          }
+          .payroll-print-table th, .payroll-print-table td {
+            box-sizing: border-box !important;
+            min-width: 0 !important;
+            padding: 1px !important;
+            position: static !important;
+            overflow: hidden !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            line-height: 1.1 !important;
+          }
+          .payroll-print-table thead, .payroll-print-table tfoot { position: static !important; }
+          .payroll-print-table tr { break-inside: avoid; page-break-inside: avoid; }
+          .payroll-col-emp-id { width: 5% !important; }
+          .payroll-col-employee-name { width: 10% !important; }
+          .payroll-day-column { width: 1.15% !important; }
+          .payroll-col-total-hours, .payroll-col-ot-hours { width: 4% !important; }
+          .payroll-col-category { width: 9% !important; }
+          .payroll-col-ot-rate { width: 3.5% !important; }
+          .payroll-col-normal-pay { width: 7% !important; }
+          .payroll-col-ot-pay { width: 6.5% !important; }
+          .payroll-col-allowance { width: 6% !important; }
+          .payroll-col-gross-pay { width: 7% !important; }
         }
-      />
+      `}</style>
+      <div className="payroll-no-print">
+        <Back
+          fixed
+          blurBG
+          title="Payroll Timesheet"
+          icon={<BarChart3 width="1.1rem" />}
+          extra={
+            lines.length > 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.print()}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Printer size={14} /> Print
+                </Button>
+                {perms.canExportPayroll && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleExport}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <Download size={14} /> Export .xlsx
+                  </Button>
+                )}
+              </div>
+            ) : undefined
+          }
+        />
+      </div>
 
-      <div style={{ paddingTop: '4.5rem', padding: '4.5rem 1rem 2rem', maxWidth: 1200, margin: '0 auto' }}>
+      <div className="payroll-print-content" style={{ paddingTop: '4.5rem', padding: '4.5rem 1rem 2rem', maxWidth: 1200, margin: '0 auto' }}>
         {/* Controls Card */}
-        <div style={{ ...CARD, marginBottom: '1.25rem' }}>
+        <div className="payroll-no-print" style={{ ...CARD, marginBottom: '1.25rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
             {/* Project */}
             <div>
@@ -358,6 +438,7 @@ export default function PayrollTimesheet() {
         {/* Finalized Status Alert Banner */}
         {periodStatus?.status === 'finalized' && (
           <div
+            className="payroll-no-print"
             style={{
               ...CARD,
               marginBottom: '1.25rem',
@@ -397,6 +478,7 @@ export default function PayrollTimesheet() {
         {/* Summary Metrics Cards */}
         {lines.length > 0 && (
           <div
+            className="payroll-no-print"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
@@ -437,14 +519,14 @@ export default function PayrollTimesheet() {
             <div style={{ ...CARD, padding: '1rem', borderColor: 'rgba(34,197,94,0.4)', background: 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(15,23,42,0) 100%)' }}>
               <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#22c55e' }}>TOTAL GROSS PAY</p>
               <p style={{ fontSize: '1.4rem', fontWeight: 800, color: '#22c55e' }}>{formatOMR(totalGrossPay)}</p>
-              <p style={{ fontSize: '0.75rem', opacity: 0.6 }}>Normal + Overtime</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.6 }}>Normal + Overtime + Allowance</p>
             </div>
           </div>
         )}
 
         {/* Search Bar & Table Controls */}
         {lines.length > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="payroll-no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', width: 'min(320px, 100%)' }}>
               <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
               <input
@@ -500,13 +582,17 @@ export default function PayrollTimesheet() {
             </Button>
           </div>
         ) : (
-          <div style={{ ...CARD, padding: 0, overflow: 'hidden', background: '#fff', color: '#0f172a', borderColor: '#e2e8f0' }}>
+          <div className="payroll-print-table" style={{ ...CARD, padding: 0, overflow: 'hidden', background: '#fff', color: '#0f172a', borderColor: '#e2e8f0' }}>
+            <div className="payroll-print-heading" style={{ display: 'none', justifyContent: 'space-between', alignItems: 'baseline', paddingBottom: '0.25rem', fontSize: '8pt' }}>
+              <strong>{projectConfig?.project_name ?? projectConfig?.project_code} Payroll</strong>
+              <span>{startDate} to {endDate}</span>
+            </div>
             <div style={{ overflowX: 'auto', maxHeight: '65vh' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#f1f5f9', zIndex: 10, borderBottom: '1px solid #cbd5e1' }}>
                   <tr>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 90, position: 'sticky', left: 0, background: '#f1f5f9', zIndex: 12 }}>Emp ID</th>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 160, position: 'sticky', left: 90, background: '#f1f5f9', zIndex: 12 }}>Name</th>
+                    <th className="payroll-col-emp-id" style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 90, position: 'sticky', left: 0, background: '#f1f5f9', zIndex: 12 }}>Emp ID</th>
+                    <th className="payroll-col-employee-name" style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 160, position: 'sticky', left: 90, background: '#f1f5f9', zIndex: 12 }}>Name</th>
                     {dates.map((d) => {
                       const dayOfWeek = parseISO(d).getDay();
                       const isFri = dayOfWeek === 5;
@@ -516,6 +602,7 @@ export default function PayrollTimesheet() {
                       return (
                         <th
                           key={d}
+                          className="payroll-day-column"
                           style={{
                             padding: '0.5rem 0.4rem',
                             textAlign: 'center',
@@ -532,14 +619,14 @@ export default function PayrollTimesheet() {
                         </th>
                       );
                     })}
-                    <th style={{ padding: '0.7rem 0.6rem', textAlign: 'right', minWidth: 70 }}>Tot Hrs</th>
-                    <th style={{ padding: '0.7rem 0.6rem', textAlign: 'right', minWidth: 65 }}>OT Hrs</th>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 130 }}>Pay Category</th>
-                    <th style={{ padding: '0.7rem 0.6rem', textAlign: 'center', minWidth: 60 }}>OT Rate</th>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 95 }}>Normal Pay</th>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 90 }}>OT Pay</th>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 100 }}>Allowance</th>
-                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 105, fontWeight: 700 }}>Gross Pay</th>
+                    <th className="payroll-col-total-hours" style={{ padding: '0.7rem 0.6rem', textAlign: 'right', minWidth: 70 }}>Tot Hrs</th>
+                    <th className="payroll-col-ot-hours" style={{ padding: '0.7rem 0.6rem', textAlign: 'right', minWidth: 65 }}>OT Hrs</th>
+                    <th className="payroll-col-category" style={{ padding: '0.7rem 0.8rem', textAlign: 'left', minWidth: 130 }}>Pay Category</th>
+                    <th className="payroll-col-ot-rate" style={{ padding: '0.7rem 0.6rem', textAlign: 'center', minWidth: 60 }}>OT Rate</th>
+                    <th className="payroll-col-normal-pay" style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 95 }}>Normal Pay</th>
+                    <th className="payroll-col-ot-pay" style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 90 }}>OT Pay</th>
+                    <th className="payroll-col-allowance" style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 100 }}>Allowance</th>
+                    <th className="payroll-col-gross-pay" style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 105, fontWeight: 700 }}>Gross Pay</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -551,10 +638,10 @@ export default function PayrollTimesheet() {
                         background: idx % 2 === 0 ? '#fff' : '#f8fafc',
                       }}
                     >
-                      <td style={{ padding: '0.55rem 0.8rem', fontFamily: 'monospace', fontWeight: 600, position: 'sticky', left: 0, background: idx % 2 === 0 ? '#fff' : '#f8fafc', zIndex: 2 }}>
+                      <td className="payroll-col-emp-id" style={{ padding: '0.55rem 0.8rem', fontFamily: 'monospace', fontWeight: 600, position: 'sticky', left: 0, background: idx % 2 === 0 ? '#fff' : '#f8fafc', zIndex: 2 }}>
                         {line.emp_id}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', fontWeight: 500, position: 'sticky', left: 90, background: idx % 2 === 0 ? '#fff' : '#f8fafc', zIndex: 2 }}>
+                      <td className="payroll-col-employee-name" style={{ padding: '0.55rem 0.8rem', fontWeight: 500, position: 'sticky', left: 90, background: idx % 2 === 0 ? '#fff' : '#f8fafc', zIndex: 2 }}>
                         {line.employee_name}
                       </td>
                       {dates.map((d) => {
@@ -565,6 +652,7 @@ export default function PayrollTimesheet() {
                         return (
                           <td
                             key={d}
+                            className="payroll-day-column"
                             style={{
                               padding: '0.55rem 0.35rem',
                               textAlign: 'center',
@@ -579,30 +667,30 @@ export default function PayrollTimesheet() {
                           </td>
                         );
                       })}
-                      <td style={{ padding: '0.55rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>
+                      <td className="payroll-col-total-hours" style={{ padding: '0.55rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>
                         {line.total_hours_worked.toFixed(2)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: line.total_ot_hours > 0 ? '#0e7490' : 'inherit', fontWeight: line.total_ot_hours > 0 ? 600 : 400 }}>
+                      <td className="payroll-col-ot-hours" style={{ padding: '0.55rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: line.total_ot_hours > 0 ? '#0e7490' : 'inherit', fontWeight: line.total_ot_hours > 0 ? 600 : 400 }}>
                         {line.total_ot_hours.toFixed(2)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', fontSize: '0.72rem' }}>
+                      <td className="payroll-col-category" style={{ padding: '0.55rem 0.8rem', fontSize: '0.72rem' }}>
                         <span style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', background: line.pay_category === 'hourly_pay' ? '#cffafe' : '#ede9fe', color: line.pay_category === 'hourly_pay' ? '#0e7490' : '#6d28d9' }}>
                           {PAY_CATEGORY_LABELS[line.pay_category]}
                         </span>
                       </td>
-                      <td style={{ padding: '0.55rem 0.6rem', textAlign: 'center', fontSize: '0.75rem' }}>
+                      <td className="payroll-col-ot-rate" style={{ padding: '0.55rem 0.6rem', textAlign: 'center', fontSize: '0.75rem' }}>
                         {line.ot_multiplier ? `${line.ot_multiplier}x` : '—'}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
+                      <td className="payroll-col-normal-pay" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
                         {formatOMR(line.normal_pay)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: line.ot_pay > 0 ? '#b45309' : 'inherit' }}>
+                      <td className="payroll-col-ot-pay" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: line.ot_pay > 0 ? '#b45309' : 'inherit' }}>
                         {formatOMR(line.ot_pay)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
+                      <td className="payroll-col-allowance" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
                         {formatOMR(line.allowance_pay)}
                       </td>
-                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d' }}>
+                      <td className="payroll-col-gross-pay" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d' }}>
                         {formatOMR(line.gross_pay)}
                       </td>
                     </tr>
