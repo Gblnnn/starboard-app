@@ -8,9 +8,10 @@
 //
 // OT Divisor Rule: ALWAYS equals project.regular_hours (never separate).
 // Salary Denominator: ALWAYS 30 (never calendar days in month).
+// Allowance is prorated by the actual calendar days in each month.
 // =============================================================================
 
-import { format, parseISO, getDay } from 'date-fns';
+import { format, parseISO, getDay, getDaysInMonth } from 'date-fns';
 import type { PayrollLineResult, HTMEmployeeConfig, HTMProjectConfig, HTMAttendance, HTMHoliday } from './types';
 
 // ---------------------------------------------------------------------------
@@ -36,7 +37,7 @@ export const roundOMR = (value: number): number =>
 // ---------------------------------------------------------------------------
 
 export interface CalcInput {
-  empConfig: Pick<HTMEmployeeConfig, 'pay_category' | 'monthly_salary' | 'hourly_rate' | 'ot_multiplier'>;
+  empConfig: Pick<HTMEmployeeConfig, 'pay_category' | 'monthly_salary' | 'allowance' | 'hourly_rate' | 'ot_multiplier'>;
   projectConfig: Pick<HTMProjectConfig, 'regular_hours'>;
   /** Attendance map: key = 'YYYY-MM-DD', value = hours_worked (number) or null (not entered) */
   attendanceMap: Record<string, number | null>;
@@ -52,6 +53,7 @@ export interface CalcResult {
   total_ot_hours: number;
   normal_pay: number;
   ot_pay: number;
+  allowance_pay: number;
   gross_pay: number;
   /** Per-date breakdown for reporting */
   date_breakdown: Record<string, {
@@ -157,6 +159,7 @@ export function calculatePayroll(input: CalcInput): CalcResult {
   // --- Compute monetary values ---
   let normalPay = 0;
   let otPay = 0;
+  let allowancePay = 0;
 
   if (pay_category === 'hourly_pay') {
     normalPay = totalHoursWorked * (hourly_rate ?? 0);
@@ -176,7 +179,13 @@ export function calculatePayroll(input: CalcInput): CalcResult {
     otPay = otHourlyRate * (ot_multiplier ?? 1) * totalOtHours;
   }
 
-  const grossPay = normalPay + otPay;
+  for (const dateStr of dates) {
+    if ((attendanceMap[dateStr] ?? 0) > 0) {
+      allowancePay += (empConfig.allowance ?? 0) / getDaysInMonth(parseISO(dateStr));
+    }
+  }
+
+  const grossPay = normalPay + otPay + allowancePay;
 
   return {
     payable_days: payableDays,
@@ -184,6 +193,7 @@ export function calculatePayroll(input: CalcInput): CalcResult {
     total_ot_hours: totalOtHours,
     normal_pay: roundOMR(normalPay),
     ot_pay: roundOMR(otPay),
+    allowance_pay: roundOMR(allowancePay),
     gross_pay: roundOMR(grossPay),
     date_breakdown: dateBreakdown,
   };
@@ -243,6 +253,7 @@ export function buildPayrollLines(input: BuildPayrollLinesInput): PayrollLineRes
       project_code: projectConfig.project_code,
       pay_category: empConfig.pay_category,
       monthly_salary: empConfig.monthly_salary,
+      allowance: empConfig.allowance,
       hourly_rate: empConfig.hourly_rate,
       ot_multiplier: empConfig.ot_multiplier,
       regular_hours: projectConfig.regular_hours,
@@ -252,6 +263,7 @@ export function buildPayrollLines(input: BuildPayrollLinesInput): PayrollLineRes
       total_ot_hours: result.total_ot_hours,
       normal_pay: result.normal_pay,
       ot_pay: result.ot_pay,
+      allowance_pay: result.allowance_pay,
       gross_pay: result.gross_pay,
     });
   }
