@@ -538,6 +538,7 @@ export default function PayrollTimesheet() {
                     <th style={{ padding: '0.7rem 0.6rem', textAlign: 'center', minWidth: 60 }}>OT Rate</th>
                     <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 95 }}>Normal Pay</th>
                     <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 90 }}>OT Pay</th>
+                    <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 100 }}>Allowance</th>
                     <th style={{ padding: '0.7rem 0.8rem', textAlign: 'right', minWidth: 105, fontWeight: 700 }}>Gross Pay</th>
                   </tr>
                 </thead>
@@ -598,6 +599,9 @@ export default function PayrollTimesheet() {
                       <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: line.ot_pay > 0 ? '#b45309' : 'inherit' }}>
                         {formatOMR(line.ot_pay)}
                       </td>
+                      <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
+                        {formatOMR(line.allowance_pay)}
+                      </td>
                       <td style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d' }}>
                         {formatOMR(line.gross_pay)}
                       </td>
@@ -625,6 +629,9 @@ export default function PayrollTimesheet() {
                     </td>
                     <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#b45309' }}>
                       {formatOMR(totalOTPay)}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
+                      {formatOMR(lines.reduce((s, l) => s + l.allowance_pay, 0))}
                     </td>
                     <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#15803d', fontSize: '0.85rem' }}>
                       {formatOMR(totalGrossPay)}
