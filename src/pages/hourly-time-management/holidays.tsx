@@ -375,7 +375,13 @@ export default function ProjectHolidays() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                style={{ ...CARD, width: 'min(440px, 100%)', background: '#0f172a' }}
+                style={{
+                  ...CARD,
+                  width: 'min(440px, 100%)',
+                  background: '#fff',
+                  border: '1px solid #e5e7eb',
+                  color: '#111827',
+                }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Add Project Holiday</h3>
@@ -400,9 +406,9 @@ export default function ProjectHolidays() {
                         width: '100%',
                         padding: '0.6rem 0.75rem',
                         borderRadius: '0.6rem',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(255,255,255,0.04)',
-                        color: 'inherit',
+                        border: '1px solid #d1d5db',
+                        background: '#fff',
+                        color: '#111827',
                         fontSize: '0.85rem',
                         opacity: applyToAllProjects ? 0.4 : 1,
                       }}
@@ -438,9 +444,9 @@ export default function ProjectHolidays() {
                         width: '100%',
                         padding: '0.6rem 0.75rem',
                         borderRadius: '0.6rem',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(255,255,255,0.04)',
-                        color: 'inherit',
+                        border: '1px solid #d1d5db',
+                        background: '#fff',
+                        color: '#111827',
                         fontSize: '0.85rem',
                       }}
                     />
@@ -460,9 +466,9 @@ export default function ProjectHolidays() {
                         width: '100%',
                         padding: '0.6rem 0.75rem',
                         borderRadius: '0.6rem',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(255,255,255,0.04)',
-                        color: 'inherit',
+                        border: '1px solid #d1d5db',
+                        background: '#fff',
+                        color: '#111827',
                         fontSize: '0.85rem',
                       }}
                     />
