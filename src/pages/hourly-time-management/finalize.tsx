@@ -241,6 +241,7 @@ export default function FinalizePayroll() {
           end_date: period.end_date,
           pay_category: line.pay_category,
           monthly_salary: line.monthly_salary,
+          allowance: line.allowance,
           hourly_rate: line.hourly_rate,
           ot_multiplier: line.ot_multiplier,
           regular_hours: line.regular_hours,
@@ -249,6 +250,7 @@ export default function FinalizePayroll() {
           total_ot_hours: line.total_ot_hours,
           normal_pay: line.normal_pay,
           ot_pay: line.ot_pay,
+          allowance_pay: line.allowance_pay,
           gross_pay: line.gross_pay,
           daily_hours_json: cleanHours,
           finalized_at: new Date().toISOString(),
@@ -365,6 +367,7 @@ export default function FinalizePayroll() {
       project_code: s.project_code,
       pay_category: s.pay_category,
       monthly_salary: s.monthly_salary,
+      allowance: s.allowance,
       hourly_rate: s.hourly_rate,
       ot_multiplier: s.ot_multiplier as any,
       regular_hours: s.regular_hours,
@@ -374,6 +377,7 @@ export default function FinalizePayroll() {
       total_ot_hours: s.total_ot_hours,
       normal_pay: s.normal_pay,
       ot_pay: s.ot_pay,
+      allowance_pay: s.allowance_pay,
       gross_pay: s.gross_pay,
     }));
 
@@ -637,6 +641,7 @@ export default function FinalizePayroll() {
                           <th style={{ padding: '0.5rem 0.6rem', textAlign: 'right' }}>OT Hours</th>
                           <th style={{ padding: '0.5rem 0.6rem', textAlign: 'right' }}>Normal Pay</th>
                           <th style={{ padding: '0.5rem 0.6rem', textAlign: 'right' }}>OT Pay</th>
+                          <th style={{ padding: '0.5rem 0.6rem', textAlign: 'right' }}>Allowance</th>
                           <th style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: 700 }}>Gross Pay</th>
                         </tr>
                       </thead>
@@ -666,6 +671,9 @@ export default function FinalizePayroll() {
                             <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: s.ot_pay > 0 ? '#b45309' : 'inherit' }}>
                               {formatOMR(s.ot_pay)}
                             </td>
+                            <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>
+                              {formatOMR(s.allowance_pay)}
+                            </td>
                             <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d' }}>
                               {formatOMR(s.gross_pay)}
                             </td>
@@ -686,6 +694,9 @@ export default function FinalizePayroll() {
                           </td>
                           <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#b45309' }}>
                             {formatOMR(snapshots.reduce((acc, s) => acc + Number(s.ot_pay), 0))}
+                          </td>
+                          <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace' }}>
+                            {formatOMR(snapshots.reduce((acc, s) => acc + Number(s.allowance_pay), 0))}
                           </td>
                           <td style={{ padding: '0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#15803d' }}>
                             {formatOMR(snapshots.reduce((acc, s) => acc + Number(s.gross_pay), 0))}
