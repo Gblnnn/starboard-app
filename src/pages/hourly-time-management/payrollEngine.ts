@@ -9,6 +9,7 @@
 // OT Divisor Rule: ALWAYS equals project.regular_hours (never separate).
 // Salary Denominator: ALWAYS 30 (never calendar days in month).
 // Allowance is prorated by the actual calendar days in each month.
+// Fixed salary is not payable when no attendance has been entered for the period.
 // =============================================================================
 
 import { format, parseISO, getDay, getDaysInMonth } from 'date-fns';
@@ -76,6 +77,9 @@ export function calculatePayroll(input: CalcInput): CalcResult {
   let totalHoursWorked = 0;
   let totalOtHours = 0;
   const dateBreakdown: CalcResult['date_breakdown'] = {};
+  const hasRecordedAttendance = dates.some(
+    dateStr => attendanceMap[dateStr] !== null && attendanceMap[dateStr] !== undefined,
+  );
 
   for (const dateStr of dates) {
     const hoursRaw = attendanceMap[dateStr] ?? null; // null = not entered
@@ -94,6 +98,11 @@ export function calculatePayroll(input: CalcInput): CalcResult {
       // Hourly: paid for all recorded hours, no payable-day concept
       // We count payable_days = 1 for each day with hours > 0 for reporting only
       isPayable = hours !== null && hours > 0;
+      otHours = 0;
+
+    } else if (!hasRecordedAttendance) {
+      // Do not accrue fixed salary for an employee with no attendance records in the period.
+      isPayable = false;
       otHours = 0;
 
     } else if (pay_category === 'fixed_no_ot') {
