@@ -308,7 +308,7 @@ export function downloadPayrollExcel(
     [],
   ];
 
-  // Column headers: ID, Name, [date cols], Total Hrs, OT Hrs, Category, OT Mult, Normal Pay, OT Pay, Gross Pay
+  // Column headers: ID, Name, [date cols], Total Hrs, OT Hrs, Category, OT Mult, Normal Pay, OT Pay, Allowance, Gross Pay
   const colHeader: string[] = [
     'Employee ID',
     'Employee Name',
@@ -319,6 +319,7 @@ export function downloadPayrollExcel(
     'OT Multiplier',
     'Normal Pay (OMR)',
     'OT Pay (OMR)',
+    'Allowance (OMR)',
     'Gross Pay (OMR)',
   ];
 
@@ -335,6 +336,7 @@ export function downloadPayrollExcel(
     line.ot_multiplier !== null ? Number(line.ot_multiplier) : 'N/A',
     line.normal_pay,
     line.ot_pay,
+    line.allowance_pay,
     line.gross_pay,
   ]);
 
@@ -343,6 +345,7 @@ export function downloadPayrollExcel(
   const totalOT    = lines.reduce((s, l) => s + l.total_ot_hours, 0);
   const totalNorm  = lines.reduce((s, l) => s + l.normal_pay, 0);
   const totalOTPay = lines.reduce((s, l) => s + l.ot_pay, 0);
+  const totalAllowance = lines.reduce((s, l) => s + l.allowance_pay, 0);
   const totalGross = lines.reduce((s, l) => s + l.gross_pay, 0);
 
   const totalsRow: (string | number)[] = [
@@ -355,6 +358,7 @@ export function downloadPayrollExcel(
     '',
     totalNorm,
     totalOTPay,
+    totalAllowance,
     totalGross,
   ];
 
@@ -376,6 +380,7 @@ export function downloadPayrollExcel(
     { wch: 12 },
     { wch: 18 },
     { wch: 14 },
+    { wch: 16 },
     { wch: 16 },
   ];
 
