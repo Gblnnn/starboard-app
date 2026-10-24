@@ -50,6 +50,7 @@ export interface HTMEmployeeConfig {
   project_code: string;
   pay_category: PayCategory;
   monthly_salary: number | null;
+  allowance: number;
   hourly_rate: number | null;
   ot_multiplier: OTMultiplier | null;
   effective_from: string; // ISO date
@@ -112,6 +113,8 @@ export interface HTMPayrollSnapshot {
   end_date: string;
   pay_category: PayCategory;
   monthly_salary: number | null;
+  allowance: number;
+  allowance_pay: number;
   hourly_rate: number | null;
   ot_multiplier: number | null;
   regular_hours: number;
@@ -137,6 +140,7 @@ export interface PayrollLineResult {
   project_code: string;
   pay_category: PayCategory;
   monthly_salary: number | null;
+  allowance: number;
   hourly_rate: number | null;
   ot_multiplier: OTMultiplier | null;
   regular_hours: number;
@@ -150,6 +154,7 @@ export interface PayrollLineResult {
   total_ot_hours: number;
   normal_pay: number;
   ot_pay: number;
+  allowance_pay: number;
   gross_pay: number;
 
   // Warnings / errors
