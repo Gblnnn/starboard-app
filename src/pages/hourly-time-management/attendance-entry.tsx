@@ -368,6 +368,14 @@ export default function AttendanceEntry() {
               >
                 Fill All
               </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving || dirtyCount === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                {saving ? <Loader2 className="animate-spin" width="0.875rem" /> : <Save width="0.875rem" />}
+                Save
+              </Button>
             </>
           )}
         </div>
