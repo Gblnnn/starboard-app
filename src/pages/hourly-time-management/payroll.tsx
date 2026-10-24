@@ -246,27 +246,43 @@ export default function PayrollTimesheet() {
       <style>{`
         @media print {
           @page { size: A4 landscape; margin: 0; }
-          html, body, #root { width: 100% !important; margin: 0 !important; }
+          html, body, #root {
+            width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+          }
           body * { visibility: hidden !important; }
           .payroll-print-root, .payroll-print-root * { visibility: visible !important; }
           .payroll-print-root {
-            position: absolute !important;
+            position: fixed !important;
+            inset: 0 !important;
+            right: 0 !important;
+            bottom: auto !important;
+            height: auto !important;
+            max-width: none !important;
+            transform: none !important;
+            zoom: 1 !important;
+            overflow: visible !important;
             top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
+            width: auto !important;
             box-sizing: border-box !important;
             min-height: 0 !important;
-            padding: 1mm !important;
+            padding: 0 !important;
             margin: 0 !important;
             background: #fff !important;
             color: #0f172a !important;
           }
           .payroll-no-print { display: none !important; }
           .payroll-print-content {
+            position: static !important;
+            display: block !important;
             width: 100% !important;
             max-width: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            transform: none !important;
           }
           .payroll-print-heading { display: flex !important; }
           .payroll-print-table {
@@ -280,6 +296,7 @@ export default function PayrollTimesheet() {
           }
           .payroll-print-table > div { overflow: visible !important; max-height: none !important; }
           .payroll-print-table table {
+            display: table !important;
             width: 100% !important;
             min-width: 0 !important;
             table-layout: fixed !important;
