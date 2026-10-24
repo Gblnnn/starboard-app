@@ -41,6 +41,7 @@ export default function AttendanceEntry() {
   const [selectedProject, setSelectedProject] = useState(searchParams.get('project') ?? '');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [commonHours, setCommonHours] = useState('');
   const [dates, setDates] = useState<string[]>([]);
   const [employees, setEmployees] = useState<{ emp_id: string; name: string }[]>([]);
   const [holidays, setHolidays] = useState<HTMHoliday[]>([]);
@@ -189,6 +190,37 @@ export default function AttendanceEntry() {
     }));
   };
 
+  const handleFillAll = () => {
+    if (!perms.canEnterAttendance) { toast.error('Permission denied'); return; }
+    if (commonHours.trim() === '') {
+      toast.error('Enter common hours before filling attendance');
+      return;
+    }
+
+    const validation = validateDecimalHours(commonHours);
+    if (!validation.valid) {
+      toast.error(validation.error ?? 'Invalid hours');
+      return;
+    }
+
+    const hours = Number(commonHours);
+    setCells((prev) => {
+      const next = { ...prev };
+      for (const [key, cell] of Object.entries(prev)) {
+        const date = key.slice(key.indexOf('::') + 2);
+        if (lockedDates.has(date)) continue;
+
+        next[key] = {
+          ...cell,
+          hours: commonHours,
+          isDirty: cell.originalHours !== hours,
+          validationError: null,
+        };
+      }
+      return next;
+    });
+  };
+
   const dirtyCount = Object.values(cells).filter((c) => c.isDirty).length;
 
   const handleSave = async () => {
@@ -315,6 +347,29 @@ export default function AttendanceEntry() {
             {loading ? <Loader2 className="animate-spin" width="0.875rem" /> : <RefreshCw width="0.875rem" />}
             Load
           </Button>
+          {loaded && perms.canEnterAttendance && (
+            <>
+              <div>
+                <label style={labelStyle}>Common Hours</label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="24"
+                  step="any"
+                  value={commonHours}
+                  onChange={(e) => setCommonHours(e.target.value)}
+                  style={{ width: 130 }}
+                  aria-label="Common hours for all employees and dates"
+                />
+              </div>
+              <Button
+                onClick={handleFillAll}
+                disabled={loading || saving || commonHours.trim() === ''}
+              >
+                Fill All
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Legend */}
