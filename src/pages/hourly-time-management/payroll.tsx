@@ -1,4 +1,5 @@
 import Back from '@/components/back';
+import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns';
@@ -39,6 +40,7 @@ const CARD: React.CSSProperties = {
 
 export default function PayrollTimesheet() {
   const perms = useHTMAccess();
+  const { userData } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -60,6 +62,7 @@ export default function PayrollTimesheet() {
 
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [reportPrintedAt, setReportPrintedAt] = useState('');
 
   // Load projects on mount
   useEffect(() => {
@@ -218,6 +221,15 @@ export default function PayrollTimesheet() {
   const totalGrossPay = lines.reduce((s, l) => s + l.gross_pay, 0);
 
   const holidayDateSet = new Set(holidays.map((h) => h.holiday_date));
+  const formatPrintAmount = (amount: number) => Number(amount).toLocaleString('en-US', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  });
+
+  const handlePrint = () => {
+    setReportPrintedAt(format(new Date(), 'dd/MM/yyyy HH:mm'));
+    window.setTimeout(() => window.print(), 0);
+  };
 
   if (!perms.canViewPayroll && !perms.isAdmin) {
     return (
@@ -233,7 +245,7 @@ export default function PayrollTimesheet() {
     <motion.div className="payroll-print-root" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ minHeight: '100svh', paddingBottom: '2.5rem' }}>
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 5mm; }
+          @page { size: A4 landscape; margin: 0; }
           html, body, #root { width: 100% !important; margin: 0 !important; }
           body * { visibility: hidden !important; }
           .payroll-print-root, .payroll-print-root * { visibility: visible !important; }
@@ -242,8 +254,9 @@ export default function PayrollTimesheet() {
             top: 0 !important;
             left: 0 !important;
             width: 100% !important;
+            box-sizing: border-box !important;
             min-height: 0 !important;
-            padding: 0 !important;
+            padding: 1mm !important;
             margin: 0 !important;
             background: #fff !important;
             color: #0f172a !important;
@@ -270,12 +283,12 @@ export default function PayrollTimesheet() {
             width: 100% !important;
             min-width: 0 !important;
             table-layout: fixed !important;
-            font-size: 4.5pt !important;
+            font-size: 5pt !important;
           }
           .payroll-print-table th, .payroll-print-table td {
             box-sizing: border-box !important;
             min-width: 0 !important;
-            padding: 1px !important;
+            padding: 0 0.5px !important;
             position: static !important;
             overflow: hidden !important;
             white-space: normal !important;
@@ -284,16 +297,29 @@ export default function PayrollTimesheet() {
           }
           .payroll-print-table thead, .payroll-print-table tfoot { position: static !important; }
           .payroll-print-table tr { break-inside: avoid; page-break-inside: avoid; }
-          .payroll-col-emp-id { width: 5% !important; }
-          .payroll-col-employee-name { width: 10% !important; }
-          .payroll-day-column { width: 1.15% !important; }
-          .payroll-col-total-hours, .payroll-col-ot-hours { width: 4% !important; }
-          .payroll-col-category { width: 9% !important; }
-          .payroll-col-ot-rate { width: 3.5% !important; }
-          .payroll-col-normal-pay { width: 7% !important; }
-          .payroll-col-ot-pay { width: 6.5% !important; }
-          .payroll-col-allowance { width: 6% !important; }
-          .payroll-col-gross-pay { width: 7% !important; }
+          .payroll-col-category, .payroll-col-ot-rate, .payroll-col-print-empty { display: none !important; }
+          .payroll-col-emp-id { width: 3.5% !important; }
+          .payroll-col-employee-name { width: 8.5% !important; }
+          .payroll-day-column {
+            width: 1.9% !important;
+            min-width: 5.5mm !important;
+            white-space: nowrap !important;
+            font-size: 4.5pt !important;
+          }
+          .payroll-col-total-hours, .payroll-col-ot-hours { width: 3.5% !important; }
+          .payroll-col-normal-pay, .payroll-col-ot-pay, .payroll-col-allowance, .payroll-col-gross-pay {
+            width: 5.3% !important;
+          }
+          .payroll-screen-value { display: none !important; }
+          .payroll-print-value { display: inline !important; }
+          .payroll-day-screen-value { display: none !important; }
+          .payroll-day-print-value { display: inline !important; }
+          .payroll-print-footer {
+            display: flex !important;
+            justify-content: space-between;
+            margin-top: 1mm;
+            font-size: 6pt !important;
+          }
         }
       `}</style>
       <div className="payroll-no-print">
@@ -308,7 +334,7 @@ export default function PayrollTimesheet() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => window.print()}
+                  onClick={handlePrint}
                   style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                 >
                   <Printer size={14} /> Print
@@ -585,7 +611,7 @@ export default function PayrollTimesheet() {
           <div className="payroll-print-table" style={{ ...CARD, padding: 0, overflow: 'hidden', background: '#fff', color: '#0f172a', borderColor: '#e2e8f0' }}>
             <div className="payroll-print-heading" style={{ display: 'none', justifyContent: 'space-between', alignItems: 'baseline', paddingBottom: '0.25rem', fontSize: '8pt' }}>
               <strong>{projectConfig?.project_name ?? projectConfig?.project_code} Payroll</strong>
-              <span>{startDate} to {endDate}</span>
+              <span>{startDate} to {endDate} (in OMR.)</span>
             </div>
             <div style={{ overflowX: 'auto', maxHeight: '65vh' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
@@ -663,7 +689,12 @@ export default function PayrollTimesheet() {
                               background: isHol ? '#fef2f2' : isFri ? '#f0f9ff' : 'transparent',
                             }}
                           >
-                            {h === null ? '·' : Number(h).toFixed(1)}
+                            {h === null ? '·' : (
+                              <>
+                                <span className="payroll-day-screen-value">{Number(h).toFixed(1)}</span>
+                                <span className="payroll-day-print-value" style={{ display: 'none' }}>{Number(h).toFixed(2)}</span>
+                              </>
+                            )}
                           </td>
                         );
                       })}
@@ -682,16 +713,20 @@ export default function PayrollTimesheet() {
                         {line.ot_multiplier ? `${line.ot_multiplier}x` : '—'}
                       </td>
                       <td className="payroll-col-normal-pay" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
-                        {formatOMR(line.normal_pay)}
+                        <span className="payroll-screen-value">{formatOMR(line.normal_pay)}</span>
+                        <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(line.normal_pay)}</span>
                       </td>
                       <td className="payroll-col-ot-pay" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: line.ot_pay > 0 ? '#b45309' : 'inherit' }}>
-                        {formatOMR(line.ot_pay)}
+                        <span className="payroll-screen-value">{formatOMR(line.ot_pay)}</span>
+                        <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(line.ot_pay)}</span>
                       </td>
                       <td className="payroll-col-allowance" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
-                        {formatOMR(line.allowance_pay)}
+                        <span className="payroll-screen-value">{formatOMR(line.allowance_pay)}</span>
+                        <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(line.allowance_pay)}</span>
                       </td>
                       <td className="payroll-col-gross-pay" style={{ padding: '0.55rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#15803d' }}>
-                        {formatOMR(line.gross_pay)}
+                        <span className="payroll-screen-value">{formatOMR(line.gross_pay)}</span>
+                        <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(line.gross_pay)}</span>
                       </td>
                     </tr>
                   ))}
@@ -711,23 +746,34 @@ export default function PayrollTimesheet() {
                     <td style={{ padding: '0.75rem 0.6rem', textAlign: 'right', fontFamily: 'monospace', color: '#0e7490' }}>
                       {totalOTHours.toFixed(2)}
                     </td>
-                    <td colSpan={2} />
+                    <td className="payroll-col-print-empty" colSpan={2} />
                     <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {formatOMR(totalNormalPay)}
+                      <span className="payroll-screen-value">{formatOMR(totalNormalPay)}</span>
+                      <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(totalNormalPay)}</span>
                     </td>
                     <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#b45309' }}>
-                      {formatOMR(totalOTPay)}
+                      <span className="payroll-screen-value">{formatOMR(totalOTPay)}</span>
+                      <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(totalOTPay)}</span>
                     </td>
                     <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {formatOMR(lines.reduce((s, l) => s + l.allowance_pay, 0))}
+                      <span className="payroll-screen-value">{formatOMR(lines.reduce((s, l) => s + l.allowance_pay, 0))}</span>
+                      <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(lines.reduce((s, l) => s + l.allowance_pay, 0))}</span>
                     </td>
                     <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', fontFamily: 'monospace', color: '#15803d', fontSize: '0.85rem' }}>
-                      {formatOMR(totalGrossPay)}
+                      <span className="payroll-screen-value">{formatOMR(totalGrossPay)}</span>
+                      <span className="payroll-print-value" style={{ display: 'none' }}>{formatPrintAmount(totalGrossPay)}</span>
                     </td>
                   </tr>
                 </tfoot>
               </table>
             </div>
+            <footer className="payroll-print-footer" style={{ display: 'none' }}>
+              <span>
+                Printed by: {userData?.name || userData?.email || 'Unknown user'}
+                {userData?.emp_id ? ` (Emp ID: ${userData.emp_id})` : ''}
+              </span>
+              <span>{reportPrintedAt}</span>
+            </footer>
           </div>
         )}
       </div>
