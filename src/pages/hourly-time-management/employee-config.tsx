@@ -23,6 +23,7 @@ interface FormState {
   project_code: string;
   pay_category: PayCategory;
   monthly_salary: string;
+  allowance: string;
   hourly_rate: string;
   ot_multiplier: string;
   effective_from: string;
@@ -35,6 +36,7 @@ const defaultForm: FormState = {
   project_code: '',
   pay_category: 'fixed_no_ot',
   monthly_salary: '',
+  allowance: '',
   hourly_rate: '',
   ot_multiplier: '',
   effective_from: new Date().toISOString().slice(0, 10),
@@ -153,6 +155,7 @@ export default function EmployeeConfig() {
       project_code: cfg.project_code,
       pay_category: cfg.pay_category,
       monthly_salary: cfg.monthly_salary !== null ? String(cfg.monthly_salary) : '',
+      allowance: cfg.allowance !== null ? String(cfg.allowance) : '',
       hourly_rate: cfg.hourly_rate !== null ? String(cfg.hourly_rate) : '',
       ot_multiplier: cfg.ot_multiplier !== null ? String(cfg.ot_multiplier) : '',
       effective_from: cfg.effective_from,
@@ -168,6 +171,10 @@ export default function EmployeeConfig() {
     if (!form.effective_from) return 'Effective from date is required';
     if (form.effective_to && form.effective_to < form.effective_from) return 'Effective to must be on or after effective from';
 
+    if (form.allowance.trim()) {
+      const allowance = Number(form.allowance);
+      if (isNaN(allowance) || allowance < 0) return 'Monthly allowance must be a non-negative number';
+    }
     if (form.pay_category === 'fixed_no_ot' || form.pay_category === 'fixed_with_ot') {
       const sal = Number(form.monthly_salary);
       if (!form.monthly_salary || isNaN(sal) || sal < 0) return 'Monthly salary is required and must be a non-negative number';
@@ -197,6 +204,7 @@ export default function EmployeeConfig() {
         project_code: form.project_code.trim(),
         pay_category: form.pay_category,
         monthly_salary: (form.pay_category === 'fixed_no_ot' || form.pay_category === 'fixed_with_ot') ? Number(form.monthly_salary) : null,
+        allowance: form.allowance.trim() ? Number(form.allowance) : 0,
         hourly_rate: form.pay_category === 'hourly_pay' ? Number(form.hourly_rate) : null,
         ot_multiplier: form.pay_category === 'fixed_with_ot' ? Number(form.ot_multiplier) : null,
         effective_from: form.effective_from,
@@ -318,6 +326,9 @@ export default function EmployeeConfig() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1rem', fontSize: '0.75rem' }}>
                       {cfg.monthly_salary !== null && (
                         <p>Salary: <strong>{formatOMR(cfg.monthly_salary)}</strong></p>
+                      )}
+                      {cfg.allowance > 0 && (
+                        <p>Monthly Allowance: <strong>{formatOMR(cfg.allowance)}</strong></p>
                       )}
                       {cfg.hourly_rate !== null && (
                         <p>Rate: <strong>{formatOMR(cfg.hourly_rate)}/hr</strong></p>
@@ -497,6 +508,23 @@ export default function EmployeeConfig() {
                     />
                   </div>
                 )}
+
+                {/* Monthly Allowance */}
+                <div>
+                  <label style={modalLabelStyle}>Monthly Allowance (OMR)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={form.allowance}
+                    onChange={(e) => setForm((f) => ({ ...f, allowance: e.target.value }))}
+                    placeholder="e.g. 25.000"
+                    style={modalInputStyle}
+                  />
+                  <p style={{ marginTop: '0.25rem', fontSize: '0.7rem', color: '#64748b' }}>
+                    Prorated by calendar days and paid only for days with recorded attendance.
+                  </p>
+                </div>
 
                 {/* Hourly Rate */}
                 {needsHourly && (
