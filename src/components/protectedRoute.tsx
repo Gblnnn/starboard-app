@@ -37,6 +37,7 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
   manpower_requirements: ["/manpower-requirements"],
   tickets: ["/tickets"],
   attendance: ["/attendance"],
+  offboarding: ["/offboarding"],
   attendance_edit: ["/timesheet-edit", "/project-timing-break"],
   shift_management: ["/shift-management"],
   document_editor: ["/document-editor"],
@@ -118,12 +119,10 @@ export default function ProtectedRoutes() {
   const hasModuleRouteAccess = hasRoutePermissionFromModules(currentPath, modulePermissions);
   const hasShiftManagementAccess = currentPath === "/shift-management" && (
     userData.role === "admin" ||
-    Boolean(userData.emp_id) ||
     modulePermissions.shift_management === true
   );
   const hasPettyCashAccess = currentPath.startsWith("/petty-cash") && (
     userData.role === "admin" ||
-    Boolean(userData.emp_id) ||
     modulePermissions.petty_cash === true
   );
   const hasHourlyTMAccess = (currentPath.startsWith("/hourly-tm") || currentPath === "/hourly-time-management") && (
