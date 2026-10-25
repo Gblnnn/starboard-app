@@ -293,7 +293,17 @@ export default function Assignments() {
         .select("*")
         .order("project_code");
       if (error) throw error;
-      setAssignments(data || []);
+
+      const custodianIds = [...new Set((data || []).map((assignment) => assignment.emp_id))];
+      const { data: custodianData, error: custodianError } = custodianIds.length
+        ? await supabase.from("employees").select("emp_id, name").in("emp_id", custodianIds)
+        : { data: [], error: null };
+      if (custodianError) throw custodianError;
+      const custodianNames = new Map((custodianData || []).map((employee) => [employee.emp_id, employee.name]));
+      setAssignments((data || []).map((assignment) => ({
+        ...assignment,
+        custodian_name: custodianNames.get(assignment.emp_id) || "",
+      })));
 
       const { data: empData } = await supabase
         .from("employees")
@@ -472,7 +482,9 @@ export default function Assignments() {
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
                     <div>
-                      <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>Custodian: {a.emp_id}</p>
+                      <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                        Custodian: {a.emp_id}{a.custodian_name ? ` — ${a.custodian_name}` : ""}
+                      </p>
                       <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
                         Approver: {a.approver_id || "—"} · Finance: {a.finapprover_id || "—"}
                       </p>
