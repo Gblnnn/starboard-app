@@ -3,7 +3,7 @@ import { DatePicker } from '@/components/date-picker';
 import Directive from '@/components/directive';
 import RefreshButton from '@/components/refresh-button';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRightLeft, BarChart3, Calendar, ChartLine, Check, Database, FileCheck, LayoutGrid, List, Loader2, PenLine, Sidebar, Table, Terminal as TerminalIcon, TrendingUp, Zap, FileSpreadsheet, Pointer, PlaneTakeoff } from 'lucide-react';
+import { ArrowRightLeft, BarChart3, Calendar, ChartLine, Check, Database, FileCheck, LayoutGrid, List, Loader2, PenLine, Sidebar, Smartphone, Table, Terminal as TerminalIcon, TrendingUp, Zap, FileSpreadsheet, Pointer, PlaneTakeoff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 //import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ import ProjectsMaster from './ProjectsMaster';
 import ReportsPage from './ReportsPage';
 import Terminal from './Terminal';
 import TimesheetFinalizer from './TimesheetFinalizer';
+import TimesheetFinalizerMobile from './TimesheetFinalizer_mobile';
 import TransferRequests from './transfer-requests';
 import LeaveLog from './LeaveLog';
 import TimesheetViewer from '../components/TimesheetViewer';
@@ -43,7 +44,7 @@ const formatSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'breakdown' | 'leave-log' | 'timesheets' | 'attendance-book' | 'summary-report' | 'timesheet-print' | 'timesheet-edit' | 'project-timing-break';
+type Tab = 'summary' | 'log' | 'reports' | 'devices' | 'add' | 'manage' | 'terminal' | 'data-management' | 'analytics' | 'transfers' | 'projects' | 'finalize' | 'finalize-mobile' | 'breakdown' | 'leave-log' | 'timesheets' | 'attendance-book' | 'summary-report' | 'timesheet-print' | 'timesheet-edit' | 'project-timing-break';
 
 export default function AttendanceDashboard() {
 //  const navigate = useNavigate();
@@ -61,6 +62,12 @@ export default function AttendanceDashboard() {
   const [isFocalPoint, setIsFocalPoint] = useState(false);
   const [isTimesheetApprover, setIsTimesheetApprover] = useState(false);
   const [hasAssignedTimesheetProjects, setHasAssignedTimesheetProjects] = useState(false);
+
+  useEffect(() => {
+    if (tab === 'finalize-mobile' && window.matchMedia('(max-width: 768px)').matches) {
+      setNavVisible(false);
+    }
+  }, [tab]);
 
   useEffect(() => {
     const empId = userData?.emp_id ? String(userData.emp_id) : '';
@@ -233,6 +240,7 @@ export default function AttendanceDashboard() {
       { value: 'log', label: 'Punch Log', icon: <Pointer color="darkblue" className="w-4 h-4" /> },
       { value: 'reports', label: 'Reports', icon: <TrendingUp color="darkblue" className="w-4 h-4" /> },
       { value: 'finalize', label: finalizeLabel, icon: <FileCheck color="darkblue" className="w-4 h-4" /> },
+      { value: 'finalize-mobile', label: 'Mobile Timesheet Finalizer', icon: <Smartphone color="darkblue" className="w-4 h-4" /> },
       { value: 'timesheets', label: 'Timesheets', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
       { value: 'attendance-book', label: 'Attendance Book', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },      
       { value: 'summary-report', label: 'Summary Report', icon: <FileSpreadsheet color="darkblue" className="w-4 h-4" /> },
@@ -251,7 +259,7 @@ export default function AttendanceDashboard() {
         if (opt.value === 'breakdown') return permissions.attendance_breakdown === true;
         if (opt.value === 'reports') return permissions.attendance_reports === true;
         if (opt.value === 'terminal') return permissions.attendance_manage === true;
-        if (opt.value === 'finalize') return permissions.timesheet_finalizer === true || isTimesheetApprover || permissions.timesheet_viewer === true || isFocalPoint;
+        if (opt.value === 'finalize' || opt.value === 'finalize-mobile') return permissions.timesheet_finalizer === true || isTimesheetApprover || permissions.timesheet_viewer === true || isFocalPoint;
         if (opt.value === 'leave-log') return permissions.attendance_leave_log === true;
         if (opt.value === 'timesheets') return permissions.timesheet_viewer === true || permissions.timesheet_finalizer === true || permissions.attendance === true || isTimesheetApprover || isFocalPoint;
         if (opt.value === 'attendance-book') return permissions.timesheet_viewer === true || permissions.timesheet_finalizer === true || permissions.attendance === true || isTimesheetApprover || isFocalPoint;        
@@ -264,7 +272,7 @@ export default function AttendanceDashboard() {
     let finalOptions = options;
     if (!canEditAttendance && !isFocalPoint && !isTimesheetApprover) {
 //      return options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'leave-log' && opt.value !== 'timesheets' && opt.value !== 'attendance-book');
-      finalOptions = options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'leave-log' && opt.value !== 'timesheets' && opt.value !== 'attendance-book');      
+      finalOptions = options.filter(opt => opt.value !== 'manage' && opt.value !== 'finalize' && opt.value !== 'finalize-mobile' && opt.value !== 'leave-log' && opt.value !== 'timesheets' && opt.value !== 'attendance-book');
     }
 //    return options;
 //  }, [canEditAttendance, userData?.clearance, isFocalPoint, isTimesheetApprover]);    
@@ -335,6 +343,38 @@ export default function AttendanceDashboard() {
 
   return (
     <div style={{ height: "100svh", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          #content-body.mobile-finalizer-dashboard {
+            position: relative;
+            margin: 0.5rem;
+            margin-top: 4.5rem;
+            padding: 0.25rem;
+          }
+          #content-body.mobile-finalizer-dashboard > div:first-child {
+            position: absolute;
+            inset: 0 auto 0 0;
+            z-index: 40;
+            width: min(85vw, 25ch) !important;
+            max-width: 85vw;
+            height: 100%;
+            background: #fff;
+            box-shadow: 8px 0 24px rgba(15, 23, 42, 0.12);
+          }
+          #content-body.mobile-finalizer-dashboard > div:last-child {
+            width: 100%;
+            gap: 0.25rem;
+          }
+          #content-body.mobile-finalizer-dashboard > div:last-child > div:first-child {
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            padding: 0.25rem;
+          }
+          #content-body.mobile-finalizer-dashboard > div:last-child > div:first-child h3 {
+            font-size: 1rem !important;
+          }
+        }
+      `}</style>
       <Back
 
         customTitle={
@@ -350,6 +390,7 @@ export default function AttendanceDashboard() {
       {/* ✅ CRITICAL FIX: minWidth + overflow hidden */}
       <div
         id="content-body"
+        className={tab === 'finalize-mobile' ? 'mobile-finalizer-dashboard' : undefined}
         style={{
           display: "flex",
           flex: 1,
@@ -417,6 +458,10 @@ export default function AttendanceDashboard() {
 
                   {isAllowed('finalize') && (
                     <Directive bg={tab === 'finalize' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('finalize')} title={isTimesheetApprover ? "Approvals" : (isFocalPoint ? "Verify" : "Finalize")} icon={<Check size={16} />} />
+                  )}
+
+                  {isAllowed('finalize-mobile') && (
+                    <Directive bg={tab === 'finalize-mobile' ? "rgba(100 100 100/ 0.05)" : "rgba(100 100 100/ 0)"} width="100%" height='3rem' titleSize="0.9rem" onClick={() => setTab('finalize-mobile')} title="Mobile Timesheet Finalizer" icon={<Smartphone size={16} />} />
                   )}
 
                   {isAllowed('timesheets') && (
@@ -639,7 +684,7 @@ export default function AttendanceDashboard() {
               <DevicesMaster refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} />
             ) : tab === 'projects' ? (
               <ProjectsMaster refreshTrigger={refreshTrigger} onLoadingChange={setTabLoading} employeeSummaries={employeeSummaries} />
-            ) : tab === 'finalize' ? (() => {
+            ) : tab === 'finalize' || tab === 'finalize-mobile' ? (() => {
               let permissions: Record<string, boolean> = {};
               try {
                 permissions = JSON.parse(userData?.clearance || "{}");
@@ -658,7 +703,13 @@ export default function AttendanceDashboard() {
                 finalizerMode = 'finalize';
               }
 
-              return (
+              return tab === 'finalize-mobile' ? (
+                <TimesheetFinalizerMobile
+                  mode={finalizerMode}
+                  refreshTrigger={refreshTrigger}
+                  onLoadingChange={setTabLoading}
+                />
+              ) : (
                 <TimesheetFinalizer
                   mode={finalizerMode}
                   refreshTrigger={refreshTrigger}
