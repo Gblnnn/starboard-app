@@ -24,6 +24,7 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, string[]> = {
   quick_links: ["/quick-links"],
   qr_generator: ["/qr-code-generator"],
   fuel_log: ["/fuel-log"],
+  mobile_punch: ["/mobile-punch"],
   passports: ["/passports"],
   asset_master: ["/asset-master", "/devices"],
   projects: ["/projects", "/project-lpo"],
