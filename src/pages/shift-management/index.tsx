@@ -22,6 +22,13 @@ export default function ShiftManagement() {
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [rosteredCount, setRosteredCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const hasShiftManagementClearance = (() => {
+    try {
+      return JSON.parse(userData?.clearance || "{}").shift_management === true;
+    } catch {
+      return false;
+    }
+  })();
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -92,10 +99,8 @@ export default function ShiftManagement() {
     { id: "upload", label: "Attendance Upload", icon: <FileSpreadsheet className="h-4 w-4" /> },
   ];
 
-  if (!isAdmin && !userData?.emp_id && !(() => {
-    try { return JSON.parse(userData?.clearance || "{}").shift_management === true; } catch { return false; }
-  })()) {
-    return <main className="min-h-screen bg-slate-50 p-6"><Back title="Shift Management" /><div className="mx-auto mt-16 max-w-xl rounded-xl border border-amber-200 bg-white p-6 text-center shadow-sm"><h1 className="text-lg font-semibold text-slate-900">Access not assigned</h1><p className="mt-2 text-sm text-slate-600">Shift management access requires an employee identity and an assigned project role.</p></div></main>;
+  if (!isAdmin && !hasShiftManagementClearance) {
+    return <main className="min-h-screen bg-slate-50 p-6"><Back title="Shift Management" /><div className="mx-auto mt-16 max-w-xl rounded-xl border border-amber-200 bg-white p-6 text-center shadow-sm"><h1 className="text-lg font-semibold text-slate-900">Access not assigned</h1><p className="mt-2 text-sm text-slate-600">Shift Management access must be granted in Module Clearance.</p></div></main>;
   }
 
   return (
