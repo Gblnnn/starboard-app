@@ -536,6 +536,7 @@ const TimesheetRowComponent = memo(({
   return (
     <tr data-row-id={emp.device_user_id} className={row.isApproved ? 'indigo-row-highlight' : ((row.inDatabase && hasNoRedBorders) ? 'green-row-highlight' : undefined)}>
       <td
+        data-mobile-selection
         className="sticky-checkbox transition-[width,opacity] duration-200 ease-in-out overflow-hidden"
         style={{
           width: isSelectionMode ? "48px" : "0px",
@@ -604,7 +605,7 @@ const TimesheetRowComponent = memo(({
       </td>
 
       {/* Status Select */}
-      <td style={{ textAlign: 'center' }}>
+      <td data-label="Status" style={{ textAlign: 'center' }}>
         {(!isRowEditable || isApproveModeReadOnly || isSaved || !!row.original_in_punch || !!row.original_out_punch) ? (
           <span className={`text-xs font-semibold px-2 py-1 rounded inline-flex items-center justify-center ${row.status === 'present' ? 'text-emerald-700 bg-emerald-50/80 border border-emerald-200' :
             row.status === 'present with OT' ? 'text-indigo-700 bg-indigo-50/80 border border-indigo-200' :
@@ -641,7 +642,7 @@ const TimesheetRowComponent = memo(({
       </td>
 
       {/* Punch In Input */}
-      <td style={{ textAlign: 'center' }}>
+      <td data-label="Punch In" style={{ textAlign: 'center' }}>
         <div className="relative w-full flex items-center justify-center">
           {(!isRowEditable || isApproveModeReadOnly || isSaved || !!row.original_in_punch) ? (
             <span className="text-xs text-slate-800 font-semibold px-2 py-1 block text-center">
@@ -697,7 +698,7 @@ const TimesheetRowComponent = memo(({
       </td>
 
       {/* Punch Out Input */}
-      <td style={{ textAlign: 'center' }}>
+      <td data-label="Punch Out" style={{ textAlign: 'center' }}>
         {(!isRowEditable || isApproveModeReadOnly || isSaved || !!row.original_out_punch) ? (
           <span className="text-xs text-slate-800 font-semibold px-2 py-1 block text-center">
             {row.punch_out || '—'}
@@ -719,12 +720,12 @@ const TimesheetRowComponent = memo(({
       </td>
 
       {/* Total Hours */}
-      <td style={{ fontSize: '12px', fontWeight: 600, color: '#334155', textAlign: 'center' }}>
+      <td data-label="Total Hours" style={{ fontSize: '12px', fontWeight: 600, color: '#334155', textAlign: 'center' }}>
         {calculateTotalHours(row.punch_in, row.punch_out)}
       </td>
 
       {/* Overtime Input */}
-      <td style={{ textAlign: 'center' }}>
+      <td data-label="Overtime" style={{ textAlign: 'center' }}>
         {(!isRowEditable || (resolvedMode === 'approve' && !isDual) || isRecordApproved || emp.emp_type === 'staff') ? (
           <span className="text-xs text-slate-800 font-semibold px-2 py-1 block text-center">
             {emp.emp_type === 'staff' ? '—' : (row.overtime ?? 0)}
@@ -745,7 +746,7 @@ const TimesheetRowComponent = memo(({
 
       {/* Project Allocation Text */}
       {!(isFocalFiltered || resolvedMode === 'approve') && (
-        <td style={{ textAlign: 'center' }}>
+        <td data-label="Project" style={{ textAlign: 'center' }}>
           <span className="text-xs font-medium text-slate-600">
             {row.project_code || <span className="text-slate-400 font-normal italic">Unassigned</span>}
           </span>
@@ -753,7 +754,7 @@ const TimesheetRowComponent = memo(({
       )}
 
       {/* Remarks Input */}
-      <td>
+      <td data-label="Remarks">
         {(!isRowEditable || isApproveModeReadOnly || isSaved) ? (
           <span className="text-xs text-slate-800 font-medium px-2 py-1">
             {row.remarks ? (row.remarks.startsWith('Custom: ') ? row.remarks.substring(8) : row.remarks) : '—'}
@@ -865,14 +866,14 @@ const TimesheetRowComponent = memo(({
       </td>
 
       {/* Nationality Display */}
-      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+      <td data-label="Nationality" style={{ textAlign: 'center', verticalAlign: 'middle' }}>
         <span className="text-xs text-slate-700 font-medium px-2 py-1 block">
           {row.nationality || '—'}
         </span>
       </td>
 
       {/* Source & Actions */}
-      <td className="sticky-action" style={{ right: '0', zIndex: hoveredEmail ? 99999 : undefined }}>
+      <td data-label="Source / Actions" className="sticky-action" style={{ right: '0', zIndex: hoveredEmail ? 99999 : undefined }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '4px 6px' }}>
           {/* 1. Source Badge (Original & Unchanged - Full Width) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
@@ -1182,16 +1183,18 @@ const TimesheetRowComponent = memo(({
   );
 });
 
-interface TimesheetFinalizerProps {
+export interface TimesheetFinalizerProps {
   refreshTrigger?: number;
   onLoadingChange?: (loading: boolean) => void;
   mode?: 'verify' | 'approve' | 'finalize' | 'view';
+  mobileLayout?: boolean;
 }
 
 export default function TimesheetFinalizer({
   refreshTrigger,
   onLoadingChange,
-  mode
+  mode,
+  mobileLayout = false
 }: TimesheetFinalizerProps = {}) {
   const [date, setDate] = useState<string>(getYesterdayString());
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -4063,9 +4066,163 @@ export default function TimesheetFinalizer({
           box-shadow: inset 0 -1px 0 #e2e8f0;
           transition: width 200ms ease-in-out, min-width 200ms ease-in-out, max-width 200ms ease-in-out, opacity 200ms ease-in-out, padding 200ms ease-in-out;
         }
+        @media (max-width: 768px) {
+          .finalizer-container.timesheet-mobile-page {
+            min-height: 0;
+            padding: 10px;
+            gap: 12px;
+            overflow: auto;
+          }
+          .timesheet-mobile-page .banner {
+            align-items: stretch;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px;
+          }
+          .timesheet-mobile-page .banner > div:first-child {
+            flex-wrap: wrap;
+            gap: 8px !important;
+          }
+          .timesheet-mobile-page .date-navigator {
+            width: 100%;
+            flex-wrap: wrap;
+            gap: 6px !important;
+            padding: 0 !important;
+          }
+          .timesheet-mobile-page .btn-unlock {
+            align-self: stretch;
+            justify-content: center;
+          }
+          .timesheet-mobile-page .table-scroll-container {
+            min-height: 0;
+            overflow: auto;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+          }
+          .timesheet-mobile-page .timesheet-table {
+            display: block;
+            width: 100%;
+            min-width: 0;
+          }
+          .timesheet-mobile-page .timesheet-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: block;
+            overflow-x: auto;
+            background: #f8fafc;
+          }
+          .timesheet-mobile-page .timesheet-table thead tr {
+            display: flex;
+            width: max-content;
+          }
+          .timesheet-mobile-page .timesheet-table thead th {
+            position: static;
+            flex: 0 0 auto;
+            min-height: 54px;
+          }
+          .timesheet-mobile-page .timesheet-table thead th.sticky-checkbox {
+            display: none;
+          }
+          .timesheet-mobile-page .timesheet-table tbody {
+            display: grid;
+            gap: 10px;
+            padding: 10px 2px;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] {
+            position: relative;
+            display: block;
+            overflow: hidden;
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id].green-row-highlight {
+            background: #f1fbf7;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id].indigo-row-highlight {
+            background: #f0f3ff;
+          }
+          .timesheet-mobile-page .timesheet-table tbody > tr:not([data-row-id]) {
+            display: block;
+            width: 100%;
+          }
+          .timesheet-mobile-page .timesheet-table tbody > tr:not([data-row-id]) td {
+            position: static;
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td {
+            position: static;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 9px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            background: transparent !important;
+            box-shadow: none;
+            text-align: right !important;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td[data-label]::before {
+            content: attr(data-label);
+            flex: 0 0 34%;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 600;
+            text-align: left;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td.sticky-name {
+            display: block;
+            padding: 14px 52px 12px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left !important;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td.sticky-checkbox {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            z-index: 2;
+            display: flex;
+            width: auto !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            padding: 0;
+            border: 0;
+            background: transparent !important;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td.sticky-action {
+            align-items: flex-start;
+            border-bottom: 0;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td.sticky-action > div {
+            flex: 1;
+            min-width: 0;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td[data-label] > * {
+            max-width: 64%;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td[data-label="Remarks"] > div,
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td[data-label="Source / Actions"] > div {
+            max-width: 66%;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td[data-label] select,
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td[data-label] input {
+            max-width: 100%;
+          }
+          .timesheet-mobile-page .timesheet-table tbody tr[data-row-id] td[data-label="Punch In"] > div {
+            justify-content: flex-end;
+          }
+        }
       `}</style>
 
-      <div className="finalizer-container">
+      <div className={`finalizer-container${mobileLayout ? ' timesheet-mobile-page' : ''}`}>
 
         {/* Lock State Banner with Date Navigator */}
         <div style={{
