@@ -217,15 +217,15 @@ export default function Index() {
     hasModuleAccess('passports') ||
     hasModuleAccess('employee_clearance_form') ||
     hasModuleAccess('offboarding');
-  const hasHourlyTimeManagement = admin || userData?.role === 'management' || hasModuleAccess('hourly_time_management');
-  const hasShiftManagement = admin || hasModuleAccess('shift_management') || Boolean(userData?.emp_id);
+  const hasHourlyTimeManagement = userData?.role === 'admin' || userData?.role === 'management' || hasModuleAccess('hourly_time_management');
+  const hasShiftManagement = userData?.role === 'admin' || hasModuleAccess('shift_management');
   const hasTimeAttendanceModules =
     hasHourlyTimeManagement ||
     hasShiftManagement ||
     hasModuleAccess('transfer_requests') ||
     hasModuleAccess('shift_logs');
   const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
-  const hasPettyCash = admin || hasModuleAccess('petty_cash') || Boolean(userData?.emp_id);
+  const hasPettyCash = userData?.role === 'admin' || hasModuleAccess('petty_cash');
 
   const hasAnyModules = () =>
     userData?.role === 'admin' ||
@@ -524,7 +524,7 @@ export default function Index() {
                       description="Expense logging and petty cash control"
                       icon={<Wallet width="2.5rem" />}
                       onClick={() => {
-                        if (admin || hasModuleAccess('petty_cash')) {
+                        if (userData?.role === 'admin' || hasModuleAccess('petty_cash')) {
                           navigate('/petty-cash');
                         } else {
                           toast.error('No clearance to access Petty Cash');
@@ -691,7 +691,7 @@ export default function Index() {
                             description="Project-based hourly payroll and attendance"
                             icon={<FileSpreadsheet width="2.5rem" />}
                             onClick={() => {
-                              if (admin || userData?.role === 'management' || hasModuleAccess('hourly_time_management')) {
+                              if (userData?.role === 'admin' || userData?.role === 'management' || hasModuleAccess('hourly_time_management')) {
                                 navigate('/hourly-tm');
                               } else {
                                 toast.error('No clearance to access Hourly Time Management');
