@@ -166,7 +166,7 @@ export default function VehicleLogBook() {
       // Map emp_id → id, name → name so the rest of the component works unchanged
       setRecords(
         (employeesRes.data || []).map(e => ({
-          id: e.emp_id,
+          id: String(e.emp_id),
           name: e.name || "Unknown",
         })),
       );
@@ -292,6 +292,15 @@ export default function VehicleLogBook() {
       toast.error("Vehicle number and make are required");
       return;
     }
+    const assignedEmployee = fAssignedTo
+      ? records.find(record => record.id === fAssignedTo)
+      : null;
+    if (fAssignedTo && !assignedEmployee) {
+      toast.error("Select an employee from the Assign To list before saving");
+      return;
+    }
+    const assignedTo = assignedEmployee?.id ?? null;
+
     setSaving(true);
     try {
       if (editMode && selectedVehicle) {
@@ -305,7 +314,7 @@ export default function VehicleLogBook() {
             type: fType.trim(),
             registration_type: fRegType,
             status: fCondition,
-            assigned_to: fAssignedTo,  // emp_id
+            assigned_to: assignedTo,
             notes: fNotes.trim(),
             updated_at: new Date().toISOString(),
           })
@@ -323,7 +332,7 @@ export default function VehicleLogBook() {
             type: fType.trim(),
             registration_type: fRegType,
             status: fCondition,
-            assigned_to: fAssignedTo,  // emp_id
+            assigned_to: assignedTo,
             notes: fNotes.trim(),
           });
         if (error) throw error;
@@ -333,7 +342,13 @@ export default function VehicleLogBook() {
       await fetchData();
     } catch (err) {
       console.error("Error saving vehicle:", err);
-      toast.error("Failed to save vehicle");
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err && typeof err.message === "string"
+            ? err.message
+            : "Unknown database error";
+      toast.error(`Failed to save vehicle: ${message}`);
     } finally {
       setSaving(false);
     }
