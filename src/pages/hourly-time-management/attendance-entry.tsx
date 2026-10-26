@@ -430,7 +430,7 @@ export default function AttendanceEntry() {
                       <div style={{ fontSize: '0.65rem', color: '#94a3b8', lineHeight: 1 }}>
                         {format(new Date(d + 'T00:00:00'), 'EEE')}
                       </div>
-                      <div style={{ fontWeight: 700 }}>{d.slice(5)}</div>
+                      <div style={{ fontWeight: 700 }}>{format(new Date(d + 'T00:00:00'), 'dd-MM')}</div>
                       {lockedDates.has(d) && <div style={{ fontSize: '0.55rem', color: '#94a3b8' }}>🔒</div>}
                       {isHoliday(d) && <div style={{ fontSize: '0.55rem', color: '#ca8a04' }}>Holiday</div>}
                     </th>
