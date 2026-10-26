@@ -133,7 +133,9 @@ interface UserDetailsContentProps {
   sensitive_data: string;
   setSensitiveData: (data: string) => void;
   loading: boolean;
+  resettingPassword: boolean;
   onUpdate: () => void;
+  onResetPassword: () => void;
   onDelete: () => void;
   isMobile: boolean;
   onOpenClearanceDrawer: () => void;
@@ -151,7 +153,9 @@ const UserDetailsContent: React.FC<UserDetailsContentProps> = ({
   sensitive_data,
   setSensitiveData,
   loading,
+  resettingPassword,
   onUpdate,
+  onResetPassword,
   onDelete,
 
   onOpenClearanceDrawer,
@@ -271,6 +275,26 @@ const UserDetailsContent: React.FC<UserDetailsContentProps> = ({
             />
           </div>
         </motion.div>
+      </div>
+
+      <div style={{ padding: "0 1.5rem 1rem", width: "100%", boxSizing: "border-box" }}>
+        <button
+          type="button"
+          disabled={loading || resettingPassword}
+          onClick={onResetPassword}
+          style={{
+            width: "100%",
+            padding: "0.875rem",
+            borderRadius: "0.75rem",
+            border: "1px solid rgba(220, 38, 38, 0.25)",
+            background: "rgba(220, 38, 38, 0.08)",
+            color: "crimson",
+            cursor: loading || resettingPassword ? "not-allowed" : "pointer",
+            opacity: loading || resettingPassword ? 0.6 : 1,
+          }}
+        >
+          {resettingPassword ? "Resetting password..." : "Reset Password to SoharStar"}
+        </button>
       </div>
 
       {/* Fixed Footer with Update Button */}
@@ -810,6 +834,8 @@ export default function Users() {
   const [display_email, setDisplayEmail] = useState("");
   const [docid, setDocid] = useState("");
   const [deleteConfirmDiaog, setDeleteConfirmDialog] = useState(false);
+  const [resetPasswordDialog, setResetPasswordDialog] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [role, setRole] = useState("");
   const [clearance, setClearance] = useState("");
   const [editor, setEditor] = useState("");
@@ -1183,6 +1209,56 @@ export default function Users() {
     }
   };
 
+  const resetUserPassword = async () => {
+    try {
+      setResettingPassword(true);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        throw new Error("Your Supabase session has expired. Sign in again and retry.");
+      }
+
+      const headers = {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+        "Content-Type": "application/json",
+      };
+      const body = JSON.stringify({ userId: docid });
+      let response = await fetch("/api/reset-user-password", { method: "POST", headers, body });
+      if (response.status === 404) {
+        response = await fetch("/.netlify/functions/reset-user-password", { method: "POST", headers, body });
+      }
+
+      const responseText = await response.text();
+      let result: { error?: string } = {};
+      try {
+        const parsedResult: unknown = responseText ? JSON.parse(responseText) : {};
+        if (!parsedResult || typeof parsedResult !== "object" || Array.isArray(parsedResult)) {
+          throw new Error("The response body was not a JSON object.");
+        }
+        result = parsedResult as { error?: string };
+      } catch {
+        const responseSummary = responseText.trim().slice(0, 180);
+        throw new Error(
+          `Password reset endpoint returned an invalid response (HTTP ${response.status}). ${
+            responseSummary || "Check that the server function is deployed and available."
+          }`,
+        );
+      }
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to reset the user password.");
+      }
+
+      setResetPasswordDialog(false);
+      message.success("User password reset successfully.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Error resetting user password:", error);
+      message.error(errorMessage);
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -1502,12 +1578,26 @@ export default function Users() {
           sensitive_data={sensitive_data}
           setSensitiveData={setSensitiveData}
           loading={loading}
+          resettingPassword={resettingPassword}
           onUpdate={updateUser}
+          onResetPassword={() => setResetPasswordDialog(true)}
           onDelete={() => setDeleteConfirmDialog(true)}
           isMobile={isMobile}
           onOpenClearanceDrawer={() => setClearanceDrawerOpen(true)}
         />
       </ResponsiveModal>
+
+      <DefaultDialog
+        destructive
+        open={resetPasswordDialog}
+        onCancel={() => setResetPasswordDialog(false)}
+        title="Reset User Password?"
+        desc={`This will set ${display_name || display_email}'s password to SoharStar.`}
+        OkButtonText="Reset Password"
+        onOk={resetUserPassword}
+        updating={resettingPassword}
+        disabled={resettingPassword}
+      />
 
       <DefaultDialog
         destructive
