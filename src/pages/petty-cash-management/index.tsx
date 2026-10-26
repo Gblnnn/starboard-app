@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { type PettyCashBalance, type PettyCashUser, formatOMR, statusColor, statusLabel } from "./types";
-import { usePettyCashAccess } from "./usePettyCashAccess";
+import { usePettyCashPendingApprovals } from "./usePettyCashPendingApprovals";
 
 const CARD_STYLE: React.CSSProperties = {
   background: "var(--card, rgba(255,255,255,0.04))",
@@ -43,7 +43,8 @@ export default function PettyCashIndex() {
   const { userData } = useAuth();
   const navigate = useNavigate();
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
-  const permissions = usePettyCashAccess();
+  const pendingApprovalCounts = usePettyCashPendingApprovals();
+  const { permissions } = pendingApprovalCounts;
   const {
     isAdmin,
     isCustodian,
@@ -61,7 +62,6 @@ export default function PettyCashIndex() {
   const [assignments, setAssignments] = useState<(PettyCashUser & { balance: PettyCashBalance | null })[]>([]);
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [mySubmissions, setMySubmissions] = useState<any[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -123,31 +123,6 @@ export default function PettyCashIndex() {
         setMySubmissions(subData || []);
       }
 
-      // Pending approvals count
-      if (canAccessFinance) {
-        const { count: reqPending } = await supabase
-          .from("petty_cash_request")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending_approval");
-        const { count: subPending } = await supabase
-          .from("petty_cash_submission")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending_petty_cash_approval");
-        setPendingApprovals((reqPending || 0) + (subPending || 0));
-      } else if (empId && canAccessApprovals) {
-        // approvals where this emp is an approver
-        const { count: approvableReq } = await supabase
-          .from("petty_cash_request")
-          .select("id", { count: "exact", head: true })
-          .eq("approver_id", empId)
-          .eq("status", "pending_approval");
-        const { count: approvableSub } = await supabase
-          .from("petty_cash_submission")
-          .select("id", { count: "exact", head: true })
-          .eq("petty_cash_approver_id", empId)
-          .eq("status", "pending_petty_cash_approval");
-        setPendingApprovals((approvableReq || 0) + (approvableSub || 0));
-      }
     } catch (err: any) {
       if (!silent) toast.error(err?.message || "Failed to load petty cash data");
     } finally {
@@ -248,7 +223,7 @@ export default function PettyCashIndex() {
         {/* Quick Nav Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginTop: "0.5rem", marginBottom: "1.5rem" }}>
           {[
-            { label: "Approvals", icon: <ClipboardList width="1.25rem" />, path: "/petty-cash/approvals", badge: pendingApprovals > 0 ? pendingApprovals : 0, color: "#d97706", show: canAccessApprovals },
+            { label: "Approvals", icon: <ClipboardList width="1.25rem" />, path: "/petty-cash/approvals", badge: pendingApprovalCounts.total, color: "#d97706", show: canAccessApprovals },
             { label: "Finance", icon: <CreditCard width="1.25rem" />, path: "/petty-cash/finance", badge: 0, color: "#7c3aed", show: canAccessFinance },
             { label: "Dashboard", icon: <BadgeDollarSign width="1.25rem" />, path: "/petty-cash/dashboard", badge: 0, color: "#1e3a5f", show: canAccessDashboard },
             { label: "Categories", icon: <FileText width="1.25rem" />, path: "/petty-cash/categories", badge: 0, color: "#0891b2", show: canAccessCategories },
