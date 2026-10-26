@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   type PettyCashRequest,
@@ -46,8 +47,11 @@ export default function Approvals() {
   const empId = userData?.emp_id ? String(userData.emp_id) : null;
   const isAdmin = userData?.role === "admin";
   const { loading: accessLoading, canAccessApprovals } = usePettyCashAccess();
+  const [searchParams] = useSearchParams();
 
-  const [tab, setTab] = useState<"requests" | "submissions">("requests");
+  const [tab, setTab] = useState<"requests" | "submissions">(
+    searchParams.get("tab") === "submissions" ? "submissions" : "requests"
+  );
   const [pendingRequests, setPendingRequests] = useState<PettyCashRequest[]>([]);
   const [pendingSubmissions, setPendingSubmissions] = useState<PettyCashSubmission[]>([]);
   const [loadingReq, setLoadingReq] = useState(true);
