@@ -7,8 +7,10 @@ import InputDialog from "@/components/input-dialog";
 import DefaultDialog from "@/components/ui/default-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useBackgroundProcess } from "@/context/BackgroundProcessContext";
 import { auth, db } from "@/firebase";
+import { usePettyCashPendingApprovals } from "@/pages/petty-cash-management/usePettyCashPendingApprovals";
 import { fetchAndCacheFuelLogs } from "@/utils/fuelLogsCache";
 import { getPendingFuelLogsCount, syncAllPendingFuelLogs } from "@/utils/offlineFuelLogs";
 import { LoadingOutlined } from "@ant-design/icons";
@@ -18,6 +20,7 @@ import { motion } from "framer-motion";
 import {
   ArrowRightLeft,
   BookMarked,
+  Bell,
   Bug,
   Clock3,
   Clock3Icon,
@@ -41,6 +44,33 @@ import moment from "moment";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+
+const approvalNotificationStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "0.75rem",
+  width: "100%",
+  padding: "0.65rem 0.7rem",
+  border: "1px solid rgba(100,116,139,0.18)",
+  borderRadius: "0.55rem",
+  background: "white",
+  color: "#1f2937",
+  fontSize: "0.85rem",
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+const approvalNotificationBadgeStyle: React.CSSProperties = {
+  minWidth: "1.25rem",
+  padding: "0.12rem 0.4rem",
+  borderRadius: "999px",
+  background: "#dc2626",
+  color: "white",
+  fontSize: "0.7rem",
+  fontWeight: 700,
+  textAlign: "center",
+};
 
 export default function Index() {
   const [requestDialog, setRequestDialog] = useState(false);
@@ -226,6 +256,7 @@ export default function Index() {
     hasModuleAccess('shift_logs');
   const hasTickets = admin || hasModuleAccess('tickets') || hasTicketHandler;
   const hasPettyCash = userData?.role === 'admin' || hasModuleAccess('petty_cash');
+  const pettyCashApprovalCounts = usePettyCashPendingApprovals(hasPettyCash);
 
   const hasAnyModules = () =>
     userData?.role === 'admin' ||
@@ -352,6 +383,83 @@ export default function Index() {
                 } */}
 
             <BackgroundProcessDropdown />
+
+            {pettyCashApprovalCounts.canAccessApprovals && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Pending petty cash approvals: ${pettyCashApprovalCounts.total}`}
+                    style={{
+                      position: "relative",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "2.5rem",
+                      height: "2.5rem",
+                      border: "none",
+                      borderRadius: "999px",
+                      background: "rgba(255,255,255,0.72)",
+                      color: "#1f2937",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Bell width="1.25rem" />
+                    {pettyCashApprovalCounts.total > 0 && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: -3,
+                          right: -4,
+                          minWidth: "1.1rem",
+                          padding: "0.08rem 0.28rem",
+                          borderRadius: "999px",
+                          background: "#dc2626",
+                          color: "white",
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          lineHeight: 1.3,
+                          textAlign: "center",
+                        }}
+                      >
+                        {pettyCashApprovalCounts.total > 99 ? "99+" : pettyCashApprovalCounts.total}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" style={{ width: "min(20rem, calc(100vw - 2rem))" }}>
+                  <p style={{ margin: "0 0 0.75rem", fontWeight: 700 }}>Pending approvals</p>
+                  {pettyCashApprovalCounts.total === 0 ? (
+                    <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>
+                      You have no pending petty cash approvals.
+                    </p>
+                  ) : (
+                    <div style={{ display: "grid", gap: "0.5rem" }}>
+                      {pettyCashApprovalCounts.requests > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => navigate("/petty-cash/approvals?tab=requests")}
+                          style={approvalNotificationStyle}
+                        >
+                          <span>Petty cash requests</span>
+                          <span style={approvalNotificationBadgeStyle}>{pettyCashApprovalCounts.requests}</span>
+                        </button>
+                      )}
+                      {pettyCashApprovalCounts.submissions > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => navigate("/petty-cash/approvals?tab=submissions")}
+                          style={approvalNotificationStyle}
+                        >
+                          <span>Bill submission requests</span>
+                          <span style={approvalNotificationBadgeStyle}>{pettyCashApprovalCounts.submissions}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            )}
 
             <IndexDropDown
               onLogout={() => setLogoutPrompt(true)}
@@ -523,6 +631,7 @@ export default function Index() {
                       title="Petty Cash"
                       description="Expense logging and petty cash control"
                       icon={<Wallet width="2.5rem" />}
+                      badge={pettyCashApprovalCounts.canAccessApprovals ? pettyCashApprovalCounts.total : 0}
                       onClick={() => {
                         if (userData?.role === 'admin' || hasModuleAccess('petty_cash')) {
                           navigate('/petty-cash');
