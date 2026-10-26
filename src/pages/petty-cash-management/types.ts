@@ -104,7 +104,7 @@ export interface PettyCashTransaction {
   exp_amount: number;
   approved_amount: number | null;
   fin_approved_amount: number | null;
-  fuel_log_id: number | null;
+  fuel_log_id: string | null;
   receipt_path: string | null;
   created_at: string;
   updated_at: string;
@@ -149,7 +149,7 @@ export interface PettyCashBalance {
 }
 
 export interface FuelLogEntry {
-  id: number;
+  id: string;
   date: string;
   employee_code: string | null;
   employee_name: string | null;
