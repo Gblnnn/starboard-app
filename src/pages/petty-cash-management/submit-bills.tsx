@@ -25,7 +25,7 @@ interface BillLine {
   trans_date: string;
   particulars: string;
   exp_amount: string;
-  fuel_log_id: number | null;
+  fuel_log_id: string | null;
   is_fuel: boolean;
 }
 
@@ -97,7 +97,7 @@ export default function SubmitBills() {
   // Fuel bills
   const [fuelBills, setFuelBills] = useState<FuelLogEntry[]>([]);
   const [loadingFuel, setLoadingFuel] = useState(false);
-  const [selectedFuelIds, setSelectedFuelIds] = useState<Set<number>>(new Set());
+  const [selectedFuelIds, setSelectedFuelIds] = useState<Set<string>>(new Set());
 
   const [submitting, setSubmitting] = useState(false);
   const [reportFrom, setReportFrom] = useState(moment().startOf("month").format("YYYY-MM-DD"));
