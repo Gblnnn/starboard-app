@@ -97,7 +97,7 @@ export function usePettyCashAccess(): PettyCashPermissions {
     isCustodian: isAdmin || isCustodian,
     isApprover: isAdmin || isApprover,
     isFinanceApprover: isAdmin || isFinanceApprover,
-    canAccessDashboard: isAdmin || isFinanceApprover || isApprover,
+    canAccessDashboard: isAdmin || isCustodian || isFinanceApprover || isApprover,
     canAccessFinance: isAdmin || isFinanceApprover,
     canAccessCategories: isAdmin || isFinanceApprover,
     canAccessApprovals: isAdmin || isApprover,
