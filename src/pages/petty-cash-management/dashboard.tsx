@@ -1,4 +1,5 @@
 import Back from "@/components/back";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import {
@@ -17,12 +18,34 @@ const CARD: React.CSSProperties = {
   padding: "1.25rem",
 };
 
+interface LedgerRow {
+  id: string;
+  date: string;
+  reference: string;
+  project_code: string;
+  emp_id: string;
+  details: string;
+  receipts: number;
+  payments: number;
+  runningBalance: number;
+}
+
 export default function Dashboard() {
-  const { loading: accessLoading, canAccessDashboard } = usePettyCashAccess();
+  const { userData } = useAuth();
+  const empId = userData?.emp_id ? String(userData.emp_id) : null;
+  const {
+    loading: accessLoading,
+    canAccessDashboard,
+    isAdmin,
+    isApprover,
+    isFinanceApprover,
+  } = usePettyCashAccess();
+  const canViewAll = isAdmin || isApprover || isFinanceApprover;
 
   const [balances, setBalances] = useState<PettyCashBalance[]>([]);
   const [custodianNames, setCustodianNames] = useState<Record<string, string>>({});
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthExpenses, setMonthExpenses] = useState(0);
   const [pendingRequests, setPendingRequests] = useState(0);
@@ -33,17 +56,19 @@ export default function Dashboard() {
   // Ledger params
   const [fromDate, setFromDate] = useState(moment().startOf("month").format("YYYY-MM-DD"));
   const [toDate, setToDate] = useState(moment().format("YYYY-MM-DD"));
-  const [ledgerRows, setLedgerRows] = useState<any[]>([]);
+  const [ledgerRows, setLedgerRows] = useState<LedgerRow[]>([]);
+  const [ledgerLoaded, setLedgerLoaded] = useState(false);
   const [loadingLedger, setLoadingLedger] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      // All project balances
-      const { data: balData, error: balError } = await supabase
+      let balancesQuery = supabase
         .from("v_petty_cash_balance")
         .select("*")
         .eq("active", true);
+      if (!canViewAll && empId) balancesQuery = balancesQuery.eq("emp_id", empId);
+      const { data: balData, error: balError } = await balancesQuery;
       if (balError) throw balError;
       setBalances(balData || []);
 
@@ -61,20 +86,31 @@ export default function Dashboard() {
       setFundingAwaiting(totals.fundingAwaiting);
       setOutstandingReimb(totals.outstandingReimb);
 
-      // Current month Finance-approved expenses
+      // Current month approved expenses
       const startOfMonth = moment().startOf("month").format("YYYY-MM-DD");
-      const { data: monthData } = await supabase
+      let monthQuery = supabase
         .from("petty_cash_transaction")
         .select("fin_approved_amount, petty_cash_submission!inner(petty_cash_approval_date, status)")
         .eq("petty_cash_submission.status", "approved")
         .gte("petty_cash_submission.petty_cash_approval_date", startOfMonth);
+      if (!canViewAll && empId) monthQuery = monthQuery.eq("emp_id", empId);
+      const { data: monthData, error: monthError } = await monthQuery;
+      if (monthError) throw monthError;
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + Number(r.fin_approved_amount || 0), 0);
       setMonthExpenses(monthTotal);
 
       // Pending counts
-      const { count: rCount } = await supabase.from("petty_cash_request").select("id", { count: "exact", head: true }).eq("status", "pending_approval");
+      let requestsQuery = supabase.from("petty_cash_request").select("id", { count: "exact", head: true }).eq("status", "pending_approval");
+      let submissionsQuery = supabase.from("petty_cash_submission").select("id", { count: "exact", head: true }).eq("status", "pending_petty_cash_approval");
+      if (!canViewAll && empId) {
+        requestsQuery = requestsQuery.eq("emp_id", empId);
+        submissionsQuery = submissionsQuery.eq("emp_id", empId);
+      }
+      const { count: rCount, error: requestCountError } = await requestsQuery;
+      if (requestCountError) throw requestCountError;
       setPendingRequests(rCount || 0);
-      const { count: sCount } = await supabase.from("petty_cash_submission").select("id", { count: "exact", head: true }).eq("status", "pending_petty_cash_approval");
+      const { count: sCount, error: submissionCountError } = await submissionsQuery;
+      if (submissionCountError) throw submissionCountError;
       setPendingSubmissions(sCount || 0);
     } catch (err: any) {
       toast.error(err?.message || "Failed to load dashboard");
@@ -83,65 +119,97 @@ export default function Dashboard() {
     }
   };
 
-  const loadLedger = async (projectCode: string | null = selectedProject) => {
+  const loadLedger = async (
+    projectCode: string | null = selectedProject,
+    custodianId: string | null = selectedEmpId
+  ) => {
     if (!fromDate || !toDate || fromDate > toDate) {
       toast.error("Select a valid date range");
       return;
     }
 
     setLoadingLedger(true);
+    setLedgerLoaded(false);
     try {
-      // Build ledger from payments and transactions
-      let paymentsQuery = supabase
+      let receiptsQuery = supabase
         .from("petty_cash_request_payment")
-        .select("*, petty_cash_request(project_code, emp_id, request_number)")
+        .select("id,project_code,payment_amount,payment_date,payment_reference,petty_cash_request!inner(request_number,emp_id,particulars)")
         .gte("payment_date", fromDate)
         .lte("payment_date", toDate)
         .order("payment_date");
-      if (projectCode) paymentsQuery = paymentsQuery.eq("project_code", projectCode);
-      const payments = await paymentsQuery;
-      if (payments.error) throw payments.error;
+      let reimbursementsQuery = supabase
+        .from("petty_cash_reimbursement_payment")
+        .select("id,project_code,emp_id,payment_amount,payment_date,payment_reference,petty_cash_submission!inner(submission_number,petty_cash_transaction(id,trans_date,particulars,fin_approved_amount,approved_amount,exp_amount,petty_cash_expense_category(category_name)))")
+        .gte("payment_date", fromDate)
+        .lte("payment_date", toDate)
+        .order("payment_date");
 
-      let expensesQuery = supabase
-        .from("petty_cash_transaction")
-        .select("*, petty_cash_submission!inner(project_code, emp_id, submission_number, petty_cash_approval_date, status)")
-        .eq("petty_cash_submission.status", "approved")
-        .gte("petty_cash_submission.petty_cash_approval_date", fromDate)
-        .lte("petty_cash_submission.petty_cash_approval_date", toDate + "T23:59:59");
-      if (projectCode) expensesQuery = expensesQuery.eq("project_code", projectCode);
-      const expenses = await expensesQuery;
-      if (expenses.error) throw expenses.error;
+      if (projectCode) {
+        receiptsQuery = receiptsQuery.eq("project_code", projectCode);
+        reimbursementsQuery = reimbursementsQuery.eq("project_code", projectCode);
+      }
+      if (custodianId) {
+        receiptsQuery = receiptsQuery.eq("petty_cash_request.emp_id", custodianId);
+        reimbursementsQuery = reimbursementsQuery.eq("emp_id", custodianId);
+      } else if (!canViewAll && empId) {
+        receiptsQuery = receiptsQuery.eq("petty_cash_request.emp_id", empId);
+        reimbursementsQuery = reimbursementsQuery.eq("emp_id", empId);
+      }
 
-      const rows: any[] = [];
+      const [receiptsResult, reimbursementsResult] = await Promise.all([
+        receiptsQuery,
+        reimbursementsQuery,
+      ]);
+      if (receiptsResult.error) throw receiptsResult.error;
+      if (reimbursementsResult.error) throw reimbursementsResult.error;
 
-      (payments.data || []).forEach((p: any) => {
+      const rows: Omit<LedgerRow, "runningBalance">[] = [];
+
+      (receiptsResult.data || []).forEach((p) => {
+        const request = p.petty_cash_request[0];
+        if (!request) return;
         rows.push({
+          id: `receipt-${p.id}`,
           date: p.payment_date,
-          type: "funding",
-          reference: p.petty_cash_request?.request_number || "",
-          project_code: p.petty_cash_request?.project_code || p.project_code,
-          emp_id: p.petty_cash_request?.emp_id || "",
-          particulars: "Funding Payment",
-          funding: p.payment_amount,
-          expenses: 0,
+          reference: request.request_number,
+          project_code: p.project_code,
+          emp_id: request.emp_id,
+          details: `Cash received — ${request.particulars}${p.payment_reference ? ` (Ref: ${p.payment_reference})` : ""}`,
+          receipts: Number(p.payment_amount),
+          payments: 0,
         });
       });
 
-      (expenses.data || []).forEach((t: any) => {
+      (reimbursementsResult.data || []).forEach((payment) => {
+        const submission = payment.petty_cash_submission[0];
+        if (!submission) return;
+        const bills = (submission.petty_cash_transaction || []).map((bill) => {
+          const category = bill.petty_cash_expense_category?.[0]?.category_name || "Expense";
+          const amount = bill.fin_approved_amount ?? bill.approved_amount ?? bill.exp_amount;
+          return `${moment(bill.trans_date).format("DD MMM YYYY")} · ${category} · ${bill.particulars} (${formatOMR(amount)})`;
+        });
         rows.push({
-          date: t.petty_cash_submission?.petty_cash_approval_date?.split("T")[0] || "",
-          type: "expense",
-          reference: t.petty_cash_submission?.submission_number || "",
-          project_code: t.project_code,
-          emp_id: t.emp_id,
-          particulars: t.particulars,
-          funding: 0,
-          expenses: t.fin_approved_amount || 0,
+          id: `reimbursement-${payment.id}`,
+          date: payment.payment_date,
+          reference: submission.submission_number,
+          project_code: payment.project_code,
+          emp_id: payment.emp_id,
+          details: `Reimbursement bills${payment.payment_reference ? ` (Ref: ${payment.payment_reference})` : ""}\n${bills.length > 0 ? bills.join("\n") : "No bill details"}`,
+          receipts: 0,
+          payments: Number(payment.payment_amount),
         });
       });
 
-      rows.sort((a, b) => a.date.localeCompare(b.date));
-      setLedgerRows(rows);
+      rows.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+      let runningBalance = 0;
+      const accountBalances = new Map<string, number>();
+      setLedgerRows(rows.map((row) => {
+        const accountKey = `${row.project_code}:${row.emp_id}`;
+        runningBalance = (accountBalances.get(accountKey) || 0) + row.receipts - row.payments;
+        accountBalances.set(accountKey, runningBalance);
+        return { ...row, runningBalance };
+      }));
+      setLedgerLoaded(true);
     } catch (err: any) {
       toast.error(err?.message || "Failed to load ledger");
     } finally {
@@ -149,20 +217,32 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!accessLoading) void load();
+  }, [accessLoading, canViewAll, empId]);
 
   const totalAvailable = balances.reduce((s, b) => s + b.available_balance, 0);
   const totalFunding = balances.reduce((s, b) => s + b.total_funding_received, 0);
 
   const printLedger = () => {
+    document.body.classList.add("pc-ledger-print-mode");
     window.print();
   };
+
+  useEffect(() => {
+    const clearPrintMode = () => document.body.classList.remove("pc-ledger-print-mode");
+    window.addEventListener("afterprint", clearPrintMode);
+    return () => {
+      window.removeEventListener("afterprint", clearPrintMode);
+      clearPrintMode();
+    };
+  }, []);
 
   if (!accessLoading && !canAccessDashboard) {
     return (
       <AccessDenied
         title="Dashboard Restricted"
-        message="Access to the petty cash dashboard is restricted to Finance Approvers, Petty Cash Approvers, and Administrators."
+        message="Access to the petty cash dashboard is restricted to assigned custodians, Finance Approvers, Petty Cash Approvers, and Administrators."
       />
     );
   }
@@ -218,7 +298,8 @@ export default function Dashboard() {
                 type="button"
                 onClick={() => {
                   setSelectedProject(b.project_code);
-                  void loadLedger(b.project_code);
+                  setSelectedEmpId(b.emp_id);
+                  void loadLedger(b.project_code, b.emp_id);
                 }}
                 style={{ ...CARD, width: "100%", marginBottom: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left", color: "inherit", background: selectedProject === b.project_code ? "rgba(30,58,95,0.06)" : "transparent", cursor: "pointer" }}
               >
@@ -238,22 +319,28 @@ export default function Dashboard() {
             ))}
 
             {/* Ledger section */}
-            <div style={{ marginTop: "1.75rem" }}>
+            <div className="pc-ledger-report" style={{ marginTop: "1.75rem" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.875rem" }}>
                 <h3 style={{ fontWeight: 700, fontSize: "0.9rem" }}>
                 {selectedProject ? `${selectedProject} Details` : "Transaction Ledger"}
                 </h3>
                 {selectedProject && (
-                <button type="button" onClick={() => setSelectedProject(null)} style={{ border: "none", background: "transparent", color: "#1e3a5f", fontWeight: 600, cursor: "pointer" }}>
+                <button type="button" onClick={() => { setSelectedProject(null); setSelectedEmpId(null); setLedgerRows([]); setLedgerLoaded(false); }} style={{ border: "none", background: "transparent", color: "#1e3a5f", fontWeight: 600, cursor: "pointer" }}>
                   All projects
                 </button>
                 )}
               </div>
-              <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.75rem" }}>
-                Click a project above to load its transactions for this date range.
+              <header className="pc-ledger-heading" style={{ display: "none", textAlign: "center", marginBottom: "0.75rem" }}>
+                <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
+                <p>Petty Cash Transaction Ledger</p>
+                <p>{moment(fromDate).format("DD MMM YYYY")} – {moment(toDate).format("DD MMM YYYY")}</p>
+                {selectedProject && <p>{selectedProject} · Custodian {selectedEmpId}</p>}
+              </header>
+              <p className="pc-ledger-controls" style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.75rem" }}>
+                Click a project balance above to view cash received and reimbursement payments for this date range.
               </p>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.875rem" }}>
+              <div className="pc-ledger-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.875rem" }}>
                 <div>
                   <label style={{ fontSize: "0.72rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>From</label>
                   <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: "100%", padding: "0.6rem", borderRadius: "0.5rem", border: "1px solid rgba(100,100,100,0.2)", fontSize: "0.85rem", fontFamily: "inherit" }} />
@@ -264,7 +351,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+              <div className="pc-ledger-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
                 <button onClick={() => loadLedger()} disabled={loadingLedger} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem" }}>
                   {loadingLedger ? <Loader2 className="animate-spin" width="0.9rem" /> : "Load Ledger"}
                 </button>
@@ -275,39 +362,51 @@ export default function Dashboard() {
                 )}
               </div>
 
+              {ledgerLoaded && ledgerRows.length === 0 && (
+                <p style={{ textAlign: "center", color: "#64748b", padding: "1.5rem" }}>
+                  No cash receipts or reimbursement payments in this date range.
+                </p>
+              )}
               {ledgerRows.length > 0 && (
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                     <thead>
                       <tr style={{ background: "#1e3a5f", color: "white" }}>
-                        {["Date", "Reference", "Project", "Custodian", "Particulars", "Funding", "Expenses"].map((h) => (
-                          <th key={h} style={{ padding: "0.6rem 0.75rem", textAlign: h === "Funding" || h === "Expenses" ? "right" : "left", fontWeight: 600, fontSize: "0.75rem" }}>{h}</th>
+                        {["Sl. No.", "Date", "Reference", "Project", "Custodian", "Details", "Cash Received", "Reimbursement Paid", "Running Balance"].map((h) => (
+                          <th key={h} style={{ padding: "0.6rem 0.75rem", textAlign: ["Cash Received", "Reimbursement Paid", "Running Balance"].includes(h) ? "right" : "left", fontWeight: 600, fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {ledgerRows.map((row, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid rgba(100,100,100,0.1)", background: i % 2 === 0 ? "transparent" : "rgba(100,100,100,0.02)" }}>
-                          <td style={{ padding: "0.5rem 0.75rem" }}>{moment(row.date).format("DD MMM YY")}</td>
+                        <tr key={row.id} style={{ borderBottom: "1px solid rgba(100,100,100,0.1)", background: i % 2 === 0 ? "transparent" : "rgba(100,100,100,0.02)", verticalAlign: "top" }}>
+                          <td style={{ padding: "0.5rem 0.75rem" }}>{i + 1}</td>
+                          <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{moment(row.date).format("DD MMM YYYY")}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.reference}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.project_code}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.emp_id}</td>
-                          <td style={{ padding: "0.5rem 0.75rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.particulars}</td>
-                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", color: "#16a34a", fontWeight: row.funding > 0 ? 600 : undefined }}>
-                            {row.funding > 0 ? formatOMR(row.funding) : ""}
+                          <td style={{ padding: "0.5rem 0.75rem", minWidth: 280, whiteSpace: "pre-line" }}>{row.details}</td>
+                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", color: "#16a34a", fontWeight: row.receipts > 0 ? 600 : undefined }}>
+                            {row.receipts > 0 ? formatOMR(row.receipts) : "—"}
                           </td>
-                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", color: "#dc2626", fontWeight: row.expenses > 0 ? 600 : undefined }}>
-                            {row.expenses > 0 ? formatOMR(row.expenses) : ""}
+                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", color: "#dc2626", fontWeight: row.payments > 0 ? 600 : undefined }}>
+                            {row.payments > 0 ? formatOMR(row.payments) : "—"}
+                          </td>
+                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600, color: row.runningBalance < 0 ? "#dc2626" : "#16a34a", whiteSpace: "nowrap" }}>
+                            {formatOMR(row.runningBalance)}
                           </td>
                         </tr>
                       ))}
                       <tr style={{ borderTop: "2px solid #1e3a5f", fontWeight: 700 }}>
-                        <td colSpan={5} style={{ padding: "0.6rem 0.75rem" }}>Total</td>
+                        <td colSpan={6} style={{ padding: "0.6rem 0.75rem" }}>Total</td>
                         <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", color: "#16a34a" }}>
-                          {formatOMR(ledgerRows.reduce((s, r) => s + r.funding, 0))}
+                          {formatOMR(ledgerRows.reduce((s, r) => s + r.receipts, 0))}
                         </td>
                         <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", color: "#dc2626" }}>
-                          {formatOMR(ledgerRows.reduce((s, r) => s + r.expenses, 0))}
+                          {formatOMR(ledgerRows.reduce((s, r) => s + r.payments, 0))}
+                        </td>
+                        <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", color: ledgerRows.reduce((sum, row) => sum + row.receipts - row.payments, 0) < 0 ? "#dc2626" : "#16a34a" }}>
+                          {formatOMR(ledgerRows.reduce((sum, row) => sum + row.receipts - row.payments, 0))}
                         </td>
                       </tr>
                     </tbody>
@@ -318,6 +417,18 @@ export default function Dashboard() {
           </>
         )}
       </div>
+      <style>{`@media print {
+        @page { size: landscape; margin: 8mm; }
+        body.pc-ledger-print-mode { margin: 0 !important; }
+        body.pc-ledger-print-mode * { visibility: hidden !important; }
+        body.pc-ledger-print-mode .pc-ledger-report,
+        body.pc-ledger-print-mode .pc-ledger-report * { visibility: visible !important; }
+        body.pc-ledger-print-mode .pc-ledger-report { position: fixed; inset: 0; width: 100%; margin: 0 !important; background: white; color: black; }
+        body.pc-ledger-print-mode .pc-ledger-controls { display: none !important; }
+        body.pc-ledger-print-mode .pc-ledger-heading { display: block !important; }
+        body.pc-ledger-print-mode .pc-ledger-report table { font-size: 9px !important; }
+        body.pc-ledger-print-mode .pc-ledger-report th { background: #e5e7eb !important; color: black !important; }
+      }`}</style>
     </motion.div>
   );
 }
