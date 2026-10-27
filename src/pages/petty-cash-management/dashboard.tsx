@@ -310,18 +310,47 @@ export default function Dashboard() {
   const totalFunding = balances.reduce((s, b) => s + b.total_funding_received, 0);
 
   const printLedger = () => {
-    document.body.classList.add("pc-ledger-print-mode");
-    window.print();
-  };
+    const report = document.querySelector<HTMLElement>(".pc-ledger-report");
+    if (!report) {
+      toast.error("Ledger report is not available to print");
+      return;
+    }
 
-  useEffect(() => {
-    const clearPrintMode = () => document.body.classList.remove("pc-ledger-print-mode");
-    window.addEventListener("afterprint", clearPrintMode);
-    return () => {
-      window.removeEventListener("afterprint", clearPrintMode);
-      clearPrintMode();
-    };
-  }, []);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Allow pop-ups to print the ledger report");
+      return;
+    }
+
+    const printDocument = printWindow.document;
+    printDocument.open();
+    printDocument.write("<!doctype html><html><head><title>Petty Cash Transaction Ledger</title></head><body></body></html>");
+    printDocument.close();
+
+    const reportCopy = report.cloneNode(true) as HTMLElement;
+    reportCopy.querySelectorAll(".pc-ledger-controls, button").forEach((element) => element.remove());
+    const heading = reportCopy.querySelector<HTMLElement>(".pc-ledger-heading");
+    if (heading) heading.style.display = "block";
+    reportCopy.querySelectorAll<HTMLElement>("div").forEach((element) => {
+      element.style.overflow = "visible";
+    });
+
+    const printStyles = printDocument.createElement("style");
+    printStyles.textContent = `
+      @page { size: landscape; margin: 8mm; }
+      body { margin: 0; color: #111; font-family: Arial, sans-serif; }
+      .pc-ledger-report { width: 100%; margin: 0 !important; }
+      .pc-ledger-report table { width: 100%; border-collapse: collapse; font-size: 9px !important; }
+      .pc-ledger-report thead { display: table-header-group; }
+      .pc-ledger-report tr { break-inside: avoid; page-break-inside: avoid; }
+      .pc-ledger-report th { background: #e5e7eb !important; color: #111 !important; }
+    `;
+    printDocument.head.appendChild(printStyles);
+    printDocument.body.appendChild(reportCopy);
+    printWindow.addEventListener("afterprint", () => printWindow.close(), { once: true });
+    printWindow.focus();
+    printWindow.print();
+  };
 
   if (!accessLoading && !canAccessDashboard) {
     return (
@@ -502,18 +531,6 @@ export default function Dashboard() {
           </>
         )}
       </div>
-      <style>{`@media print {
-        @page { size: landscape; margin: 8mm; }
-        body.pc-ledger-print-mode { margin: 0 !important; }
-        body.pc-ledger-print-mode * { visibility: hidden !important; }
-        body.pc-ledger-print-mode .pc-ledger-report,
-        body.pc-ledger-print-mode .pc-ledger-report * { visibility: visible !important; }
-        body.pc-ledger-print-mode .pc-ledger-report { position: static; width: 100%; margin: 0 !important; background: white; color: black; }
-        body.pc-ledger-print-mode .pc-ledger-controls { display: none !important; }
-        body.pc-ledger-print-mode .pc-ledger-heading { display: block !important; }
-        body.pc-ledger-print-mode .pc-ledger-report table { font-size: 9px !important; }
-        body.pc-ledger-print-mode .pc-ledger-report th { background: #e5e7eb !important; color: black !important; }
-      }`}</style>
     </motion.div>
   );
 }
