@@ -133,26 +133,22 @@ export default function Dashboard() {
     try {
       let receiptsQuery = supabase
         .from("petty_cash_request_payment")
-        .select("id,project_code,payment_amount,payment_date,payment_reference,petty_cash_request!inner(request_number,emp_id,particulars)")
+        .select("id,request_id,project_code,payment_amount,payment_date,payment_reference")
         .gte("payment_date", fromDate)
         .lte("payment_date", toDate)
         .order("payment_date");
       let reimbursementsQuery = supabase
         .from("petty_cash_reimbursement_payment")
-        .select("id,project_code,emp_id,payment_amount,payment_date,payment_reference,petty_cash_submission!inner(submission_number,petty_cash_transaction(id,trans_date,particulars,fin_approved_amount,approved_amount,exp_amount,petty_cash_expense_category(category_name)))")
+        .select("id,submission_id,project_code,emp_id,payment_amount,payment_date,payment_reference")
         .gte("payment_date", fromDate)
         .lte("payment_date", toDate)
         .order("payment_date");
 
-      if (projectCode) {
-        receiptsQuery = receiptsQuery.eq("project_code", projectCode);
-        reimbursementsQuery = reimbursementsQuery.eq("project_code", projectCode);
-      }
+      if (projectCode) receiptsQuery = receiptsQuery.eq("project_code", projectCode);
+      if (projectCode) reimbursementsQuery = reimbursementsQuery.eq("project_code", projectCode);
       if (custodianId) {
-        receiptsQuery = receiptsQuery.eq("petty_cash_request.emp_id", custodianId);
         reimbursementsQuery = reimbursementsQuery.eq("emp_id", custodianId);
       } else if (!canViewAll && empId) {
-        receiptsQuery = receiptsQuery.eq("petty_cash_request.emp_id", empId);
         reimbursementsQuery = reimbursementsQuery.eq("emp_id", empId);
       }
 
@@ -163,11 +159,42 @@ export default function Dashboard() {
       if (receiptsResult.error) throw receiptsResult.error;
       if (reimbursementsResult.error) throw reimbursementsResult.error;
 
+      const requestIds = [...new Set((receiptsResult.data || []).map((payment) => payment.request_id))];
+      const submissionIds = [...new Set((reimbursementsResult.data || []).map((payment) => payment.submission_id))];
+      const [requestsResult, submissionsResult, transactionsResult] = await Promise.all([
+        requestIds.length
+          ? supabase.from("petty_cash_request").select("id,request_number,emp_id,particulars").in("id", requestIds)
+          : Promise.resolve({ data: [], error: null }),
+        submissionIds.length
+          ? supabase.from("petty_cash_submission").select("id,submission_number").in("id", submissionIds)
+          : Promise.resolve({ data: [], error: null }),
+        submissionIds.length
+          ? supabase
+            .from("petty_cash_transaction")
+            .select("id,submission_id,trans_date,particulars,fin_approved_amount,approved_amount,exp_amount,petty_cash_expense_category(category_name)")
+            .in("submission_id", submissionIds)
+            .order("trans_date")
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (requestsResult.error) throw requestsResult.error;
+      if (submissionsResult.error) throw submissionsResult.error;
+      if (transactionsResult.error) throw transactionsResult.error;
+
+      const requestsById = new Map((requestsResult.data || []).map((request) => [request.id, request]));
+      const submissionsById = new Map((submissionsResult.data || []).map((submission) => [submission.id, submission]));
+      const transactionsBySubmission = new Map<number, typeof transactionsResult.data>();
+      (transactionsResult.data || []).forEach((transaction) => {
+        const submissionTransactions = transactionsBySubmission.get(transaction.submission_id) || [];
+        submissionTransactions.push(transaction);
+        transactionsBySubmission.set(transaction.submission_id, submissionTransactions);
+      });
+
       const rows: Omit<LedgerRow, "runningBalance">[] = [];
 
       (receiptsResult.data || []).forEach((p) => {
-        const request = p.petty_cash_request[0];
-        if (!request) return;
+        const request = requestsById.get(p.request_id);
+        if (!request || (custodianId && request.emp_id !== custodianId) ||
+          (!canViewAll && empId && request.emp_id !== empId)) return;
         rows.push({
           id: `receipt-${p.id}`,
           date: p.payment_date,
@@ -181,9 +208,9 @@ export default function Dashboard() {
       });
 
       (reimbursementsResult.data || []).forEach((payment) => {
-        const submission = payment.petty_cash_submission[0];
-        if (!submission) return;
-        const bills = (submission.petty_cash_transaction || []).map((bill) => {
+        const submission = submissionsById.get(payment.submission_id);
+        const bills = transactionsBySubmission.get(payment.submission_id) || [];
+        const billDetails = bills.map((bill) => {
           const category = bill.petty_cash_expense_category?.[0]?.category_name || "Expense";
           const amount = bill.fin_approved_amount ?? bill.approved_amount ?? bill.exp_amount;
           return `${moment(bill.trans_date).format("DD MMM YYYY")} · ${category} · ${bill.particulars} (${formatOMR(amount)})`;
@@ -191,10 +218,10 @@ export default function Dashboard() {
         rows.push({
           id: `reimbursement-${payment.id}`,
           date: payment.payment_date,
-          reference: submission.submission_number,
+          reference: submission?.submission_number || `Submission ${payment.submission_id}`,
           project_code: payment.project_code,
           emp_id: payment.emp_id,
-          details: `Reimbursement bills${payment.payment_reference ? ` (Ref: ${payment.payment_reference})` : ""}\n${bills.length > 0 ? bills.join("\n") : "No bill details"}`,
+          details: `Reimbursement bills${payment.payment_reference ? ` (Ref: ${payment.payment_reference})` : ""}\n${billDetails.length > 0 ? billDetails.join("\n") : "No bill details found"}`,
           receipts: 0,
           payments: Number(payment.payment_amount),
         });
