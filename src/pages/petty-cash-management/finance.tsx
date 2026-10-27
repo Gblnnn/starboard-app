@@ -6,9 +6,21 @@ import { CreditCard, Loader2, X, DollarSign, ReceiptText } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { type PettyCashRequest, type PettyCashSubmission, formatOMR, statusColor, statusLabel } from "./types";
+import { type PettyCashRequest, formatOMR, statusColor, statusLabel } from "./types";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
+
+interface ReimbursementDue {
+  submission_id: number;
+  submission_number: string;
+  submission_date: string;
+  petty_cash_approval_date: string;
+  project_code: string;
+  emp_id: string;
+  approved_reimbursement_amount: number;
+  reimbursement_paid: number;
+  outstanding_reimbursement: number;
+}
 
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
@@ -33,7 +45,7 @@ export default function Finance() {
 
   const [tab, setTab] = useState<"funding" | "reimbursements">("funding");
   const [approvedRequests, setApprovedRequests] = useState<(PettyCashRequest & { total_paid: number })[]>([]);
-  const [approvedSubmissions, setApprovedSubmissions] = useState<PettyCashSubmission[]>([]);
+  const [approvedSubmissions, setApprovedSubmissions] = useState<ReimbursementDue[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Payment dialog
@@ -68,15 +80,14 @@ export default function Finance() {
 
   const loadReimbursements = async () => {
     try {
-      // Load approved submissions with outstanding reimbursement
+      // The view applies available petty cash and prior payments per submission.
       const { data, error } = await supabase
-        .from("petty_cash_submission")
-        .select("*")
-        .eq("status", "approved")
+        .from("v_petty_cash_reimbursement_due")
+        .select("submission_id,submission_number,submission_date,petty_cash_approval_date,project_code,emp_id,approved_reimbursement_amount,reimbursement_paid,outstanding_reimbursement")
+        .gt("outstanding_reimbursement", 0)
         .order("petty_cash_approval_date", { ascending: true });
       if (error) throw error;
-      // Only show those with outstanding reimbursement (we'll fetch from balance view)
-      setApprovedSubmissions(data || []);
+      setApprovedSubmissions((data || []) as ReimbursementDue[]);
     } catch (err: any) {
       toast.error(err?.message || "Failed to load reimbursements");
     }
@@ -110,22 +121,13 @@ export default function Finance() {
         if (result.error) throw result.error;
         toast.success(`Payment of ${formatOMR(amount)} recorded`);
       } else {
-        // Reimbursement payment
-        // Get submission's project_code and emp_id
-        const sub = approvedSubmissions.find((s) => s.id === payDialog.id);
-        if (!sub) throw new Error("Submission not found");
-
-        const { error } = await supabase
-          .from("petty_cash_reimbursement_payment")
-          .insert({
-            submission_id: payDialog.id,
-            project_code: sub.project_code,
-            emp_id: sub.emp_id,
-            payment_amount: amount,
-            payment_date: payDate,
-            payment_reference: payRef.trim() || null,
-            recorded_by: empId,
-          });
+        const { error } = await supabase.rpc("pc_record_reimbursement_payment", {
+          p_submission_id: payDialog.id,
+          p_payment_amount: amount,
+          p_payment_date: payDate,
+          p_payment_reference: payRef.trim() || null,
+          p_recorded_by: empId,
+        });
         if (error) throw error;
         toast.success(`Reimbursement payment of ${formatOMR(amount)} recorded`);
       }
@@ -230,16 +232,21 @@ export default function Finance() {
               approvedSubmissions.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
                   <ReceiptText width="2rem" style={{ margin: "0 auto 0.75rem", opacity: 0.3 }} />
-                  <p>No approved submissions</p>
+                  <p>No outstanding reimbursements</p>
                 </div>
               ) : (
                 approvedSubmissions.map((sub) => (
                   <ReimbursementCard
-                    key={sub.id}
-                    sub={sub}
-                    onPay={(maxAmount) => {
-                      setPayDialog({ type: "reimbursement", id: sub.id, maxAmount, label: sub.submission_number });
-                      setPayAmount(maxAmount.toFixed(3));
+                    key={sub.submission_id}
+                    reimbursement={sub}
+                    onPay={() => {
+                      setPayDialog({
+                        type: "reimbursement",
+                        id: sub.submission_id,
+                        maxAmount: Number(sub.outstanding_reimbursement),
+                        label: sub.submission_number,
+                      });
+                      setPayAmount(Number(sub.outstanding_reimbursement).toFixed(3));
                       setPayDate(moment().format("YYYY-MM-DD"));
                       setPayRef("");
                     }}
@@ -290,34 +297,22 @@ export default function Finance() {
   );
 }
 
-function ReimbursementCard({ sub, onPay }: { sub: PettyCashSubmission; onPay: (max: number) => void }) {
-  const [balData, setBalData] = useState<any>(null);
-  useEffect(() => {
-    supabase
-      .from("v_petty_cash_balance")
-      .select("approved_reimbursement_payable,reimbursement_paid,outstanding_reimbursement")
-      .eq("project_code", sub.project_code)
-      .eq("emp_id", sub.emp_id)
-      .maybeSingle()
-      .then(({ data }) => setBalData(data));
-  }, [sub.id]);
-
-  const outstanding = Number(balData?.outstanding_reimbursement ?? 0);
-
+function ReimbursementCard({ reimbursement, onPay }: { reimbursement: ReimbursementDue; onPay: () => void }) {
+  const outstanding = Number(reimbursement.outstanding_reimbursement);
   return (
     <div style={{ border: "1px solid rgba(100,100,100,0.12)", borderRadius: "0.875rem", padding: "1rem", marginBottom: "0.75rem" }}>
-      <p style={{ fontWeight: 700 }}>{sub.submission_number}</p>
+      <p style={{ fontWeight: 700 }}>{reimbursement.submission_number}</p>
       <p style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.75rem" }}>
-        {sub.project_code} · {sub.emp_id} · {moment(sub.petty_cash_approval_date).format("DD MMM YYYY")}
+        {reimbursement.project_code} · {reimbursement.emp_id} · {moment(reimbursement.petty_cash_approval_date).format("DD MMM YYYY")}
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.875rem" }}>
         <div>
-          <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Approved</p>
-          <p style={{ fontWeight: 700 }}>{formatOMR(balData?.approved_reimbursement_payable)}</p>
+          <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Reimbursable</p>
+          <p style={{ fontWeight: 700 }}>{formatOMR(reimbursement.approved_reimbursement_amount)}</p>
         </div>
         <div>
           <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Paid</p>
-          <p style={{ fontWeight: 700, color: "#16a34a" }}>{formatOMR(balData?.reimbursement_paid)}</p>
+          <p style={{ fontWeight: 700, color: "#16a34a" }}>{formatOMR(reimbursement.reimbursement_paid)}</p>
         </div>
         <div>
           <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Outstanding</p>
@@ -326,7 +321,7 @@ function ReimbursementCard({ sub, onPay }: { sub: PettyCashSubmission; onPay: (m
       </div>
       {outstanding > 0 && (
         <button
-          onClick={() => onPay(outstanding)}
+          onClick={onPay}
           style={{ width: "100%", padding: "0.65rem", borderRadius: "0.6rem", border: "none", background: "#7c3aed", color: "white", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" }}
         >
           Record Reimbursement Payment
