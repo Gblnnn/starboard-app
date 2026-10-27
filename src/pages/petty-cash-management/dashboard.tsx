@@ -28,6 +28,7 @@ interface LedgerRow {
   receipts: number;
   payments: number;
   runningBalance: number;
+  isOpeningBalance?: boolean;
 }
 
 export default function Dashboard() {
@@ -59,6 +60,7 @@ export default function Dashboard() {
   const [ledgerRows, setLedgerRows] = useState<LedgerRow[]>([]);
   const [ledgerLoaded, setLedgerLoaded] = useState(false);
   const [loadingLedger, setLoadingLedger] = useState(false);
+  const [ledgerClosingBalance, setLedgerClosingBalance] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -131,71 +133,89 @@ export default function Dashboard() {
     setLoadingLedger(true);
     setLedgerLoaded(false);
     try {
+      let assignmentsQuery = supabase
+        .from("pettycash_user")
+        .select("project_code,emp_id,op_balance,op_date")
+        .eq("active", true);
+      if (projectCode) assignmentsQuery = assignmentsQuery.eq("project_code", projectCode);
+      if (custodianId) assignmentsQuery = assignmentsQuery.eq("emp_id", custodianId);
+      else if (!canViewAll && empId) assignmentsQuery = assignmentsQuery.eq("emp_id", empId);
+
+      const { data: assignmentData, error: assignmentError } = await assignmentsQuery;
+      if (assignmentError) throw assignmentError;
+      const assignments = assignmentData || [];
+      if (assignments.length === 0) {
+        setLedgerRows([]);
+        setLedgerClosingBalance(0);
+        setLedgerLoaded(true);
+        return;
+      }
+
+      const projectCodes = [...new Set(assignments.map((assignment) => assignment.project_code))];
+      const custodianIds = [...new Set(assignments.map((assignment) => assignment.emp_id))];
       let receiptsQuery = supabase
         .from("petty_cash_request_payment")
         .select("id,request_id,project_code,payment_amount,payment_date,payment_reference")
-        .gte("payment_date", fromDate)
+        .in("project_code", projectCodes)
         .lte("payment_date", toDate)
         .order("payment_date");
-      let reimbursementsQuery = supabase
-        .from("petty_cash_reimbursement_payment")
-        .select("id,submission_id,project_code,emp_id,payment_amount,payment_date,payment_reference")
-        .gte("payment_date", fromDate)
-        .lte("payment_date", toDate)
-        .order("payment_date");
-
-      if (projectCode) receiptsQuery = receiptsQuery.eq("project_code", projectCode);
-      if (projectCode) reimbursementsQuery = reimbursementsQuery.eq("project_code", projectCode);
-      if (custodianId) {
-        reimbursementsQuery = reimbursementsQuery.eq("emp_id", custodianId);
-      } else if (!canViewAll && empId) {
-        reimbursementsQuery = reimbursementsQuery.eq("emp_id", empId);
+      let transactionsQuery = supabase
+        .from("petty_cash_transaction")
+        .select("id,submission_id,project_code,emp_id,expense_category_id,trans_date,particulars,fin_approved_amount,approved_amount,exp_amount")
+        .in("project_code", projectCodes)
+        .lte("trans_date", toDate)
+        .order("trans_date");
+      if (custodianIds.length) {
+        receiptsQuery = receiptsQuery.in("project_code", projectCodes);
+        transactionsQuery = transactionsQuery.in("emp_id", custodianIds);
       }
 
-      const [receiptsResult, reimbursementsResult] = await Promise.all([
+      const [receiptsResult, transactionsResult] = await Promise.all([
         receiptsQuery,
-        reimbursementsQuery,
+        transactionsQuery,
       ]);
       if (receiptsResult.error) throw receiptsResult.error;
-      if (reimbursementsResult.error) throw reimbursementsResult.error;
+      if (transactionsResult.error) throw transactionsResult.error;
 
       const requestIds = [...new Set((receiptsResult.data || []).map((payment) => payment.request_id))];
-      const submissionIds = [...new Set((reimbursementsResult.data || []).map((payment) => payment.submission_id))];
-      const [requestsResult, submissionsResult, transactionsResult] = await Promise.all([
+      const submissionIds = [...new Set((transactionsResult.data || []).map((transaction) => transaction.submission_id))];
+      const categoryIds = [...new Set((transactionsResult.data || []).map((transaction) => transaction.expense_category_id))];
+      const [requestsResult, submissionsResult, categoriesResult, reimbursementPaymentsResult] = await Promise.all([
         requestIds.length
           ? supabase.from("petty_cash_request").select("id,request_number,emp_id,particulars").in("id", requestIds)
           : Promise.resolve({ data: [], error: null }),
         submissionIds.length
-          ? supabase.from("petty_cash_submission").select("id,submission_number").in("id", submissionIds)
+          ? supabase.from("petty_cash_submission").select("id,submission_number,status").in("id", submissionIds).eq("status", "approved")
+          : Promise.resolve({ data: [], error: null }),
+        categoryIds.length
+          ? supabase.from("petty_cash_expense_category").select("id,category_name").in("id", categoryIds)
           : Promise.resolve({ data: [], error: null }),
         submissionIds.length
-          ? supabase
-            .from("petty_cash_transaction")
-            .select("id,submission_id,trans_date,particulars,fin_approved_amount,approved_amount,exp_amount,petty_cash_expense_category(category_name)")
-            .in("submission_id", submissionIds)
-            .order("trans_date")
+          ? supabase.from("petty_cash_reimbursement_payment").select("submission_id,payment_amount,payment_date,payment_reference").in("submission_id", submissionIds).lte("payment_date", toDate).order("payment_date")
           : Promise.resolve({ data: [], error: null }),
       ]);
       if (requestsResult.error) throw requestsResult.error;
       if (submissionsResult.error) throw submissionsResult.error;
-      if (transactionsResult.error) throw transactionsResult.error;
+      if (categoriesResult.error) throw categoriesResult.error;
+      if (reimbursementPaymentsResult.error) throw reimbursementPaymentsResult.error;
 
       const requestsById = new Map((requestsResult.data || []).map((request) => [request.id, request]));
       const submissionsById = new Map((submissionsResult.data || []).map((submission) => [submission.id, submission]));
-      const transactionsBySubmission = new Map<number, typeof transactionsResult.data>();
-      (transactionsResult.data || []).forEach((transaction) => {
-        const submissionTransactions = transactionsBySubmission.get(transaction.submission_id) || [];
-        submissionTransactions.push(transaction);
-        transactionsBySubmission.set(transaction.submission_id, submissionTransactions);
+      const categoriesById = new Map((categoriesResult.data || []).map((category) => [category.id, category.category_name]));
+      const reimbursementPaymentsBySubmission = new Map<number, string[]>();
+      (reimbursementPaymentsResult.data || []).forEach((payment) => {
+        const payments = reimbursementPaymentsBySubmission.get(payment.submission_id) || [];
+        payments.push(`${moment(payment.payment_date).format("DD MMM YYYY")} ${formatOMR(Number(payment.payment_amount))}${payment.payment_reference ? ` (Ref: ${payment.payment_reference})` : ""}`);
+        reimbursementPaymentsBySubmission.set(payment.submission_id, payments);
       });
 
-      const rows: Omit<LedgerRow, "runningBalance">[] = [];
+      const events: Omit<LedgerRow, "runningBalance">[] = [];
 
       (receiptsResult.data || []).forEach((p) => {
         const request = requestsById.get(p.request_id);
         if (!request || (custodianId && request.emp_id !== custodianId) ||
           (!canViewAll && empId && request.emp_id !== empId)) return;
-        rows.push({
+        events.push({
           id: `receipt-${p.id}`,
           date: p.payment_date,
           reference: request.request_number,
@@ -207,35 +227,73 @@ export default function Dashboard() {
         });
       });
 
-      (reimbursementsResult.data || []).forEach((payment) => {
-        const submission = submissionsById.get(payment.submission_id);
-        const bills = transactionsBySubmission.get(payment.submission_id) || [];
-        const billDetails = bills.map((bill) => {
-          const category = bill.petty_cash_expense_category?.[0]?.category_name || "Expense";
-          const amount = bill.fin_approved_amount ?? bill.approved_amount ?? bill.exp_amount;
-          return `${moment(bill.trans_date).format("DD MMM YYYY")} · ${category} · ${bill.particulars} (${formatOMR(amount)})`;
-        });
-        rows.push({
-          id: `reimbursement-${payment.id}`,
-          date: payment.payment_date,
-          reference: submission?.submission_number || `Submission ${payment.submission_id}`,
-          project_code: payment.project_code,
-          emp_id: payment.emp_id,
-          details: `Reimbursement bills${payment.payment_reference ? ` (Ref: ${payment.payment_reference})` : ""}\n${billDetails.length > 0 ? billDetails.join("\n") : "No bill details found"}`,
+      (transactionsResult.data || []).forEach((bill) => {
+        const submission = submissionsById.get(bill.submission_id);
+        if (!submission || (custodianId && bill.emp_id !== custodianId) ||
+          (!canViewAll && empId && bill.emp_id !== empId)) return;
+        const approvedAmount = Number(bill.fin_approved_amount ?? bill.approved_amount ?? bill.exp_amount);
+        const reimbursements = reimbursementPaymentsBySubmission.get(bill.submission_id) || [];
+        events.push({
+          id: `bill-${bill.id}`,
+          date: bill.trans_date,
+          reference: submission.submission_number,
+          project_code: bill.project_code,
+          emp_id: bill.emp_id,
+          details: `${categoriesById.get(bill.expense_category_id) || "Expense"} — ${bill.particulars}${reimbursements.length ? `\nFinance reimbursement: ${reimbursements.join("; ")}` : "\nPaid from petty cash balance"}`,
           receipts: 0,
-          payments: Number(payment.payment_amount),
+          payments: approvedAmount,
         });
       });
 
-      rows.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-      let runningBalance = 0;
+      events.sort((a, b) =>
+        a.date.localeCompare(b.date) ||
+        Number(b.receipts > 0) - Number(a.receipts > 0) ||
+        a.id.localeCompare(b.id)
+      );
       const accountBalances = new Map<string, number>();
-      setLedgerRows(rows.map((row) => {
-        const accountKey = `${row.project_code}:${row.emp_id}`;
-        runningBalance = (accountBalances.get(accountKey) || 0) + row.receipts - row.payments;
-        accountBalances.set(accountKey, runningBalance);
-        return { ...row, runningBalance };
-      }));
+      assignments.forEach((assignment) => {
+        const accountKey = `${assignment.project_code}:${assignment.emp_id}`;
+        accountBalances.set(accountKey, Number(assignment.op_balance || 0));
+      });
+
+      const applyEvent = (event: Omit<LedgerRow, "runningBalance">) => {
+        const accountKey = `${event.project_code}:${event.emp_id}`;
+        const updatedBalance = (accountBalances.get(accountKey) || 0) + event.receipts - event.payments;
+        accountBalances.set(accountKey, updatedBalance);
+        return updatedBalance;
+      };
+
+      events.filter((event) => event.date < fromDate).forEach((event) => {
+        applyEvent(event);
+      });
+      const openingBalances = new Map(accountBalances);
+
+      const rangeRows: LedgerRow[] = [];
+      events.filter((event) => event.date >= fromDate).forEach((event) => {
+        if (!assignments.some((item) =>
+          item.project_code === event.project_code && item.emp_id === event.emp_id
+        )) return;
+        rangeRows.push({ ...event, runningBalance: applyEvent(event) });
+      });
+
+      const openingRows: LedgerRow[] = assignments.map((assignment) => {
+        const accountKey = `${assignment.project_code}:${assignment.emp_id}`;
+        return {
+          id: `opening-${accountKey}`,
+          date: fromDate,
+          reference: "—",
+          project_code: assignment.project_code,
+          emp_id: assignment.emp_id,
+          details: "Opening balance brought forward",
+          receipts: 0,
+          payments: 0,
+          runningBalance: openingBalances.get(accountKey) || 0,
+          isOpeningBalance: true,
+        };
+      });
+
+      setLedgerRows([...openingRows, ...rangeRows]);
+      setLedgerClosingBalance([...accountBalances.values()].reduce((total, balance) => total + balance, 0));
       setLedgerLoaded(true);
     } catch (err: any) {
       toast.error(err?.message || "Failed to load ledger");
@@ -352,7 +410,7 @@ export default function Dashboard() {
                 {selectedProject ? `${selectedProject} Details` : "Transaction Ledger"}
                 </h3>
                 {selectedProject && (
-                <button type="button" onClick={() => { setSelectedProject(null); setSelectedEmpId(null); setLedgerRows([]); setLedgerLoaded(false); }} style={{ border: "none", background: "transparent", color: "#1e3a5f", fontWeight: 600, cursor: "pointer" }}>
+                <button type="button" onClick={() => { setSelectedProject(null); setSelectedEmpId(null); setLedgerRows([]); setLedgerClosingBalance(0); setLedgerLoaded(false); }} style={{ border: "none", background: "transparent", color: "#1e3a5f", fontWeight: 600, cursor: "pointer" }}>
                   All projects
                 </button>
                 )}
@@ -364,7 +422,7 @@ export default function Dashboard() {
                 {selectedProject && <p>{selectedProject} · Custodian {selectedEmpId}</p>}
               </header>
               <p className="pc-ledger-controls" style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.75rem" }}>
-                Click a project balance above to view cash received and reimbursement payments for this date range.
+                Click a project balance above to view cash receipts and approved bill payments for this date range.
               </p>
 
               <div className="pc-ledger-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.875rem" }}>
@@ -389,9 +447,9 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {ledgerLoaded && ledgerRows.length === 0 && (
+              {ledgerLoaded && !ledgerRows.some((row) => !row.isOpeningBalance) && (
                 <p style={{ textAlign: "center", color: "#64748b", padding: "1.5rem" }}>
-                  No cash receipts or reimbursement payments in this date range.
+                  No cash receipts or approved bills in this date range.
                 </p>
               )}
               {ledgerRows.length > 0 && (
@@ -399,16 +457,16 @@ export default function Dashboard() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                     <thead>
                       <tr style={{ background: "#1e3a5f", color: "white" }}>
-                        {["Sl. No.", "Date", "Reference", "Project", "Custodian", "Details", "Cash Received", "Reimbursement Paid", "Running Balance"].map((h) => (
-                          <th key={h} style={{ padding: "0.6rem 0.75rem", textAlign: ["Cash Received", "Reimbursement Paid", "Running Balance"].includes(h) ? "right" : "left", fontWeight: 600, fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                        {["Sl. No.", "Date", "Reference", "Project", "Custodian", "Details", "Cash Received", "Payments (Approved Bills)", "Running Balance"].map((h) => (
+                          <th key={h} style={{ padding: "0.6rem 0.75rem", textAlign: ["Cash Received", "Payments (Approved Bills)", "Running Balance"].includes(h) ? "right" : "left", fontWeight: 600, fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {ledgerRows.map((row, i) => (
                         <tr key={row.id} style={{ borderBottom: "1px solid rgba(100,100,100,0.1)", background: i % 2 === 0 ? "transparent" : "rgba(100,100,100,0.02)", verticalAlign: "top" }}>
-                          <td style={{ padding: "0.5rem 0.75rem" }}>{i + 1}</td>
-                          <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{moment(row.date).format("DD MMM YYYY")}</td>
+                          <td style={{ padding: "0.5rem 0.75rem" }}>{row.isOpeningBalance ? "—" : ledgerRows.slice(0, i).filter((entry) => !entry.isOpeningBalance).length + 1}</td>
+                          <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.isOpeningBalance ? "—" : moment(row.date).format("DD MMM YYYY")}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.reference}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.project_code}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.emp_id}</td>
@@ -432,8 +490,8 @@ export default function Dashboard() {
                         <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", color: "#dc2626" }}>
                           {formatOMR(ledgerRows.reduce((s, r) => s + r.payments, 0))}
                         </td>
-                        <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", color: ledgerRows.reduce((sum, row) => sum + row.receipts - row.payments, 0) < 0 ? "#dc2626" : "#16a34a" }}>
-                          {formatOMR(ledgerRows.reduce((sum, row) => sum + row.receipts - row.payments, 0))}
+                        <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", color: ledgerClosingBalance < 0 ? "#dc2626" : "#16a34a" }}>
+                          {formatOMR(ledgerClosingBalance)}
                         </td>
                       </tr>
                     </tbody>
