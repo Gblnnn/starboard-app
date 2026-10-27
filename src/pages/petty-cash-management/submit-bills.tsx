@@ -7,7 +7,7 @@ import {
   Plus, Send, Square, Trash2,
 } from "lucide-react";
 import moment from "moment";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -46,7 +46,11 @@ interface BillReportRow {
   custodian_name: string;
   petty_cash_approver_id: string | null;
   approver_name: string;
-  particulars: string[];
+  bills: {
+    trans_date: string;
+    particulars: string;
+    approved_amount: number;
+  }[];
   approved_amount: number;
   reimbursed_amount: number;
   outstanding: number;
@@ -164,7 +168,13 @@ export default function SubmitBills() {
           custodian_name: employeeNames.get(submission.emp_id) || (submission.emp_id === empId ? userData?.name || "" : ""),
           petty_cash_approver_id: submission.petty_cash_approver_id,
           approver_name: submission.petty_cash_approver_id ? employeeNames.get(submission.petty_cash_approver_id) || "" : "",
-          particulars: transactions.map((transaction) => transaction.particulars),
+          bills: transactions.map((transaction) => ({
+            trans_date: transaction.trans_date,
+            particulars: transaction.particulars,
+            approved_amount: Number(
+              transaction.fin_approved_amount ?? transaction.approved_amount ?? transaction.exp_amount
+            ),
+          })),
           approved_amount: approvedAmount,
           reimbursed_amount: reimbursedAmount,
           outstanding: Math.max(0, approvedAmount - reimbursedAmount),
@@ -669,28 +679,44 @@ export default function SubmitBills() {
               ) : (
                 <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
                   <colgroup>
-                    <col style={{ width: "5%" }} /><col style={{ width: "12%" }} /><col style={{ width: "14%" }} />
-                    <col style={{ width: "30%" }} /><col style={{ width: "13%" }} /><col style={{ width: "13%" }} />
-                    <col style={{ width: "13%" }} />
+                    <col style={{ width: "4%" }} /><col style={{ width: "10%" }} /><col style={{ width: "12%" }} />
+                    <col style={{ width: "9%" }} /><col style={{ width: "31%" }} /><col style={{ width: "11%" }} />
+                    <col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
                   </colgroup>
                   <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["S/N", "Date", "Submission No.", "Material / Service Details", "Approved", "Reimbursed", "Outstanding"].map((heading) => (
-                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Approved", "Reimbursed", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
+                    {["S/N", "Submission Date", "Submission No.", "Bill Date", "Bill Details", "Bill Approved", "Reimbursed", "Outstanding"].map((heading) => (
+                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Bill Approved", "Reimbursed", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {billReportRows.map((submission, index) => (
-                      <tr key={submission.id}>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(submission.submission_date).format("DD MMM YYYY")}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submission.submission_number}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submission.particulars.join("; ")}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(submission.approved_amount)}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(submission.reimbursed_amount)}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(submission.outstanding)}</td>
-                      </tr>
+                      <Fragment key={submission.id}>
+                        {(submission.bills.length > 0
+                          ? submission.bills
+                          : [{ trans_date: "", particulars: "No bill details", approved_amount: 0 }]
+                        ).map((bill, billIndex) => (
+                          <tr key={`${submission.id}-${billIndex}`}>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? index + 1 : ""}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? moment(submission.submission_date).format("DD MMM YYYY") : ""}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? submission.submission_number : ""}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.trans_date ? moment(bill.trans_date).format("DD MMM YYYY") : "—"}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.particulars}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(bill.approved_amount)}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>—</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>—</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={5} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
+                            Submission Total — {submission.submission_number}
+                          </td>
+                          <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(submission.approved_amount)}</td>
+                          <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(submission.reimbursed_amount)}</td>
+                          <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(submission.outstanding)}</td>
+                        </tr>
+                      </Fragment>
                     ))}
-                    <tr><td colSpan={6} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
+                    <tr><td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
                       <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(billReportRows.reduce((total, submission) => total + submission.outstanding, 0))}</td>
                     </tr>
                   </tbody>
