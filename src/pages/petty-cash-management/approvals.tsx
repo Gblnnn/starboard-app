@@ -54,6 +54,7 @@ export default function Approvals() {
   );
   const [pendingRequests, setPendingRequests] = useState<PettyCashRequest[]>([]);
   const [pendingSubmissions, setPendingSubmissions] = useState<PettyCashSubmission[]>([]);
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<number[]>([]);
   const [loadingReq, setLoadingReq] = useState(true);
   const [loadingSub, setLoadingSub] = useState(true);
 
@@ -66,6 +67,7 @@ export default function Approvals() {
     type: "request_approve" | "request_reject" | "request_reduce"
         | "sub_approve_pc" | "sub_reject" | "sub_return";
     id: number;
+    submissionIds?: number[];
     requestedAmount?: number;
     approvedAmount?: number;
   } | null>(null);
@@ -187,6 +189,61 @@ export default function Approvals() {
     setActionLoading(true);
     try {
       const { id, type } = actionDialog;
+      const submissionIds = actionDialog.submissionIds;
+
+      if (submissionIds) {
+        if (type === "sub_approve_pc") {
+          const approvalDate = new Date().toISOString();
+          const { data: lines, error: linesError } = await supabase
+            .from("petty_cash_transaction")
+            .select("id, exp_amount")
+            .in("submission_id", submissionIds);
+          if (linesError) throw linesError;
+
+          const lineUpdates = await Promise.all((lines || []).map((line) =>
+            supabase.from("petty_cash_transaction").update({
+              approved_amount: line.exp_amount,
+              fin_approved_amount: line.exp_amount,
+              updated_at: approvalDate,
+            }).eq("id", line.id)
+          ));
+          const lineError = lineUpdates.find((result) => result.error)?.error;
+          if (lineError) throw lineError;
+
+          const { error } = await supabase.from("petty_cash_submission").update({
+            status: "approved",
+            petty_cash_approver_id: empId,
+            petty_cash_approval_date: approvalDate,
+            approval_remarks: actionRemarks.trim() || null,
+            updated_at: approvalDate,
+          }).in("id", submissionIds);
+          if (error) throw error;
+          toast.success(`${submissionIds.length} submission${submissionIds.length === 1 ? "" : "s"} approved — ready for Finance payment`);
+        } else if (type === "sub_reject") {
+          if (!actionRemarks.trim()) { toast.error("Rejection reason is required"); return; }
+          const updatedAt = new Date().toISOString();
+          const { error } = await supabase.from("petty_cash_submission").update({
+            status: "rejected",
+            approval_remarks: actionRemarks.trim(),
+            updated_at: updatedAt,
+          }).in("id", submissionIds);
+          if (error) throw error;
+
+          const releaseResults = await Promise.all(submissionIds.map((submissionId) =>
+            supabase.rpc("pc_release_fuel_bills", { p_submission_id: submissionId })
+          ));
+          const releaseError = releaseResults.find((result) => result.error)?.error;
+          if (releaseError) throw releaseError;
+          toast.success(`${submissionIds.length} submission${submissionIds.length === 1 ? "" : "s"} rejected — fuel bills released`);
+        }
+
+        setActionDialog(null);
+        setActionRemarks("");
+        setActionAmount("");
+        setSelectedSubmissionIds([]);
+        loadPendingSubmissions();
+        return;
+      }
 
       if (type === "sub_approve_pc") {
         const approvalDate = new Date().toISOString();
@@ -235,6 +292,7 @@ export default function Approvals() {
       setActionDialog(null);
       setActionRemarks("");
       setActionAmount("");
+      setSelectedSubmissionIds([]);
       loadPendingSubmissions();
     } catch (err: any) {
       toast.error(err?.message || "Action failed");
@@ -249,6 +307,12 @@ export default function Approvals() {
   const canApproveSubPC = (sub: PettyCashSubmission) =>
     sub.status === "pending_petty_cash_approval" &&
     (isAdmin || sub.petty_cash_approver_id === empId);
+
+  const selectableSubmissionIds = pendingSubmissions
+    .filter(canApproveSubPC)
+    .map((submission) => submission.id);
+  const allSubmissionsSelected = selectableSubmissionIds.length > 0 &&
+    selectableSubmissionIds.every((id) => selectedSubmissionIds.includes(id));
 
   if (!accessLoading && !canAccessApprovals) {
     return (
@@ -358,7 +422,56 @@ export default function Approvals() {
                 <p>No pending expense submissions</p>
               </div>
             ) : (
-              pendingSubmissions.map((sub) => {
+              <>
+                {selectableSubmissionIds.length > 0 && (
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem",
+                  }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem" }}>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all pending submissions"
+                        checked={allSubmissionsSelected}
+                        onChange={(event) => setSelectedSubmissionIds(
+                          event.target.checked ? selectableSubmissionIds : []
+                        )}
+                      />
+                      Select all
+                    </label>
+                    {selectedSubmissionIds.length > 0 && (
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button
+                          onClick={() => {
+                            setActionDialog({
+                              type: "sub_approve_pc",
+                              id: selectedSubmissionIds[0],
+                              submissionIds: selectedSubmissionIds,
+                            });
+                            setActionRemarks("");
+                          }}
+                          style={{ padding: "0.55rem 0.75rem", borderRadius: "0.5rem", border: "none", background: "#16a34a", color: "white", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
+                        >
+                          Approve ({selectedSubmissionIds.length})
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActionDialog({
+                              type: "sub_reject",
+                              id: selectedSubmissionIds[0],
+                              submissionIds: selectedSubmissionIds,
+                            });
+                            setActionRemarks("");
+                          }}
+                          style={{ padding: "0.55rem 0.75rem", borderRadius: "0.5rem", border: "none", background: "#dc2626", color: "white", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
+                        >
+                          Reject ({selectedSubmissionIds.length})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {pendingSubmissions.map((sub) => {
                 const expanded = expandedSubId === sub.id;
                 const lines = subLines[sub.id] || [];
                 const totalClaimed = lines.reduce((s, l) => s + l.exp_amount, 0);
@@ -378,12 +491,27 @@ export default function Approvals() {
                         setExpandedSubId(expanded ? null : sub.id);
                       }}
                     >
-                      <div>
-                        <p style={{ fontWeight: 700 }}>{sub.submission_number}</p>
-                        <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
-                          {sub.project_code} · {sub.emp_id} · {moment(sub.submission_date).format("DD MMM YYYY")}
-                        </p>
-                        {PILL(statusColor[sub.status] || "#64748b", statusLabel[sub.status])}
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem" }}>
+                        {canApproveSubPC(sub) && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Select submission ${sub.submission_number}`}
+                            checked={selectedSubmissionIds.includes(sub.id)}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => setSelectedSubmissionIds((selected) =>
+                              event.target.checked
+                                ? [...selected, sub.id]
+                                : selected.filter((id) => id !== sub.id)
+                            )}
+                          />
+                        )}
+                        <div>
+                          <p style={{ fontWeight: 700 }}>{sub.submission_number}</p>
+                          <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                            {sub.project_code} · {sub.emp_id} · {moment(sub.submission_date).format("DD MMM YYYY")}
+                          </p>
+                          {PILL(statusColor[sub.status] || "#64748b", statusLabel[sub.status])}
+                        </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                         {lines.length > 0 && <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{formatOMR(totalClaimed)}</span>}
@@ -452,7 +580,8 @@ export default function Approvals() {
                     </AnimatePresence>
                   </div>
                 );
-              })
+                })}
+              </>
             )}
           </>
         )}
@@ -481,6 +610,9 @@ export default function Approvals() {
                 {actionDialog.type.includes("approve") ? "Approve" :
                  actionDialog.type.includes("reject") ? "Reject" :
                  actionDialog.type.includes("reduce") ? "Reduce Amount" : "Return for Correction"}
+                {actionDialog.submissionIds && actionDialog.submissionIds.length > 1
+                  ? ` ${actionDialog.submissionIds.length} submissions`
+                  : ""}
               </h3>
               <button onClick={() => setActionDialog(null)} style={{ background: "none", border: "none", cursor: "pointer" }}>
                 <X width="1.25rem" />
@@ -534,7 +666,11 @@ export default function Approvals() {
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
                 }}
               >
-                {actionLoading ? <Loader2 className="animate-spin" width="1rem" /> : "Confirm"}
+                {actionLoading
+                  ? <Loader2 className="animate-spin" width="1rem" />
+                  : actionDialog.submissionIds
+                    ? `${actionDialog.type.includes("approve") ? "Approve" : "Reject"} ${actionDialog.submissionIds.length} submission${actionDialog.submissionIds.length === 1 ? "" : "s"}`
+                    : "Confirm"}
               </button>
             </div>
           </motion.div>
