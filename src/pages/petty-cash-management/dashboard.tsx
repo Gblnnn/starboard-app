@@ -508,7 +508,7 @@ export default function Dashboard() {
         body.pc-ledger-print-mode * { visibility: hidden !important; }
         body.pc-ledger-print-mode .pc-ledger-report,
         body.pc-ledger-print-mode .pc-ledger-report * { visibility: visible !important; }
-        body.pc-ledger-print-mode .pc-ledger-report { position: fixed; inset: 0; width: 100%; margin: 0 !important; background: white; color: black; }
+        body.pc-ledger-print-mode .pc-ledger-report { position: static; width: 100%; margin: 0 !important; background: white; color: black; }
         body.pc-ledger-print-mode .pc-ledger-controls { display: none !important; }
         body.pc-ledger-print-mode .pc-ledger-heading { display: block !important; }
         body.pc-ledger-print-mode .pc-ledger-report table { font-size: 9px !important; }
