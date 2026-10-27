@@ -2,7 +2,7 @@ import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { CreditCard, Loader2, X, DollarSign, ReceiptText } from "lucide-react";
+import { ChevronDown, ChevronUp, CreditCard, Loader2, X, DollarSign, ReceiptText } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -20,6 +20,19 @@ interface ReimbursementDue {
   approved_reimbursement_amount: number;
   reimbursement_paid: number;
   outstanding_reimbursement: number;
+}
+
+interface ReimbursementBill {
+  id: number;
+  trans_number: string;
+  trans_date: string;
+  particulars: string;
+  exp_amount: number;
+  approved_amount: number | null;
+  fin_approved_amount: number | null;
+  fuel_log_id: string | null;
+  receipt_path: string | null;
+  category_name: string;
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -298,31 +311,126 @@ export default function Finance() {
 }
 
 function ReimbursementCard({ reimbursement, onPay }: { reimbursement: ReimbursementDue; onPay: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [loadingBills, setLoadingBills] = useState(false);
+  const [billsLoaded, setBillsLoaded] = useState(false);
+  const [bills, setBills] = useState<ReimbursementBill[]>([]);
   const outstanding = Number(reimbursement.outstanding_reimbursement);
+
+  const toggleDetails = async () => {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+
+    setExpanded(true);
+    if (billsLoaded || loadingBills) return;
+
+    setLoadingBills(true);
+    try {
+      const { data, error } = await supabase
+        .from("petty_cash_transaction")
+        .select("id,trans_number,trans_date,particulars,exp_amount,approved_amount,fin_approved_amount,fuel_log_id,receipt_path,petty_cash_expense_category(category_name)")
+        .eq("submission_id", reimbursement.submission_id)
+        .order("trans_date", { ascending: true });
+      if (error) throw error;
+
+      setBills((data || []).map((bill) => ({
+        id: bill.id,
+        trans_number: bill.trans_number,
+        trans_date: bill.trans_date,
+        particulars: bill.particulars,
+        exp_amount: Number(bill.exp_amount),
+        approved_amount: bill.approved_amount,
+        fin_approved_amount: bill.fin_approved_amount,
+        fuel_log_id: bill.fuel_log_id,
+        receipt_path: bill.receipt_path,
+        category_name: bill.petty_cash_expense_category?.[0]?.category_name || "",
+      })));
+      setBillsLoaded(true);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to load submission details");
+      setExpanded(false);
+    } finally {
+      setLoadingBills(false);
+    }
+  };
+
   return (
-    <div style={{ border: "1px solid rgba(100,100,100,0.12)", borderRadius: "0.875rem", padding: "1rem", marginBottom: "0.75rem" }}>
-      <p style={{ fontWeight: 700 }}>{reimbursement.submission_number}</p>
-      <p style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.75rem" }}>
-        {reimbursement.project_code} · {reimbursement.emp_id} · {moment(reimbursement.petty_cash_approval_date).format("DD MMM YYYY")}
-      </p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.875rem" }}>
-        <div>
-          <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Reimbursable</p>
-          <p style={{ fontWeight: 700 }}>{formatOMR(reimbursement.approved_reimbursement_amount)}</p>
+    <div style={{ border: "1px solid rgba(100,100,100,0.12)", borderRadius: "0.875rem", marginBottom: "0.75rem", overflow: "hidden" }}>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={toggleDetails}
+        style={{ width: "100%", padding: "1rem", border: "none", background: "transparent", color: "inherit", textAlign: "left", cursor: "pointer" }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
+          <div>
+            <p style={{ fontWeight: 700 }}>{reimbursement.submission_number}</p>
+            <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
+              {reimbursement.project_code} · {reimbursement.emp_id} · {moment(reimbursement.petty_cash_approval_date).format("DD MMM YYYY")}
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 700, color: "#dc2626", whiteSpace: "nowrap" }}>
+            <span>Balance to be paid: {formatOMR(outstanding)}</span>
+            {expanded ? <ChevronUp width="1rem" /> : <ChevronDown width="1rem" />}
+          </div>
         </div>
-        <div>
-          <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Paid</p>
-          <p style={{ fontWeight: 700, color: "#16a34a" }}>{formatOMR(reimbursement.reimbursement_paid)}</p>
+      </button>
+      {expanded && (
+        <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid rgba(100,100,100,0.1)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <div>
+              <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Reimbursable</p>
+              <p style={{ fontWeight: 700 }}>{formatOMR(reimbursement.approved_reimbursement_amount)}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Previously Paid</p>
+              <p style={{ fontWeight: 700, color: "#16a34a" }}>{formatOMR(reimbursement.reimbursement_paid)}</p>
+            </div>
+          </div>
+          {loadingBills ? (
+            <div style={{ textAlign: "center", padding: "0.75rem" }}>
+              <Loader2 className="animate-spin" width="1rem" />
+            </div>
+          ) : bills.length === 0 ? (
+            <p style={{ fontSize: "0.8rem", color: "#64748b" }}>No bill details found for this submission.</p>
+          ) : (
+            <div>
+              {bills.map((bill) => (
+                <div key={bill.id} style={{ padding: "0.65rem 0", borderBottom: "1px solid rgba(100,100,100,0.08)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
+                    <div>
+                      <p style={{ fontSize: "0.8rem", fontWeight: 600 }}>
+                        {bill.category_name || "Expense"} · {bill.trans_number}
+                      </p>
+                      <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                        {moment(bill.trans_date).format("DD MMM YYYY")} · {bill.particulars}
+                      </p>
+                      {bill.fuel_log_id && (
+                        <p style={{ fontSize: "0.68rem", color: "#d97706", fontWeight: 600 }}>Fuel bill</p>
+                      )}
+                      {bill.receipt_path && (
+                        <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Receipt attached</p>
+                      )}
+                    </div>
+                    <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <p style={{ fontSize: "0.72rem", color: "#64748b" }}>Claimed {formatOMR(bill.exp_amount)}</p>
+                      <p style={{ fontSize: "0.8rem", fontWeight: 700 }}>
+                        Approved {formatOMR(bill.fin_approved_amount ?? bill.approved_amount ?? bill.exp_amount)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div>
-          <p style={{ fontSize: "0.68rem", color: "#64748b" }}>Outstanding</p>
-          <p style={{ fontWeight: 700, color: outstanding > 0 ? "#dc2626" : "inherit" }}>{formatOMR(outstanding)}</p>
-        </div>
-      </div>
+      )}
       {outstanding > 0 && (
         <button
           onClick={onPay}
-          style={{ width: "100%", padding: "0.65rem", borderRadius: "0.6rem", border: "none", background: "#7c3aed", color: "white", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" }}
+          style={{ width: "calc(100% - 2rem)", margin: "0 1rem 1rem", padding: "0.65rem", borderRadius: "0.6rem", border: "none", background: "#7c3aed", color: "white", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" }}
         >
           Record Reimbursement Payment
         </button>
