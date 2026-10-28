@@ -25,7 +25,8 @@ import {
   type UploadValidationRow,
 } from './excelUtils';
 import { useHTMAccess } from './useHTMAccess';
-import type { HTMAttendance, HTMProjectConfig } from './types';
+import type { HTMProjectConfig } from './types';
+import { fetchAttendanceRecords } from './attendanceQueries';
 
 const CARD: React.CSSProperties = {
   background: 'var(--card, rgba(255,255,255,0.04))',
@@ -121,20 +122,18 @@ export default function ExcelUpload() {
 
       // Fetch existing attendance records
       const empIds = [...new Set(parsed.rows.map((r) => r.emp_id))];
-      const { data: attData, error: attErr } = await supabase
-        .from('hourly_tm_attendance')
-        .select('*')
-        .eq('project_code', selectedProject)
-        .in('emp_id', empIds.length > 0 ? empIds : ['__none__'])
-        .gte('attendance_date', parsed.startDate)
-        .lte('attendance_date', parsed.endDate);
-      if (attErr) throw attErr;
+      const attData = await fetchAttendanceRecords(
+        selectedProject,
+        empIds,
+        parsed.startDate,
+        parsed.endDate,
+      );
 
       // Validate all cells
       const validated = validateUploadRows(
         parsed,
         validEmpIds,
-        (attData ?? []) as HTMAttendance[],
+        attData,
         selectedProject,
       );
       setValidationRows(validated);
