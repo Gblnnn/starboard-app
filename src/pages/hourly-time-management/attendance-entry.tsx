@@ -6,13 +6,14 @@ import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { AlertCircle, Clock, Download, Loader2, RefreshCw, Save } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useHTMAccess } from './useHTMAccess';
 import type { HTMProjectConfig, HTMAttendance, HTMHoliday } from './types';
 import { validateDecimalHours, generateDateRange, findEffectiveConfig } from './payrollEngine';
 import { downloadAttendanceTemplate } from './excelUtils';
+import { fetchAttendanceRecords } from './attendanceQueries';
 
 const CARD: React.CSSProperties = {
   background: 'var(--card, rgba(255,255,255,0.04))',
@@ -51,6 +52,7 @@ export default function AttendanceEntry() {
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [projectConfig, setProjectConfig] = useState<HTMProjectConfig | null>(null);
+  const initialLoadStarted = useRef(false);
 
   // Load projects on mount
   useEffect(() => {
@@ -108,13 +110,7 @@ export default function AttendanceEntry() {
       setEmployees(empList);
 
       // Load existing attendance
-      const { data: attData, error: attErr } = await supabase
-        .from('hourly_tm_attendance')
-        .select('*')
-        .in('emp_id', empIds.length > 0 ? empIds : ['__none__'])
-        .gte('attendance_date', startDate)
-        .lte('attendance_date', endDate);
-      if (attErr) throw attErr;
+      const attData = await fetchAttendanceRecords(selectedProject, empIds, startDate, endDate);
 
       // Load holidays
       const { data: holData } = await supabase
@@ -175,6 +171,20 @@ export default function AttendanceEntry() {
       setLoading(false);
     }
   }, [selectedProject, startDate, endDate, projects]);
+
+  useEffect(() => {
+    if (
+      initialLoadStarted.current ||
+      !searchParams.has('start') ||
+      !searchParams.has('end') ||
+      !selectedProject
+    ) {
+      return;
+    }
+
+    initialLoadStarted.current = true;
+    void loadAttendance();
+  }, [loadAttendance, searchParams, selectedProject]);
 
   const handleCellChange = (empId: string, date: string, value: string) => {
     const key = `${empId}::${date}`;
