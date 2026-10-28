@@ -21,8 +21,8 @@ import { toast } from 'sonner';
 import { downloadPayrollExcel } from './excelUtils';
 import { buildPayrollLines, generateDateRange } from './payrollEngine';
 import { useHTMAccess } from './useHTMAccess';
+import { fetchAttendanceRecords } from './attendanceQueries';
 import type {
-  HTMAttendance,
   HTMEmployeeConfig,
   HTMHoliday,
   HTMPayrollPeriod,
@@ -147,14 +147,7 @@ export default function PayrollTimesheet() {
       }
 
       // Load attendance in range
-      const { data: attData, error: attErr } = await supabase
-        .from('hourly_tm_attendance')
-        .select('*')
-        .eq('project_code', selectedProject)
-        .in('emp_id', empIds.length > 0 ? empIds : ['__none__'])
-        .gte('attendance_date', startDate)
-        .lte('attendance_date', endDate);
-      if (attErr) throw attErr;
+      const attData = await fetchAttendanceRecords(selectedProject, empIds, startDate, endDate);
 
       // Load project holidays
       const { data: holData } = await supabase
@@ -169,7 +162,7 @@ export default function PayrollTimesheet() {
       const calculatedLines = buildPayrollLines({
         projectConfig: projCfg,
         employeeConfigs: activeCfgs,
-        attendanceRecords: (attData ?? []) as HTMAttendance[],
+        attendanceRecords: attData,
         holidays: (holData ?? []) as HTMHoliday[],
         dates: dateRange,
         employeeNames: nameMap,
