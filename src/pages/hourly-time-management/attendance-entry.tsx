@@ -39,8 +39,8 @@ export default function AttendanceEntry() {
 
   const [projects, setProjects] = useState<HTMProjectConfig[]>([]);
   const [selectedProject, setSelectedProject] = useState(searchParams.get('project') ?? '');
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(searchParams.get('start') ?? format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(searchParams.get('end') ?? format(new Date(), 'yyyy-MM-dd'));
   const [commonHours, setCommonHours] = useState('');
   const [dates, setDates] = useState<string[]>([]);
   const [employees, setEmployees] = useState<{ emp_id: string; name: string }[]>([]);
@@ -97,11 +97,13 @@ export default function AttendanceEntry() {
       // Load employee names
       let empList: { emp_id: string; name: string }[] = [];
       if (empIds.length > 0) {
-        const { data: empData } = await supabase
+        const { data: empData, error: empErr } = await supabase
           .from('employees')
           .select('emp_id, name')
           .in('emp_id', empIds);
-        empList = empData ?? [];
+        if (empErr) throw empErr;
+        const namesById = new Map((empData ?? []).map((employee) => [employee.emp_id, employee.name]));
+        empList = empIds.map((emp_id) => ({ emp_id, name: namesById.get(emp_id) ?? emp_id }));
       }
       setEmployees(empList);
 
@@ -266,11 +268,20 @@ export default function AttendanceEntry() {
         return;
       }
 
-      const { error } = await supabase.rpc('htm_bulk_upsert_attendance', {
+      const { data, error } = await supabase.rpc('htm_bulk_upsert_attendance', {
         p_records: records,
         p_actor: actor,
       });
       if (error) throw error;
+
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        !('processed' in data) ||
+        data.processed !== records.length
+      ) {
+        throw new Error(`Attendance save verification failed: expected ${records.length} records to be processed.`);
+      }
 
       toast.success(`Saved ${records.length} attendance record(s)`);
       await loadAttendance();
