@@ -160,21 +160,24 @@ export default function ExcelUpload() {
       const end = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
       // Load employees configured for project
-      const { data: cfgData } = await supabase
+      const { data: cfgData, error: cfgErr } = await supabase
         .from('hourly_tm_employee_config')
         .select('emp_id')
         .eq('project_code', selectedProject)
         .eq('active', true);
+      if (cfgErr) throw cfgErr;
       const empIds = [...new Set((cfgData ?? []).map((c) => c.emp_id))];
 
       let empList: { emp_id: string; name: string }[] = [];
       if (empIds.length > 0) {
-        const { data: empData } = await supabase
+        const { data: empData, error: empErr } = await supabase
           .from('employees')
           .select('emp_id, name')
           .in('emp_id', empIds)
           .order('name');
-        empList = empData ?? [];
+        if (empErr) throw empErr;
+        const namesById = new Map((empData ?? []).map((employee) => [employee.emp_id, employee.name]));
+        empList = empIds.map((emp_id) => ({ emp_id, name: namesById.get(emp_id) ?? emp_id }));
       }
 
       downloadAttendanceTemplate(proj, proj.project_name ?? proj.project_code, empList, start, end);
@@ -192,6 +195,11 @@ export default function ExcelUpload() {
 
   // Import Action
   const handleImport = async () => {
+    if (!dateRange) {
+      toast.error('Upload and validate an attendance file before importing.');
+      return;
+    }
+
     if (hasErrors) {
       toast.error('Cannot import while there are invalid records. Please fix the errors and re-upload.');
       return;
@@ -222,14 +230,23 @@ export default function ExcelUpload() {
       const BATCH_SIZE = 200;
       for (let i = 0; i < payload.length; i += BATCH_SIZE) {
         const batch = payload.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('hourly_tm_attendance')
-          .upsert(batch, { onConflict: 'emp_id,attendance_date' });
+          .upsert(batch, { onConflict: 'emp_id,attendance_date' })
+          .select('emp_id, attendance_date');
         if (error) throw error;
+        if (data.length !== batch.length) {
+          throw new Error(`Import verification failed: expected ${batch.length} records to be saved, but confirmed ${data.length}.`);
+        }
       }
 
       toast.success(`Successfully imported ${rowsToImport.length} attendance records!`);
-      navigate(`/hourly-tm/attendance?project=${selectedProject}`);
+      const params = new URLSearchParams({
+        project: selectedProject,
+        start: dateRange.start,
+        end: dateRange.end,
+      });
+      navigate(`/hourly-tm/attendance?${params.toString()}`);
     } catch (err: any) {
       toast.error('Import failed: ' + (err?.message || err));
     } finally {
