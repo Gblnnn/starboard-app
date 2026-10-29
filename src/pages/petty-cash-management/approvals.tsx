@@ -18,6 +18,7 @@ import {
   statusColor,
   statusLabel,
 } from "./types";
+import { sendPettyCashEmailNotices } from "./notifications";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
 
@@ -74,6 +75,18 @@ export default function Approvals() {
   const [actionRemarks, setActionRemarks] = useState("");
   const [actionAmount, setActionAmount] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+
+  const notifyCustodiansByEmail = async (notices: Parameters<typeof sendPettyCashEmailNotices>[0]) => {
+    try {
+      const failedCount = await sendPettyCashEmailNotices(notices);
+      if (failedCount > 0) {
+        toast.error(`${failedCount} petty-cash email notification${failedCount === 1 ? "" : "s"} could not be sent`);
+      }
+    } catch (error) {
+      console.error("Failed to load petty-cash notification recipients:", error);
+      toast.error("Action completed, but petty-cash email notifications could not be sent");
+    }
+  };
 
   const loadPendingRequests = async () => {
     setLoadingReq(true);
@@ -138,9 +151,14 @@ export default function Approvals() {
     try {
       const { id, type, requestedAmount } = actionDialog;
       const amount = parseFloat(actionAmount);
+      const request = pendingRequests.find((item) => item.id === id);
+      if (!request) throw new Error("Request is no longer available. Reload and try again.");
+      let decision: "approved" | "rejected";
+      let approvedAmount: number | null = null;
+      let remarks: string | null = null;
 
       if (type === "request_approve") {
-        await supabase.from("petty_cash_request").update({
+        const { error } = await supabase.from("petty_cash_request").update({
           status: "approved",
           approved_amount: requestedAmount,
           approver_id: empId,
@@ -148,11 +166,15 @@ export default function Approvals() {
           approval_remarks: actionRemarks.trim() || null,
           updated_at: new Date().toISOString(),
         }).eq("id", id);
+        if (error) throw error;
+        decision = "approved";
+        approvedAmount = requestedAmount ?? null;
+        remarks = actionRemarks.trim() || null;
         toast.success("Request approved");
       } else if (type === "request_reduce") {
         if (!amount || amount <= 0) { toast.error("Enter approved amount"); return; }
         if (!actionRemarks.trim()) { toast.error("Reason is required when reducing amount"); return; }
-        await supabase.from("petty_cash_request").update({
+        const { error } = await supabase.from("petty_cash_request").update({
           status: "approved",
           approved_amount: amount,
           approver_id: empId,
@@ -160,18 +182,39 @@ export default function Approvals() {
           approval_remarks: actionRemarks.trim(),
           updated_at: new Date().toISOString(),
         }).eq("id", id);
+        if (error) throw error;
+        decision = "approved";
+        approvedAmount = amount;
+        remarks = actionRemarks.trim();
         toast.success("Request approved with reduced amount");
       } else if (type === "request_reject") {
         if (!actionRemarks.trim()) { toast.error("Rejection reason is required"); return; }
-        await supabase.from("petty_cash_request").update({
+        const { error } = await supabase.from("petty_cash_request").update({
           status: "rejected",
           approver_id: empId,
           approval_date: new Date().toISOString(),
           approval_remarks: actionRemarks.trim(),
           updated_at: new Date().toISOString(),
         }).eq("id", id);
+        if (error) throw error;
+        decision = "rejected";
+        remarks = actionRemarks.trim();
         toast.success("Request rejected");
+      } else {
+        return;
       }
+
+      await notifyCustodiansByEmail([{
+        empId: request.emp_id,
+        subject: `Petty cash request ${request.request_number} ${decision}`,
+        message: [
+          `Your petty cash request ${request.request_number} has been ${decision}.`,
+          decision === "approved" && approvedAmount !== null
+            ? `Approved amount: ${formatOMR(approvedAmount)}.`
+            : null,
+          remarks ? `Remarks: ${remarks}` : null,
+        ].filter(Boolean).join("\n"),
+      }]);
 
       setActionDialog(null);
       setActionRemarks("");
@@ -190,6 +233,12 @@ export default function Approvals() {
     try {
       const { id, type } = actionDialog;
       const submissionIds = actionDialog.submissionIds;
+      const submissionsToNotify = pendingSubmissions.filter((submission) =>
+        submissionIds ? submissionIds.includes(submission.id) : submission.id === id
+      );
+      if (submissionsToNotify.length !== (submissionIds?.length ?? 1)) {
+        throw new Error("One or more bill submissions are no longer available. Reload and try again.");
+      }
 
       if (submissionIds) {
         if (type === "sub_approve_pc") {
@@ -218,6 +267,11 @@ export default function Approvals() {
             updated_at: approvalDate,
           }).in("id", submissionIds);
           if (error) throw error;
+          await notifyCustodiansByEmail(submissionsToNotify.map((submission) => ({
+              empId: submission.emp_id,
+              subject: `Petty cash bills ${submission.submission_number} approved`,
+              message: `Your bill submission ${submission.submission_number} has been approved and is ready for Finance payment.`,
+            })));
           toast.success(`${submissionIds.length} submission${submissionIds.length === 1 ? "" : "s"} approved — ready for Finance payment`);
         } else if (type === "sub_reject") {
           if (!actionRemarks.trim()) { toast.error("Rejection reason is required"); return; }
@@ -228,6 +282,11 @@ export default function Approvals() {
             updated_at: updatedAt,
           }).in("id", submissionIds);
           if (error) throw error;
+          await notifyCustodiansByEmail(submissionsToNotify.map((submission) => ({
+              empId: submission.emp_id,
+              subject: `Petty cash bills ${submission.submission_number} rejected`,
+              message: `Your bill submission ${submission.submission_number} has been rejected.\nReason: ${actionRemarks.trim()}`,
+            })));
 
           const releaseResults = await Promise.all(submissionIds.map((submissionId) =>
             supabase.rpc("pc_release_fuel_bills", { p_submission_id: submissionId })
@@ -266,26 +325,48 @@ export default function Approvals() {
           updated_at: approvalDate,
         }).eq("id", id);
         if (error) throw error;
+        const submission = submissionsToNotify[0];
+        await notifyCustodiansByEmail([{
+          empId: submission.emp_id,
+          subject: `Petty cash bills ${submission.submission_number} approved`,
+          message: `Your bill submission ${submission.submission_number} has been approved and is ready for Finance payment.`,
+        }]);
         toast.success("Submission approved — ready for Finance payment");
       } else if (type === "sub_reject") {
         if (!actionRemarks.trim()) { toast.error("Rejection reason is required"); return; }
-        await supabase.from("petty_cash_submission").update({
+        const { error } = await supabase.from("petty_cash_submission").update({
           status: "rejected",
           approval_remarks: actionRemarks.trim(),
           updated_at: new Date().toISOString(),
         }).eq("id", id);
+        if (error) throw error;
+        const submission = submissionsToNotify[0];
+        await notifyCustodiansByEmail([{
+          empId: submission.emp_id,
+          subject: `Petty cash bills ${submission.submission_number} rejected`,
+          message: `Your bill submission ${submission.submission_number} has been rejected.\nReason: ${actionRemarks.trim()}`,
+        }]);
         // Release fuel bills
-        await supabase.rpc("pc_release_fuel_bills", { p_submission_id: id });
+        const { error: releaseError } = await supabase.rpc("pc_release_fuel_bills", { p_submission_id: id });
+        if (releaseError) throw releaseError;
         toast.success("Submission rejected — fuel bills released");
       } else if (type === "sub_return") {
         if (!actionRemarks.trim()) { toast.error("Return reason is required"); return; }
-        await supabase.from("petty_cash_submission").update({
+        const { error } = await supabase.from("petty_cash_submission").update({
           status: "returned_for_correction",
           approval_remarks: actionRemarks.trim(),
           updated_at: new Date().toISOString(),
         }).eq("id", id);
+        if (error) throw error;
+        const submission = submissionsToNotify[0];
+        await notifyCustodiansByEmail([{
+          empId: submission.emp_id,
+          subject: `Petty cash bills ${submission.submission_number} returned for correction`,
+          message: `Your bill submission ${submission.submission_number} was returned for correction.\nReason: ${actionRemarks.trim()}`,
+        }]);
         // Release fuel bill reservations
-        await supabase.rpc("pc_release_fuel_bills", { p_submission_id: id });
+        const { error: releaseError } = await supabase.rpc("pc_release_fuel_bills", { p_submission_id: id });
+        if (releaseError) throw releaseError;
         toast.success("Submission returned for correction");
       }
 
