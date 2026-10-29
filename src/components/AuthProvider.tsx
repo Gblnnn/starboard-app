@@ -453,6 +453,121 @@ const AuthProvider = ({ children }: Props) => {
     };
   }, [user?.email]);
 
+  // Notify petty-cash custodians when their requests are approved or paid.
+  useEffect(() => {
+    const empId = userData?.emp_id ? String(userData.emp_id) : null;
+    if (!empId || typeof window === "undefined" || !("Notification" in window)) return;
+
+    const showPettyCashNotification = (title: string, body: string, tag: string) => {
+      if (Notification.permission !== "granted") return;
+      try {
+        const notification = new Notification(title, {
+          body,
+          icon: "/favicon.ico",
+          tag,
+          requireInteraction: false,
+        });
+        notification.onclick = () => {
+          window.focus();
+          window.location.href = "/petty-cash";
+          notification.close();
+        };
+        window.setTimeout(() => notification.close(), 6000);
+      } catch (error) {
+        console.error("Failed to show petty-cash notification:", error);
+      }
+    };
+
+    const channel = supabase.channel(`petty-cash-notifications-${empId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "petty_cash_request",
+        filter: `emp_id=eq.${empId}`,
+      }, (payload) => {
+        const request = payload.new as { emp_id: string; request_number: string; status: string };
+        if (request.emp_id !== empId || !["approved", "rejected"].includes(request.status)) return;
+        const status = request.status === "approved" ? "approved" : "rejected";
+        showPettyCashNotification(
+          `Petty cash request ${status}`,
+          `${request.request_number} has been ${status}.`,
+          `petty-cash-request-${request.request_number}`,
+        );
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "petty_cash_submission",
+        filter: `emp_id=eq.${empId}`,
+      }, (payload) => {
+        const submission = payload.new as { emp_id: string; submission_number: string; status: string };
+        if (submission.emp_id !== empId ||
+            !["approved", "rejected", "returned_for_correction"].includes(submission.status)) return;
+        const statusLabel = submission.status === "returned_for_correction"
+          ? "returned for correction"
+          : submission.status;
+        showPettyCashNotification(
+          `Petty cash bills ${statusLabel}`,
+          `${submission.submission_number} has been ${statusLabel}.`,
+          `petty-cash-submission-${submission.submission_number}`,
+        );
+      })
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "petty_cash_request_payment",
+      }, async (payload) => {
+        const payment = payload.new as { request_id: number; payment_amount: number };
+        const { data: request, error } = await supabase
+          .from("petty_cash_request")
+          .select("emp_id, request_number")
+          .eq("id", payment.request_id)
+          .maybeSingle();
+        if (error) {
+          console.error("Failed to load petty-cash funding payment recipient:", error);
+          return;
+        }
+        if (request?.emp_id !== empId) return;
+        showPettyCashNotification(
+          "Petty cash payment recorded",
+          `${request.request_number}: OMR ${Number(payment.payment_amount).toFixed(3)} paid by Finance.`,
+          `petty-cash-funding-payment-${payment.request_id}`,
+        );
+      })
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "petty_cash_reimbursement_payment",
+        filter: `emp_id=eq.${empId}`,
+      }, async (payload) => {
+        const payment = payload.new as { emp_id: string; submission_id: number; payment_amount: number };
+        if (payment.emp_id !== empId) return;
+        const { data: submission, error } = await supabase
+          .from("petty_cash_submission")
+          .select("submission_number")
+          .eq("id", payment.submission_id)
+          .maybeSingle();
+        if (error) {
+          console.error("Failed to load petty-cash reimbursement details:", error);
+          return;
+        }
+        showPettyCashNotification(
+          "Petty cash reimbursement paid",
+          `${submission?.submission_number || `Bill submission #${payment.submission_id}`}: OMR ${Number(payment.payment_amount).toFixed(3)} paid by Finance.`,
+          `petty-cash-reimbursement-payment-${payment.submission_id}`,
+        );
+      })
+      .subscribe((status, error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.error("Failed to subscribe to petty-cash notifications:", error);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userData?.emp_id]);
+
   // Listen for realtime changes to the current user's Supabase document
   useEffect(() => {
     let unsubscribe = () => {};
