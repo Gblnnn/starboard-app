@@ -7,6 +7,7 @@ import moment from "moment";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { type PettyCashRequest, formatOMR, statusColor, statusLabel } from "./types";
+import { sendPettyCashEmailNotices } from "./notifications";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
 
@@ -73,6 +74,18 @@ export default function Finance() {
   const [payRef, setPayRef] = useState("");
   const [paying, setPaying] = useState(false);
 
+  const notifyCustodianByEmail = async (notice: Parameters<typeof sendPettyCashEmailNotices>[0][number]) => {
+    try {
+      const failedCount = await sendPettyCashEmailNotices([notice]);
+      if (failedCount > 0) {
+        toast.error("Payment was recorded, but the petty-cash email notification could not be sent");
+      }
+    } catch (error) {
+      console.error("Failed to load petty-cash payment recipient:", error);
+      toast.error("Payment was recorded, but the petty-cash email notification could not be sent");
+    }
+  };
+
   const loadFunding = async () => {
     try {
       const { data, error } = await supabase
@@ -124,6 +137,8 @@ export default function Finance() {
     setPaying(true);
     try {
       if (payDialog.type === "funding") {
+        const request = approvedRequests.find((item) => item.id === payDialog.id);
+        if (!request) throw new Error("Funding request is no longer available. Reload and try again.");
         const result = await supabase.rpc("pc_record_funding_payment", {
           p_request_id: payDialog.id,
           p_payment_amount: amount,
@@ -132,8 +147,19 @@ export default function Finance() {
           p_recorded_by: empId,
         });
         if (result.error) throw result.error;
+        await notifyCustodianByEmail({
+          empId: request.emp_id,
+          subject: `Finance payment recorded for ${request.request_number}`,
+          message: [
+            `Finance recorded a payment of ${formatOMR(amount)} for petty cash request ${request.request_number}.`,
+            `Payment date: ${moment(payDate).format("DD MMM YYYY")}.`,
+            payRef.trim() ? `Reference: ${payRef.trim()}.` : null,
+          ].filter(Boolean).join("\n"),
+        });
         toast.success(`Payment of ${formatOMR(amount)} recorded`);
       } else {
+        const submission = approvedSubmissions.find((item) => item.submission_id === payDialog.id);
+        if (!submission) throw new Error("Bill submission is no longer available. Reload and try again.");
         const { error } = await supabase.rpc("pc_record_reimbursement_payment", {
           p_submission_id: payDialog.id,
           p_payment_amount: amount,
@@ -142,6 +168,15 @@ export default function Finance() {
           p_recorded_by: empId,
         });
         if (error) throw error;
+        await notifyCustodianByEmail({
+          empId: submission.emp_id,
+          subject: `Finance reimbursement recorded for ${submission.submission_number}`,
+          message: [
+            `Finance recorded a reimbursement payment of ${formatOMR(amount)} for bill submission ${submission.submission_number}.`,
+            `Payment date: ${moment(payDate).format("DD MMM YYYY")}.`,
+            payRef.trim() ? `Reference: ${payRef.trim()}.` : null,
+          ].filter(Boolean).join("\n"),
+        });
         toast.success(`Reimbursement payment of ${formatOMR(amount)} recorded`);
       }
       setPayDialog(null);
