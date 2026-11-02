@@ -7,6 +7,9 @@ export interface PettyCashEmailNotice {
   message: string;
 }
 
+const EMAIL_FROM = "it@soharstar.com";
+const SUBJECT_PREFIX = "Starboard notification:";
+
 export async function sendPettyCashEmailNotices(
   notices: PettyCashEmailNotice[],
 ): Promise<number> {
@@ -31,8 +34,9 @@ export async function sendPettyCashEmailNotices(
 
     try {
       await emailjs.send("service_fixajl8", "template_0f3zy3e", {
+        from_email: EMAIL_FROM,
         recipient,
-        subject: notice.subject,
+        subject: `${SUBJECT_PREFIX} ${notice.subject.replace(/^Starboard notification:\s*/i, "")}`,
         message: notice.message,
       });
       return true;
