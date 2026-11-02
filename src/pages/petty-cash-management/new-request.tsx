@@ -16,6 +16,7 @@ interface ProjectOption {
   emp_id: string;
   assignment_id: number;
   balance: number;
+  approver_id: string | null;
 }
 
 interface RequestReportRow {
@@ -79,7 +80,7 @@ export default function NewRequest() {
       try {
         const { data, error } = await supabase
           .from("pettycash_user")
-          .select("id, project_code, emp_id")
+          .select("id, project_code, emp_id, approver_id")
           .eq("emp_id", empId)
           .eq("active", true);
         if (error) throw error;
@@ -98,6 +99,7 @@ export default function NewRequest() {
               emp_id: a.emp_id,
               assignment_id: a.id,
               balance: Number(bal?.available_balance ?? 0),
+              approver_id: a.approver_id,
             };
           })
         );
@@ -117,6 +119,10 @@ export default function NewRequest() {
     (request) => `${request.custodian_name || "Unknown"} (${request.emp_id})`
   ))];
   const reportProjects = [...new Set(requestReportRows.map((request) => request.project_code))];
+  const requestRowsByProject = reportProjects.map((projectCode) => ({
+    projectCode,
+    requests: requestReportRows.filter((request) => request.project_code === projectCode),
+  }));
   const reportApprovers = [...new Map(requestReportRows
     .filter((request) => request.approver_id)
     .map((request) => [
@@ -125,6 +131,10 @@ export default function NewRequest() {
     ])).values()];
 
   const loadApprovedRequests = async () => {
+    if (!empId) {
+      toast.error("Employee ID not found");
+      return;
+    }
     if (!reportFrom || !reportTo || reportFrom > reportTo) {
       toast.error("Select a valid date range");
       return;
@@ -136,6 +146,7 @@ export default function NewRequest() {
       const { data, error } = await supabase
         .from("petty_cash_request")
         .select("id,request_number,request_date,project_code,emp_id,approver_id,particulars,request_amount,approved_amount,petty_cash_request_payment(payment_amount)")
+        .eq("emp_id", empId)
         .in("status", ["approved", "partially_paid", "fully_paid"])
         .gte("request_date", reportFrom)
         .lte("request_date", reportTo)
@@ -214,6 +225,7 @@ export default function NewRequest() {
           emp_id: empId,
           particulars: particulars.trim(),
           request_amount: amount,
+          approver_id: selectedProjectData?.approver_id ?? null,
           status: "pending_approval",
           created_by: empId,
         })
@@ -354,7 +366,7 @@ export default function NewRequest() {
         {/* Approved cash request report */}
         <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
           <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Approved Cash Requests</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>All approver-approved requests in the selected request-date range are included.</p>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Your approved requests in the selected request-date range are grouped by project.</p>
           <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
             <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
@@ -383,35 +395,43 @@ export default function NewRequest() {
               {requestReportRows.length === 0 ? (
                 <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No approved cash requests in this date range.</p>
               ) : (
-                <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
-                  <colgroup>
-                    <col style={{ width: "5%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
-                    <col style={{ width: "33%" }} /><col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
-                    <col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
-                  </colgroup>
-                  <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["S/N", "Date", "Request No.", "Particulars", "Requested", "Approved", "Paid", "Outstanding"].map((heading) => (
-                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Requested", "Approved", "Paid", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {requestReportRows.map((request, index) => (
-                      <tr key={request.id}>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(request.request_date).format("DD MMM YYYY")}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.request_number}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.particulars}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.request_amount)}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.approved_amount)}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.total_paid)}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.outstanding)}</td>
-                      </tr>
-                    ))}
-                    <tr><td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
-                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(requestReportRows.reduce((total, request) => total + request.outstanding, 0))}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                requestRowsByProject.map(({ projectCode, requests }) => (
+                  <section key={projectCode} style={{ marginBottom: "1rem" }}>
+                    <h3 style={{ fontWeight: 700, margin: "0.75rem 0 0.35rem" }}>Project: {projectCode}</h3>
+                    <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
+                      <colgroup>
+                        <col style={{ width: "5%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
+                        <col style={{ width: "33%" }} /><col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
+                        <col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
+                      </colgroup>
+                      <thead><tr style={{ background: "#e5e7eb" }}>
+                        {["S/N", "Date", "Request No.", "Particulars", "Requested", "Approved", "Paid", "Outstanding"].map((heading) => (
+                          <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Requested", "Approved", "Paid", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {requests.map((request, index) => (
+                          <tr key={request.id}>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(request.request_date).format("DD MMM YYYY")}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.request_number}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.particulars}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.request_amount)}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.approved_amount)}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.total_paid)}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.outstanding)}</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Project Total Outstanding</td>
+                          <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
+                            {formatOMR(requests.reduce((total, request) => total + request.outstanding, 0))}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </section>
+                ))
               )}
               <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", gap: "1rem", marginTop: "1.25rem" }}>
                 <div><div>Prepared By (Custodian)</div>{reportCustodians.map((custodian) => <div key={custodian}>{custodian}</div>)}</div>
