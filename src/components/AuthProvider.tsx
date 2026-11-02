@@ -457,8 +457,13 @@ const AuthProvider = ({ children }: Props) => {
   useEffect(() => {
     const empId = userData?.emp_id ? String(userData.emp_id) : null;
     if (!empId || typeof window === "undefined") return;
+    const shownNotifications = new Set<string>();
+    let checkingPendingApprovals = false;
+    let active = true;
 
     const showPettyCashNotification = (title: string, body: string, tag: string) => {
+      if (shownNotifications.has(tag)) return;
+      shownNotifications.add(tag);
       toast.info(title, { description: body });
       if (!("Notification" in window) || Notification.permission !== "granted") return;
       try {
@@ -478,6 +483,77 @@ const AuthProvider = ({ children }: Props) => {
         console.error("Failed to show petty-cash notification:", error);
       }
     };
+
+    const checkPendingApprovals = async () => {
+      if (checkingPendingApprovals || !active) return;
+      checkingPendingApprovals = true;
+      try {
+        const { data: assignments, error: assignmentError } = await supabase
+          .from("pettycash_user")
+          .select("emp_id, project_code")
+          .eq("approver_id", empId)
+          .eq("active", true);
+        if (assignmentError) throw assignmentError;
+
+        const assignmentKeys = new Set((assignments || []).map(
+          (assignment) => `${assignment.project_code}:${assignment.emp_id}`,
+        ));
+        const projectCodes = [...new Set((assignments || []).map((assignment) => assignment.project_code))];
+        if (projectCodes.length === 0) {
+          return;
+        }
+
+        const [requestResult, submissionResult] = await Promise.all([
+          supabase
+            .from("petty_cash_request")
+            .select("emp_id, project_code, request_number")
+            .eq("status", "pending_approval")
+            .in("project_code", projectCodes),
+          supabase
+            .from("petty_cash_submission")
+            .select("emp_id, project_code, submission_number")
+            .eq("status", "pending_petty_cash_approval")
+            .in("project_code", projectCodes),
+        ]);
+        if (requestResult.error) throw requestResult.error;
+        if (submissionResult.error) throw submissionResult.error;
+        if (!active) return;
+
+        const pending = [
+          ...(requestResult.data || [])
+            .filter((request) => assignmentKeys.has(`${request.project_code}:${request.emp_id}`))
+            .map((request) => ({
+              tag: `petty-cash-request-pending-${request.request_number}`,
+              title: "Petty cash request needs approval",
+              body: `${request.request_number} is awaiting your approval.`,
+            })),
+          ...(submissionResult.data || [])
+            .filter((submission) => assignmentKeys.has(`${submission.project_code}:${submission.emp_id}`))
+            .map((submission) => ({
+              tag: `petty-cash-submission-pending-${submission.submission_number}`,
+              title: "Petty cash bills need approval",
+              body: `${submission.submission_number} is awaiting your approval.`,
+            })),
+        ];
+
+        for (const notification of pending) {
+          showPettyCashNotification(notification.title, notification.body, notification.tag);
+        }
+      } catch (error) {
+        console.error("Failed to check pending petty-cash approvals:", error);
+      } finally {
+        checkingPendingApprovals = false;
+      }
+    };
+
+    void checkPendingApprovals();
+    const pendingApprovalInterval = window.setInterval(() => {
+      void checkPendingApprovals();
+    }, 15000);
+    const refreshPendingApprovals = () => {
+      if (document.visibilityState === "visible") void checkPendingApprovals();
+    };
+    document.addEventListener("visibilitychange", refreshPendingApprovals);
 
     const loadAssignment = async (projectCode: string, custodianId: string) => {
       const { data, error } = await supabase
@@ -671,6 +747,9 @@ const AuthProvider = ({ children }: Props) => {
       });
 
     return () => {
+      active = false;
+      window.clearInterval(pendingApprovalInterval);
+      document.removeEventListener("visibilitychange", refreshPendingApprovals);
       supabase.removeChannel(channel);
     };
   }, [userData?.emp_id]);
