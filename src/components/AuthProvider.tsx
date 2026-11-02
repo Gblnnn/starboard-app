@@ -453,13 +453,14 @@ const AuthProvider = ({ children }: Props) => {
     };
   }, [user?.email]);
 
-  // Notify petty-cash custodians when their requests are approved or paid.
+  // Notify petty-cash approvers and custodians independently of email delivery.
   useEffect(() => {
     const empId = userData?.emp_id ? String(userData.emp_id) : null;
-    if (!empId || typeof window === "undefined" || !("Notification" in window)) return;
+    if (!empId || typeof window === "undefined") return;
 
     const showPettyCashNotification = (title: string, body: string, tag: string) => {
-      if (Notification.permission !== "granted") return;
+      toast.info(title, { description: body });
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
       try {
         const notification = new Notification(title, {
           body,
@@ -478,7 +479,42 @@ const AuthProvider = ({ children }: Props) => {
       }
     };
 
+    const loadAssignment = async (projectCode: string, custodianId: string) => {
+      const { data, error } = await supabase
+        .from("pettycash_user")
+        .select("approver_id, finapprover_id")
+        .eq("project_code", projectCode)
+        .eq("emp_id", custodianId)
+        .eq("active", true)
+        .maybeSingle();
+      if (error) {
+        console.error("Failed to load petty-cash notification recipients:", error);
+        return null;
+      }
+      return data;
+    };
+
     const channel = supabase.channel(`petty-cash-notifications-${empId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "petty_cash_request",
+      }, async (payload) => {
+        const request = payload.new as {
+          emp_id: string;
+          project_code: string;
+          request_number: string;
+          status: string;
+        };
+        if (request.status !== "pending_approval" || request.emp_id === empId) return;
+        const assignment = await loadAssignment(request.project_code, request.emp_id);
+        if (assignment?.approver_id !== empId) return;
+        showPettyCashNotification(
+          "Petty cash request needs approval",
+          `${request.request_number} is awaiting your approval.`,
+          `petty-cash-request-pending-${request.request_number}`,
+        );
+      })
       .on("postgres_changes", {
         event: "UPDATE",
         schema: "public",
@@ -486,6 +522,8 @@ const AuthProvider = ({ children }: Props) => {
         filter: `emp_id=eq.${empId}`,
       }, (payload) => {
         const request = payload.new as { emp_id: string; request_number: string; status: string };
+        const previous = payload.old as { status?: string };
+        if (previous.status === request.status) return;
         if (request.emp_id !== empId || !["approved", "rejected"].includes(request.status)) return;
         const status = request.status === "approved" ? "approved" : "rejected";
         showPettyCashNotification(
@@ -497,10 +535,58 @@ const AuthProvider = ({ children }: Props) => {
       .on("postgres_changes", {
         event: "UPDATE",
         schema: "public",
+        table: "petty_cash_request",
+      }, async (payload) => {
+        const request = payload.new as {
+          emp_id: string;
+          project_code: string;
+          request_number: string;
+          status: string;
+        };
+        const previous = payload.old as { status?: string };
+        if (previous.status === request.status || request.status !== "approved") return;
+        const assignment = await loadAssignment(request.project_code, request.emp_id);
+        if (assignment?.finapprover_id !== empId) return;
+        showPettyCashNotification(
+          "Petty cash request ready for payment",
+          `${request.request_number} has been approved and is awaiting Finance payment.`,
+          `petty-cash-request-finance-${request.request_number}`,
+        );
+      })
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "petty_cash_submission",
+      }, async (payload) => {
+        const submission = payload.new as {
+          emp_id: string;
+          project_code: string;
+          submission_number: string;
+          petty_cash_approver_id: string | null;
+          status: string;
+        };
+        if (submission.status !== "pending_petty_cash_approval" || submission.emp_id === empId) return;
+        let approverId = submission.petty_cash_approver_id;
+        if (!approverId) {
+          const assignment = await loadAssignment(submission.project_code, submission.emp_id);
+          approverId = assignment?.approver_id ?? null;
+        }
+        if (approverId !== empId) return;
+        showPettyCashNotification(
+          "Petty cash bills need approval",
+          `${submission.submission_number} is awaiting your approval.`,
+          `petty-cash-submission-pending-${submission.submission_number}`,
+        );
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
         table: "petty_cash_submission",
         filter: `emp_id=eq.${empId}`,
       }, (payload) => {
         const submission = payload.new as { emp_id: string; submission_number: string; status: string };
+        const previous = payload.old as { status?: string };
+        if (previous.status === submission.status) return;
         if (submission.emp_id !== empId ||
             !["approved", "rejected", "returned_for_correction"].includes(submission.status)) return;
         const statusLabel = submission.status === "returned_for_correction"
@@ -510,6 +596,27 @@ const AuthProvider = ({ children }: Props) => {
           `Petty cash bills ${statusLabel}`,
           `${submission.submission_number} has been ${statusLabel}.`,
           `petty-cash-submission-${submission.submission_number}`,
+        );
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "petty_cash_submission",
+      }, async (payload) => {
+        const submission = payload.new as {
+          emp_id: string;
+          project_code: string;
+          submission_number: string;
+          status: string;
+        };
+        const previous = payload.old as { status?: string };
+        if (previous.status === submission.status || submission.status !== "approved") return;
+        const assignment = await loadAssignment(submission.project_code, submission.emp_id);
+        if (assignment?.finapprover_id !== empId) return;
+        showPettyCashNotification(
+          "Petty cash bills ready for payment",
+          `${submission.submission_number} has been approved and is awaiting Finance payment.`,
+          `petty-cash-submission-finance-${submission.submission_number}`,
         );
       })
       .on("postgres_changes", {
