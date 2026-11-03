@@ -7,7 +7,7 @@ import {
   Loader2, RotateCcw, ThumbsDown, ThumbsUp, X,
 } from "lucide-react";
 import moment from "moment";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -19,6 +19,7 @@ import {
   statusLabel,
 } from "./types";
 import { sendPettyCashEmailNotices } from "./notifications";
+import { loadAssignedPendingApprovals } from "./pendingApprovals";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
 
@@ -88,48 +89,73 @@ export default function Approvals() {
     }
   };
 
-  const loadPendingRequests = async () => {
+  const loadPendingRequests = useCallback(async () => {
     setLoadingReq(true);
     try {
-      let q = supabase
-        .from("petty_cash_request")
-        .select("*")
-        .eq("status", "pending_approval")
-        .order("request_date", { ascending: true });
-      if (!isAdmin && empId) q = q.eq("approver_id", empId);
-      const { data, error } = await q;
-      if (error) throw error;
-      setPendingRequests(data || []);
+      if (isAdmin) {
+        const { data, error } = await supabase
+          .from("petty_cash_request")
+          .select("*")
+          .eq("status", "pending_approval")
+          .order("request_date", { ascending: true });
+        if (error) throw error;
+        setPendingRequests(data || []);
+      } else if (empId) {
+        const { requests } = await loadAssignedPendingApprovals(empId);
+        setPendingRequests(requests);
+      } else {
+        setPendingRequests([]);
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to load pending requests");
     } finally {
       setLoadingReq(false);
     }
-  };
+  }, [empId, isAdmin]);
 
-  const loadPendingSubmissions = async () => {
+  const loadPendingSubmissions = useCallback(async () => {
     setLoadingSub(true);
     try {
-      let q = supabase
-        .from("petty_cash_submission")
-        .select("*")
-        .eq("status", "pending_petty_cash_approval")
-        .order("submission_date", { ascending: true });
-      if (!isAdmin && empId) q = q.eq("petty_cash_approver_id", empId);
-      const { data, error } = await q;
-      if (error) throw error;
-      setPendingSubmissions(data || []);
+      if (isAdmin) {
+        const { data, error } = await supabase
+          .from("petty_cash_submission")
+          .select("*")
+          .eq("status", "pending_petty_cash_approval")
+          .order("submission_date", { ascending: true });
+        if (error) throw error;
+        setPendingSubmissions(data || []);
+      } else if (empId) {
+        const { submissions } = await loadAssignedPendingApprovals(empId);
+        setPendingSubmissions(submissions);
+      } else {
+        setPendingSubmissions([]);
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to load pending submissions");
     } finally {
       setLoadingSub(false);
     }
-  };
+  }, [empId, isAdmin]);
 
   useEffect(() => {
     loadPendingRequests();
     loadPendingSubmissions();
-  }, [empId]);
+    const intervalId = window.setInterval(() => {
+      void loadPendingRequests();
+      void loadPendingSubmissions();
+    }, 15000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void loadPendingRequests();
+        void loadPendingSubmissions();
+      }
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [loadPendingRequests, loadPendingSubmissions]);
 
   const loadSubLines = async (submissionId: number) => {
     if (subLines[submissionId]) return;
