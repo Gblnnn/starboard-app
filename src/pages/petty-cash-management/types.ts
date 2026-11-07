@@ -4,6 +4,7 @@
 
 export type PettyCashRequestStatus =
   | 'draft'
+  | 'pending_verification'
   | 'pending_approval'
   | 'approved'
   | 'rejected'
@@ -13,6 +14,7 @@ export type PettyCashRequestStatus =
 
 export type PettyCashSubmissionStatus =
   | 'draft'
+  | 'pending_verification'
   | 'pending_petty_cash_approval'
   | 'approved'
   | 'rejected'
@@ -24,6 +26,7 @@ export interface PettyCashUser {
   project_code: string;
   emp_id: string;
   approver_id: string | null;
+  verifier_id: string | null;
   finapprover_id: string | null;
   op_balance: number;
   op_date: string | null;
@@ -34,6 +37,7 @@ export interface PettyCashUser {
   project_name?: string;
   custodian_name?: string;
   approver_name?: string;
+  verifier_name?: string;
   finapprover_name?: string;
 }
 
@@ -46,6 +50,10 @@ export interface PettyCashRequest {
   particulars: string;
   request_amount: number;
   approved_amount: number | null;
+  verifier_id: string | null;
+  verified_amount: number | null;
+  verified_date: string | null;
+  verifier_remarks: string | null;
   approver_id: string | null;
   approval_date: string | null;
   approval_remarks: string | null;
@@ -77,6 +85,10 @@ export interface PettyCashSubmission {
   project_code: string;
   emp_id: string;
   submitted_by: string;
+  verifier_id: string | null;
+  verified_amount: number | null;
+  verified_date: string | null;
+  verifier_remarks: string | null;
   petty_cash_approver_id: string | null;
   petty_cash_approval_date: string | null;
   fin_approver_id: string | null;
@@ -103,6 +115,7 @@ export interface PettyCashTransaction {
   particulars: string;
   exp_amount: number;
   approved_amount: number | null;
+  verified_amount: number | null;
   fin_approved_amount: number | null;
   fuel_log_id: string | null;
   receipt_path: string | null;
@@ -167,8 +180,14 @@ export const formatOMR = (value: number | null | undefined): string => {
   return `OMR ${Number(value).toFixed(3)}`;
 };
 
+export const normalizeVerifierId = (value: string | null | undefined): string | null => {
+  const verifierId = value?.trim();
+  return verifierId && verifierId.toLowerCase() !== 'none' ? verifierId : null;
+};
+
 export const statusLabel: Record<string, string> = {
   draft: 'Draft',
+  pending_verification: 'Pending Verification',
   pending_approval: 'Pending Approval',
   approved: 'Approved',
   rejected: 'Rejected',
@@ -181,6 +200,7 @@ export const statusLabel: Record<string, string> = {
 
 export const statusColor: Record<string, string> = {
   draft: '#64748b',
+  pending_verification: '#7c3aed',
   pending_approval: '#d97706',
   pending_petty_cash_approval: '#d97706',
   approved: '#16a34a',
