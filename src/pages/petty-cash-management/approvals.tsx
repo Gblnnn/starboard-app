@@ -67,7 +67,9 @@ export default function Approvals() {
   // Action dialog
   const [actionDialog, setActionDialog] = useState<{
     type: "request_approve" | "request_reject" | "request_reduce"
-        | "sub_approve_pc" | "sub_reject" | "sub_return";
+        | "request_verify" | "request_verify_reduce"
+        | "sub_approve_pc" | "sub_reject" | "sub_return"
+        | "sub_verify" | "sub_verify_reduce";
     id: number;
     submissionIds?: number[];
     requestedAmount?: number;
@@ -75,6 +77,7 @@ export default function Approvals() {
   } | null>(null);
   const [actionRemarks, setActionRemarks] = useState("");
   const [actionAmount, setActionAmount] = useState("");
+  const [actionLineAmounts, setActionLineAmounts] = useState<Record<number, string>>({});
   const [actionLoading, setActionLoading] = useState(false);
 
   const notifyCustodiansByEmail = async (notices: Parameters<typeof sendPettyCashEmailNotices>[0]) => {
@@ -96,7 +99,7 @@ export default function Approvals() {
         const { data, error } = await supabase
           .from("petty_cash_request")
           .select("*")
-          .eq("status", "pending_approval")
+          .in("status", ["pending_verification", "pending_approval"])
           .order("request_date", { ascending: true });
         if (error) throw error;
         setPendingRequests(data || []);
@@ -120,7 +123,7 @@ export default function Approvals() {
         const { data, error } = await supabase
           .from("petty_cash_submission")
           .select("*")
-          .eq("status", "pending_petty_cash_approval")
+          .in("status", ["pending_verification", "pending_petty_cash_approval"])
           .order("submission_date", { ascending: true });
         if (error) throw error;
         setPendingSubmissions(data || []);
@@ -175,18 +178,53 @@ export default function Approvals() {
     if (!actionDialog || !empId) return;
     setActionLoading(true);
     try {
-      const { id, type, requestedAmount } = actionDialog;
+      const { id, type } = actionDialog;
       const amount = parseFloat(actionAmount);
       const request = pendingRequests.find((item) => item.id === id);
       if (!request) throw new Error("Request is no longer available. Reload and try again.");
+      const approvalCeiling = Number(request.verified_amount ?? request.request_amount);
       let decision: "approved" | "rejected";
       let approvedAmount: number | null = null;
       let remarks: string | null = null;
 
-      if (type === "request_approve") {
+      if (type === "request_verify" || type === "request_verify_reduce") {
+        if (request.status !== "pending_verification") {
+          throw new Error("Request is no longer awaiting verification. Reload and try again.");
+        }
+        const verifiedAmount = type === "request_verify" ? request.request_amount : amount;
+        if (!verifiedAmount || verifiedAmount <= 0 || verifiedAmount > request.request_amount) {
+          toast.error(`Enter a verified amount greater than 0 and no more than ${formatOMR(request.request_amount)}`);
+          return;
+        }
+        if (type === "request_verify_reduce" && verifiedAmount >= request.request_amount) {
+          toast.error("The verified amount must be less than the requested amount");
+          return;
+        }
+        if (verifiedAmount < request.request_amount && !actionRemarks.trim()) {
+          toast.error("A comment is required when reducing the amount");
+          return;
+        }
+        const verifiedAt = new Date().toISOString();
+        const { data: updatedRequest, error } = await supabase.from("petty_cash_request").update({
+          status: "pending_approval",
+          verifier_id: empId,
+          verified_amount: verifiedAmount,
+          verified_date: verifiedAt,
+          verifier_remarks: actionRemarks.trim() || null,
+          updated_at: verifiedAt,
+        }).eq("id", id).eq("status", "pending_verification").select("id").maybeSingle();
+        if (error) throw error;
+        if (!updatedRequest) throw new Error("Request was updated by another user. Reload and try again.");
+        toast.success("Request verified and sent for approval");
+        setActionDialog(null);
+        setActionRemarks("");
+        setActionAmount("");
+        void loadPendingRequests();
+        return;
+      } else if (type === "request_approve") {
         const { error } = await supabase.from("petty_cash_request").update({
           status: "approved",
-          approved_amount: requestedAmount,
+          approved_amount: approvalCeiling,
           approver_id: empId,
           approval_date: new Date().toISOString(),
           approval_remarks: actionRemarks.trim() || null,
@@ -194,11 +232,14 @@ export default function Approvals() {
         }).eq("id", id);
         if (error) throw error;
         decision = "approved";
-        approvedAmount = requestedAmount ?? null;
+        approvedAmount = approvalCeiling;
         remarks = actionRemarks.trim() || null;
         toast.success("Request approved");
       } else if (type === "request_reduce") {
-        if (!amount || amount <= 0) { toast.error("Enter approved amount"); return; }
+        if (!amount || amount <= 0 || amount > approvalCeiling) {
+          toast.error(`Enter an approved amount greater than 0 and no more than ${formatOMR(approvalCeiling)}`);
+          return;
+        }
         if (!actionRemarks.trim()) { toast.error("Reason is required when reducing amount"); return; }
         const { error } = await supabase.from("petty_cash_request").update({
           status: "approved",
@@ -266,19 +307,81 @@ export default function Approvals() {
         throw new Error("One or more bill submissions are no longer available. Reload and try again.");
       }
 
+      if (type === "sub_verify" || type === "sub_verify_reduce") {
+        if (submissionIds) throw new Error("Bill submissions must be verified individually.");
+        const submission = submissionsToNotify[0];
+        if (submission.status !== "pending_verification") {
+          throw new Error("Submission is no longer awaiting verification. Reload and try again.");
+        }
+        const { data: lines, error: linesError } = await supabase
+          .from("petty_cash_transaction")
+          .select("id, exp_amount")
+          .eq("submission_id", id);
+        if (linesError) throw linesError;
+        if (!lines?.length) throw new Error("Submission has no bill lines to verify.");
+
+        const verifiedLines = lines.map((line) => {
+          const originalAmount = Number(line.exp_amount);
+          const verifiedAmount = type === "sub_verify"
+            ? originalAmount
+            : Number(actionLineAmounts[line.id]);
+          if (!Number.isFinite(verifiedAmount) || verifiedAmount < 0 || verifiedAmount > originalAmount) {
+            throw new Error("Each verified bill amount must be between 0 and its submitted amount.");
+          }
+          return { ...line, originalAmount, verifiedAmount };
+        });
+        const submittedTotal = verifiedLines.reduce((total, line) => total + line.originalAmount, 0);
+        const verifiedTotal = verifiedLines.reduce((total, line) => total + line.verifiedAmount, 0);
+        if (verifiedTotal <= 0) throw new Error("The verified submission total must be greater than zero.");
+        if (type === "sub_verify_reduce" && verifiedTotal >= submittedTotal) {
+          throw new Error("At least one bill amount must be reduced.");
+        }
+        if (verifiedTotal < submittedTotal && !actionRemarks.trim()) {
+          throw new Error("A comment is required when reducing the submission amount.");
+        }
+
+        const verifiedAt = new Date().toISOString();
+        const lineUpdates = await Promise.all(verifiedLines.map((line) =>
+          supabase.from("petty_cash_transaction").update({
+            verified_amount: line.verifiedAmount,
+            updated_at: verifiedAt,
+          }).eq("id", line.id)
+        ));
+        const lineError = lineUpdates.find((result) => result.error)?.error;
+        if (lineError) throw lineError;
+
+        const { data: updatedSubmission, error } = await supabase.from("petty_cash_submission").update({
+          status: "pending_petty_cash_approval",
+          verifier_id: empId,
+          verified_amount: verifiedTotal,
+          verified_date: verifiedAt,
+          verifier_remarks: actionRemarks.trim() || null,
+          updated_at: verifiedAt,
+        }).eq("id", id).eq("status", "pending_verification").select("id").maybeSingle();
+        if (error) throw error;
+        if (!updatedSubmission) throw new Error("Submission was updated by another user. Reload and try again.");
+
+        toast.success("Bill submission verified and sent for approval");
+        setActionDialog(null);
+        setActionRemarks("");
+        setActionLineAmounts({});
+        void loadPendingSubmissions();
+        return;
+      }
+
       if (submissionIds) {
         if (type === "sub_approve_pc") {
           const approvalDate = new Date().toISOString();
           const { data: lines, error: linesError } = await supabase
             .from("petty_cash_transaction")
-            .select("id, exp_amount")
+            .select("id, exp_amount, verified_amount")
             .in("submission_id", submissionIds);
           if (linesError) throw linesError;
 
           const lineUpdates = await Promise.all((lines || []).map((line) =>
             supabase.from("petty_cash_transaction").update({
-              approved_amount: line.exp_amount,
-              fin_approved_amount: line.exp_amount,
+              approved_amount: line.verified_amount ?? line.exp_amount,
+              fin_approved_amount: line.verified_amount ?? line.exp_amount,
               updated_at: approvalDate,
             }).eq("id", line.id)
           ));
@@ -335,8 +438,8 @@ export default function Approvals() {
         const lines = subLines[id] || [];
         const lineUpdates = await Promise.all(lines.map((line) =>
           supabase.from("petty_cash_transaction").update({
-            approved_amount: line.exp_amount,
-            fin_approved_amount: line.exp_amount,
+            approved_amount: line.verified_amount ?? line.exp_amount,
+            fin_approved_amount: line.verified_amount ?? line.exp_amount,
             updated_at: approvalDate,
           }).eq("id", line.id)
         ));
@@ -408,8 +511,14 @@ export default function Approvals() {
     }
   };
 
+  const canVerifyRequest = (req: PettyCashRequest) =>
+    req.status === "pending_verification" && (isAdmin || req.verifier_id === empId);
+
   const canApproveRequest = (req: PettyCashRequest) =>
-    isAdmin || req.approver_id === empId;
+    req.status === "pending_approval" && (isAdmin || req.approver_id === empId);
+
+  const canVerifySubmission = (sub: PettyCashSubmission) =>
+    sub.status === "pending_verification" && (isAdmin || sub.verifier_id === empId);
 
   const canApproveSubPC = (sub: PettyCashSubmission) =>
     sub.status === "pending_petty_cash_approval" &&
@@ -490,16 +599,38 @@ export default function Approvals() {
                       <p style={{ fontWeight: 700 }}>{formatOMR(req.request_amount)}</p>
                     </div>
                   </div>
+                  {req.verified_amount !== null && req.verified_amount !== undefined && (
+                    <div style={{ marginBottom: "0.875rem", fontSize: "0.8rem" }}>
+                      <strong>Verified amount:</strong> {formatOMR(req.verified_amount)}
+                      {req.verifier_remarks && <p style={{ color: "#64748b" }}>Verifier comment: {req.verifier_remarks}</p>}
+                    </div>
+                  )}
+                  {canVerifyRequest(req) && (
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => { setActionDialog({ type: "request_verify", id: req.id }); setActionRemarks(""); }}
+                        style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#16a34a", color: "white", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
+                      >
+                        Verify Full
+                      </button>
+                      <button
+                        onClick={() => { setActionDialog({ type: "request_verify_reduce", id: req.id, requestedAmount: req.request_amount }); setActionRemarks(""); setActionAmount(""); }}
+                        style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#d97706", color: "white", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
+                      >
+                        Reduce & Verify
+                      </button>
+                    </div>
+                  )}
                   {canApproveRequest(req) && (
                     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                       <button
-                        onClick={() => { setActionDialog({ type: "request_approve", id: req.id, requestedAmount: req.request_amount }); setActionRemarks(""); }}
+                        onClick={() => { setActionDialog({ type: "request_approve", id: req.id, requestedAmount: Number(req.verified_amount ?? req.request_amount) }); setActionRemarks(""); }}
                         style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#16a34a", color: "white", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.3rem" }}
                       >
                         <ThumbsUp width="0.8rem" /> Approve Full
                       </button>
                       <button
-                        onClick={() => { setActionDialog({ type: "request_reduce", id: req.id, requestedAmount: req.request_amount }); setActionRemarks(""); setActionAmount(""); }}
+                        onClick={() => { setActionDialog({ type: "request_reduce", id: req.id, requestedAmount: Number(req.verified_amount ?? req.request_amount) }); setActionRemarks(""); setActionAmount(""); }}
                         style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#d97706", color: "white", fontWeight: 600, fontSize: "0.8rem", cursor: "pointer" }}
                       >
                         Reduce
@@ -648,7 +779,12 @@ export default function Approvals() {
                                     <p style={{ fontSize: "0.7rem", color: "#64748b" }}>{moment(l.trans_date).format("DD MMM")} · {l.particulars}</p>
                                     {l.fuel_log_id && <span style={{ fontSize: "0.66rem", background: "#d9770615", color: "#d97706", padding: "0.1rem 0.4rem", borderRadius: "0.3rem", fontWeight: 600 }}>Fuel Bill</span>}
                                   </div>
-                                  <p style={{ fontWeight: 700, fontSize: "0.85rem" }}>{formatOMR(l.exp_amount)}</p>
+                                  <div style={{ textAlign: "right" }}>
+                                    <p style={{ fontWeight: 700, fontSize: "0.85rem" }}>{formatOMR(l.exp_amount)}</p>
+                                    {l.verified_amount !== null && l.verified_amount !== undefined && (
+                                      <p style={{ fontSize: "0.7rem", color: "#64748b" }}>Verified: {formatOMR(l.verified_amount)}</p>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                               <div style={{ display: "flex", justifyContent: "flex-end", fontWeight: 700 }}>
@@ -659,6 +795,29 @@ export default function Approvals() {
 
                           {/* Action buttons */}
                           <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid rgba(100,100,100,0.08)", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                            {canVerifySubmission(sub) && (
+                              <>
+                                <button
+                                  onClick={() => { setActionDialog({ type: "sub_verify", id: sub.id }); setActionRemarks(""); }}
+                                  style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#16a34a", color: "white", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
+                                >
+                                  Verify Full
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setActionLineAmounts(Object.fromEntries(lines.map((line) => [
+                                      line.id,
+                                      String(line.verified_amount ?? line.exp_amount),
+                                    ])));
+                                    setActionDialog({ type: "sub_verify_reduce", id: sub.id });
+                                    setActionRemarks("");
+                                  }}
+                                  style={{ flex: 1, padding: "0.55rem", borderRadius: "0.5rem", border: "none", background: "#d97706", color: "white", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
+                                >
+                                  Reduce & Verify
+                                </button>
+                              </>
+                            )}
                             {canApproveSubPC(sub) && (
                               <>
                                 <button
@@ -714,7 +873,9 @@ export default function Approvals() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
               <h3 style={{ fontWeight: 700 }}>
-                {actionDialog.type.includes("approve") ? "Approve" :
+                {actionDialog.type.includes("verify")
+                  ? actionDialog.type.includes("reduce") ? "Reduce Amounts & Verify" : "Verify"
+                  : actionDialog.type.includes("approve") ? "Approve" :
                  actionDialog.type.includes("reject") ? "Reject" :
                  actionDialog.type.includes("reduce") ? "Reduce Amount" : "Return for Correction"}
                 {actionDialog.submissionIds && actionDialog.submissionIds.length > 1
@@ -726,7 +887,7 @@ export default function Approvals() {
               </button>
             </div>
 
-            {(actionDialog.type === "request_reduce") && (
+            {(actionDialog.type === "request_reduce" || actionDialog.type === "request_verify_reduce") && (
               <div style={{ marginBottom: "1rem" }}>
                 <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.4rem" }}>
                   Approved Amount (OMR) *
@@ -742,15 +903,43 @@ export default function Approvals() {
               </div>
             )}
 
+            {actionDialog.type === "sub_verify_reduce" && (
+              <div style={{ marginBottom: "1rem", maxHeight: "35vh", overflowY: "auto" }}>
+                {(subLines[actionDialog.id] || []).map((line) => (
+                  <div key={line.id} style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      {line.particulars} — Submitted {formatOMR(line.exp_amount)}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      max={line.exp_amount}
+                      value={actionLineAmounts[line.id] ?? ""}
+                      onChange={(event) => setActionLineAmounts((current) => ({
+                        ...current,
+                        [line.id]: event.target.value,
+                      }))}
+                      style={INPUT_STYLE}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ marginBottom: "1.25rem" }}>
               <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.4rem" }}>
-                {actionDialog.type.includes("approve") ? "Remarks (optional)" : "Reason *"}
+                {actionDialog.type.includes("reduce") || actionDialog.type.includes("reject") || actionDialog.type.includes("return")
+                  ? "Comment / Reason *"
+                  : "Remarks (optional)"}
               </label>
               <textarea
                 rows={3}
                 value={actionRemarks}
                 onChange={(e) => setActionRemarks(e.target.value)}
-                placeholder={actionDialog.type.includes("approve") ? "Optional remarks..." : "Provide a reason..."}
+                placeholder={actionDialog.type.includes("reduce") || actionDialog.type.includes("reject") || actionDialog.type.includes("return")
+                  ? "Explain the reduction or decision..."
+                  : "Optional remarks..."}
                 style={{ ...INPUT_STYLE, resize: "none" }}
               />
             </div>
@@ -768,7 +957,7 @@ export default function Approvals() {
                 style={{
                   flex: 2, padding: "0.75rem", borderRadius: "0.65rem", border: "none",
                   background: actionDialog.type.includes("reject") ? "#dc2626" :
-                              actionDialog.type.includes("return") ? "#b45309" : "#16a34a",
+                              actionDialog.type.includes("return") || actionDialog.type.includes("reduce") ? "#b45309" : "#16a34a",
                   color: "white", fontWeight: 700, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
                 }}
