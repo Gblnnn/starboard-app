@@ -14,6 +14,7 @@ import {
   type PettyCashExpenseCategory,
   type FuelLogEntry,
   formatOMR,
+  normalizeVerifierId,
 } from "./types";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
@@ -35,6 +36,7 @@ interface ProjectAssignment {
   assignment_id: number;
   available_balance: number;
   approver_id: string | null;
+  verifier_id: string | null;
 }
 
 interface BillReportRow {
@@ -211,7 +213,7 @@ export default function SubmitBills() {
       try {
         const { data, error } = await supabase
           .from("pettycash_user")
-          .select("id, project_code, emp_id, approver_id")
+          .select("id, project_code, emp_id, approver_id, verifier_id")
           .eq("emp_id", empId)
           .eq("active", true);
         if (error) throw error;
@@ -230,6 +232,7 @@ export default function SubmitBills() {
               assignment_id: a.id,
               available_balance: Number(bal?.available_balance ?? 0),
               approver_id: a.approver_id,
+              verifier_id: a.verifier_id,
             };
           })
         );
@@ -356,6 +359,7 @@ export default function SubmitBills() {
     if (!empId) { toast.error("Employee ID not found"); return; }
     if (!selectedProject) { toast.error("Select a project"); return; }
     if (bills.length === 0) { toast.error("Add at least one expense bill"); return; }
+    const verifierId = normalizeVerifierId(selectedAssignment?.verifier_id);
 
     setSubmitting(true);
     try {
@@ -367,8 +371,9 @@ export default function SubmitBills() {
           project_code: selectedProject,
           emp_id: empId,
           submitted_by: empId,
+          verifier_id: verifierId,
           petty_cash_approver_id: selectedAssignment?.approver_id ?? null,
-          status: "pending_petty_cash_approval",
+          status: verifierId ? "pending_verification" : "pending_petty_cash_approval",
         })
         .select("id, submission_number")
         .single();
@@ -399,7 +404,7 @@ export default function SubmitBills() {
         if (fuelErr) throw fuelErr;
       }
 
-      toast.success(`Submission ${subData.submission_number} submitted for approval`);
+      toast.success(`Submission ${subData.submission_number} submitted ${verifierId ? "for verification" : "for approval"}`);
       navigate("/petty-cash");
     } catch (err: any) {
       toast.error(err?.message || "Failed to save submission");
