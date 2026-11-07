@@ -41,11 +41,11 @@ export function usePettyCashPendingApprovals(enabled = true) {
             supabase
               .from("petty_cash_request")
               .select("id", { count: "exact", head: true })
-              .eq("status", "pending_approval"),
+              .in("status", ["pending_verification", "pending_approval"]),
             supabase
               .from("petty_cash_submission")
               .select("id", { count: "exact", head: true })
-              .eq("status", "pending_petty_cash_approval"),
+              .in("status", ["pending_verification", "pending_petty_cash_approval"]),
           ]);
           if (requestsResult.error) throw requestsResult.error;
           if (submissionsResult.error) throw submissionsResult.error;
