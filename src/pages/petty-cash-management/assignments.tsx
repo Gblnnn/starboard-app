@@ -8,7 +8,7 @@ import {
 import moment from "moment";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { type PettyCashUser, formatOMR } from "./types";
+import { type PettyCashUser, formatOMR, normalizeVerifierId } from "./types";
 import AccessDenied from "./AccessDenied";
 
 interface EmployeeOption {
@@ -272,6 +272,7 @@ export default function Assignments() {
   const [formProject, setFormProject] = useState("");
   const [formEmpId, setFormEmpId] = useState("");
   const [formApprover, setFormApprover] = useState("");
+  const [formVerifier, setFormVerifier] = useState("");
   const [formFinApprover, setFormFinApprover] = useState("");
   const [formOpBalance, setFormOpBalance] = useState("0");
   const [formOpDate, setFormOpDate] = useState(moment().format("YYYY-MM-DD"));
@@ -332,6 +333,7 @@ export default function Assignments() {
     setFormProject("");
     setFormEmpId("");
     setFormApprover("");
+    setFormVerifier("");
     setFormFinApprover("");
     setFormOpBalance("0");
     setFormOpDate(moment().format("YYYY-MM-DD"));
@@ -343,6 +345,7 @@ export default function Assignments() {
     setFormProject(a.project_code);
     setFormEmpId(a.emp_id);
     setFormApprover(a.approver_id || "");
+    setFormVerifier(normalizeVerifierId(a.verifier_id) || "");
     setFormFinApprover(a.finapprover_id || "");
     setFormOpBalance(String(a.op_balance));
     setFormOpDate(a.op_date || moment().format("YYYY-MM-DD"));
@@ -357,6 +360,7 @@ export default function Assignments() {
         // Update existing
         const { error } = await supabase.from("pettycash_user").update({
           approver_id: formApprover || null,
+          verifier_id: formVerifier || null,
           finapprover_id: formFinApprover || null,
           op_balance: parseFloat(formOpBalance) || 0,
           op_date: formOpDate || null,
@@ -378,6 +382,7 @@ export default function Assignments() {
           project_code: formProject,
           emp_id: formEmpId,
           approver_id: formApprover || null,
+          verifier_id: formVerifier || null,
           finapprover_id: formFinApprover || null,
           op_balance: parseFloat(formOpBalance) || 0,
           op_date: formOpDate || null,
@@ -486,7 +491,7 @@ export default function Assignments() {
                         Custodian: {a.emp_id}{a.custodian_name ? ` — ${a.custodian_name}` : ""}
                       </p>
                       <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
-                        Approver: {a.approver_id || "—"} · Finance: {a.finapprover_id || "—"}
+                        Approver: {a.approver_id || "—"} · Verifier: {normalizeVerifierId(a.verifier_id) || "—"} · Finance: {a.finapprover_id || "—"}
                       </p>
                       <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
                         Opening: {formatOMR(a.op_balance)} {a.op_date ? `· ${moment(a.op_date).format("DD MMM YYYY")}` : ""}
@@ -568,6 +573,19 @@ export default function Assignments() {
               <SearchableSelect
                 value={formApprover}
                 onChange={setFormApprover}
+                options={employees.map((e) => ({
+                  value: e.emp_id,
+                  label: `${e.emp_id} — ${e.name}`,
+                }))}
+                placeholder="— None —"
+                allowClear
+              />
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={LABEL_STYLE}>Petty Cash Verifier</label>
+              <SearchableSelect
+                value={formVerifier}
+                onChange={setFormVerifier}
                 options={employees.map((e) => ({
                   value: e.emp_id,
                   label: `${e.emp_id} — ${e.name}`,
