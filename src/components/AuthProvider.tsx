@@ -490,14 +490,17 @@ const AuthProvider = ({ children }: Props) => {
       try {
         const { data: assignments, error: assignmentError } = await supabase
           .from("pettycash_user")
-          .select("emp_id, project_code")
-          .eq("approver_id", empId)
+          .select("emp_id, project_code, approver_id, verifier_id")
+          .or(`approver_id.eq.${empId},verifier_id.eq.${empId}`)
           .eq("active", true);
         if (assignmentError) throw assignmentError;
 
-        const assignmentKeys = new Set((assignments || []).map(
-          (assignment) => `${assignment.project_code}:${assignment.emp_id}`,
-        ));
+        const approvalAssignmentKeys = new Set((assignments || [])
+          .filter((assignment) => assignment.approver_id === empId)
+          .map((assignment) => `${assignment.project_code}:${assignment.emp_id}`));
+        const verificationAssignmentKeys = new Set((assignments || [])
+          .filter((assignment) => assignment.verifier_id === empId)
+          .map((assignment) => `${assignment.project_code}:${assignment.emp_id}`));
         const projectCodes = [...new Set((assignments || []).map((assignment) => assignment.project_code))];
         if (projectCodes.length === 0) {
           return;
@@ -506,13 +509,13 @@ const AuthProvider = ({ children }: Props) => {
         const [requestResult, submissionResult] = await Promise.all([
           supabase
             .from("petty_cash_request")
-            .select("emp_id, project_code, request_number")
-            .eq("status", "pending_approval")
+            .select("emp_id, project_code, request_number, verifier_id, status")
+            .in("status", ["pending_verification", "pending_approval"])
             .in("project_code", projectCodes),
           supabase
             .from("petty_cash_submission")
-            .select("emp_id, project_code, submission_number")
-            .eq("status", "pending_petty_cash_approval")
+            .select("emp_id, project_code, submission_number, verifier_id, status")
+            .in("status", ["pending_verification", "pending_petty_cash_approval"])
             .in("project_code", projectCodes),
         ]);
         if (requestResult.error) throw requestResult.error;
@@ -521,18 +524,26 @@ const AuthProvider = ({ children }: Props) => {
 
         const pending = [
           ...(requestResult.data || [])
-            .filter((request) => assignmentKeys.has(`${request.project_code}:${request.emp_id}`))
+            .filter((request) => request.status === "pending_verification"
+              ? request.verifier_id === empId || verificationAssignmentKeys.has(`${request.project_code}:${request.emp_id}`)
+              : approvalAssignmentKeys.has(`${request.project_code}:${request.emp_id}`))
             .map((request) => ({
               tag: `petty-cash-request-pending-${request.request_number}`,
-              title: "Petty cash request needs approval",
-              body: `${request.request_number} is awaiting your approval.`,
+              title: request.status === "pending_verification"
+                ? "Petty cash request needs verification"
+                : "Petty cash request needs approval",
+              body: `${request.request_number} is awaiting your ${request.status === "pending_verification" ? "verification" : "approval"}.`,
             })),
           ...(submissionResult.data || [])
-            .filter((submission) => assignmentKeys.has(`${submission.project_code}:${submission.emp_id}`))
+            .filter((submission) => submission.status === "pending_verification"
+              ? submission.verifier_id === empId || verificationAssignmentKeys.has(`${submission.project_code}:${submission.emp_id}`)
+              : approvalAssignmentKeys.has(`${submission.project_code}:${submission.emp_id}`))
             .map((submission) => ({
               tag: `petty-cash-submission-pending-${submission.submission_number}`,
-              title: "Petty cash bills need approval",
-              body: `${submission.submission_number} is awaiting your approval.`,
+              title: submission.status === "pending_verification"
+                ? "Petty cash bills need verification"
+                : "Petty cash bills need approval",
+              body: `${submission.submission_number} is awaiting your ${submission.status === "pending_verification" ? "verification" : "approval"}.`,
             })),
         ];
 
@@ -558,7 +569,7 @@ const AuthProvider = ({ children }: Props) => {
     const loadAssignment = async (projectCode: string, custodianId: string) => {
       const { data, error } = await supabase
         .from("pettycash_user")
-        .select("approver_id, finapprover_id")
+        .select("approver_id, verifier_id, finapprover_id")
         .eq("project_code", projectCode)
         .eq("emp_id", custodianId)
         .eq("active", true)
@@ -580,14 +591,19 @@ const AuthProvider = ({ children }: Props) => {
           emp_id: string;
           project_code: string;
           request_number: string;
+          verifier_id: string | null;
           status: string;
         };
-        if (request.status !== "pending_approval" || request.emp_id === empId) return;
+        if (!["pending_verification", "pending_approval"].includes(request.status) || request.emp_id === empId) return;
         const assignment = await loadAssignment(request.project_code, request.emp_id);
-        if (assignment?.approver_id !== empId) return;
+        const isVerification = request.status === "pending_verification";
+        const assignedUser = isVerification
+          ? request.verifier_id ?? assignment?.verifier_id
+          : assignment?.approver_id;
+        if (assignedUser !== empId) return;
         showPettyCashNotification(
-          "Petty cash request needs approval",
-          `${request.request_number} is awaiting your approval.`,
+          isVerification ? "Petty cash request needs verification" : "Petty cash request needs approval",
+          `${request.request_number} is awaiting your ${isVerification ? "verification" : "approval"}.`,
           `petty-cash-request-pending-${request.request_number}`,
         );
       })
@@ -639,18 +655,21 @@ const AuthProvider = ({ children }: Props) => {
           project_code: string;
           submission_number: string;
           petty_cash_approver_id: string | null;
+          verifier_id: string | null;
           status: string;
         };
-        if (submission.status !== "pending_petty_cash_approval" || submission.emp_id === empId) return;
-        let approverId = submission.petty_cash_approver_id;
-        if (!approverId) {
+        if (!["pending_verification", "pending_petty_cash_approval"].includes(submission.status) ||
+            submission.emp_id === empId) return;
+        const isVerification = submission.status === "pending_verification";
+        let assignedUser = isVerification ? submission.verifier_id : submission.petty_cash_approver_id;
+        if (!assignedUser) {
           const assignment = await loadAssignment(submission.project_code, submission.emp_id);
-          approverId = assignment?.approver_id ?? null;
+          assignedUser = isVerification ? assignment?.verifier_id ?? null : assignment?.approver_id ?? null;
         }
-        if (approverId !== empId) return;
+        if (assignedUser !== empId) return;
         showPettyCashNotification(
-          "Petty cash bills need approval",
-          `${submission.submission_number} is awaiting your approval.`,
+          isVerification ? "Petty cash bills need verification" : "Petty cash bills need approval",
+          `${submission.submission_number} is awaiting your ${isVerification ? "verification" : "approval"}.`,
           `petty-cash-submission-pending-${submission.submission_number}`,
         );
       })
