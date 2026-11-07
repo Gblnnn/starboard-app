@@ -102,8 +102,8 @@ export default function Dashboard() {
       setMonthExpenses(monthTotal);
 
       // Pending counts
-      let requestsQuery = supabase.from("petty_cash_request").select("id", { count: "exact", head: true }).eq("status", "pending_approval");
-      let submissionsQuery = supabase.from("petty_cash_submission").select("id", { count: "exact", head: true }).eq("status", "pending_petty_cash_approval");
+      let requestsQuery = supabase.from("petty_cash_request").select("id", { count: "exact", head: true }).in("status", ["pending_verification", "pending_approval"]);
+      let submissionsQuery = supabase.from("petty_cash_submission").select("id", { count: "exact", head: true }).in("status", ["pending_verification", "pending_petty_cash_approval"]);
       if (!canViewAll && empId) {
         requestsQuery = requestsQuery.eq("emp_id", empId);
         submissionsQuery = submissionsQuery.eq("emp_id", empId);
