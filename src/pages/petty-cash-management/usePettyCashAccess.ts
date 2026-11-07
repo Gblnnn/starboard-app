@@ -7,6 +7,7 @@ export interface PettyCashPermissions {
   isAdmin: boolean;
   isCustodian: boolean;
   isApprover: boolean;
+  isVerifier: boolean;
   isFinanceApprover: boolean;
   canAccessDashboard: boolean;
   canAccessFinance: boolean;
@@ -33,6 +34,7 @@ export function usePettyCashAccess(): PettyCashPermissions {
   const [loading, setLoading] = useState(true);
   const [isCustodian, setIsCustodian] = useState(false);
   const [isApprover, setIsApprover] = useState(false);
+  const [isVerifier, setIsVerifier] = useState(false);
   const [isFinanceApprover, setIsFinanceApprover] = useState(false);
 
   useEffect(() => {
@@ -43,6 +45,7 @@ export function usePettyCashAccess(): PettyCashPermissions {
         if (isMounted) {
           setIsCustodian(true);
           setIsApprover(true);
+          setIsVerifier(true);
           setIsFinanceApprover(true);
           setLoading(false);
         }
@@ -53,6 +56,7 @@ export function usePettyCashAccess(): PettyCashPermissions {
         if (isMounted) {
           setIsCustodian(false);
           setIsApprover(false);
+          setIsVerifier(false);
           setIsFinanceApprover(false);
           setLoading(false);
         }
@@ -62,20 +66,22 @@ export function usePettyCashAccess(): PettyCashPermissions {
       try {
         const { data, error } = await supabase
           .from("pettycash_user")
-          .select("emp_id, approver_id, finapprover_id")
+          .select("emp_id, approver_id, verifier_id, finapprover_id")
           .eq("active", true)
-          .or(`emp_id.eq.${empId},approver_id.eq.${empId},finapprover_id.eq.${empId}`);
+          .or(`emp_id.eq.${empId},approver_id.eq.${empId},verifier_id.eq.${empId},finapprover_id.eq.${empId}`);
 
         if (error) throw error;
 
         const hasCustodian = (data || []).some((r) => String(r.emp_id) === empId);
         const hasApprover = (data || []).some((r) => String(r.approver_id) === empId);
+        const hasVerifier = (data || []).some((r) => String(r.verifier_id).trim().toLowerCase() === empId.toLowerCase());
         const hasFinApprover =
           isFinanceRole || (data || []).some((r) => String(r.finapprover_id) === empId);
 
         if (isMounted) {
           setIsCustodian(hasCustodian);
           setIsApprover(hasApprover);
+          setIsVerifier(hasVerifier);
           setIsFinanceApprover(hasFinApprover);
         }
       } catch (err) {
@@ -96,11 +102,12 @@ export function usePettyCashAccess(): PettyCashPermissions {
     isAdmin,
     isCustodian: isAdmin || isCustodian,
     isApprover: isAdmin || isApprover,
+    isVerifier: isAdmin || isVerifier,
     isFinanceApprover: isAdmin || isFinanceApprover,
-    canAccessDashboard: isAdmin || isCustodian || isFinanceApprover || isApprover,
+    canAccessDashboard: isAdmin || isCustodian || isFinanceApprover || isApprover || isVerifier,
     canAccessFinance: isAdmin || isFinanceApprover,
     canAccessCategories: isAdmin || isFinanceApprover,
-    canAccessApprovals: isAdmin || isApprover,
+    canAccessApprovals: isAdmin || isApprover || isVerifier,
     canRequestCash: isAdmin || isCustodian,
     canSubmitBills: isAdmin || isCustodian,
     canManageAssignments: isAdmin,
