@@ -7,7 +7,7 @@ import moment from "moment";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { formatOMR } from "./types";
+import { formatOMR, normalizeVerifierId } from "./types";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
 
@@ -17,6 +17,7 @@ interface ProjectOption {
   assignment_id: number;
   balance: number;
   approver_id: string | null;
+  verifier_id: string | null;
 }
 
 interface RequestReportRow {
@@ -80,7 +81,7 @@ export default function NewRequest() {
       try {
         const { data, error } = await supabase
           .from("pettycash_user")
-          .select("id, project_code, emp_id, approver_id")
+          .select("id, project_code, emp_id, approver_id, verifier_id")
           .eq("emp_id", empId)
           .eq("active", true);
         if (error) throw error;
@@ -100,6 +101,7 @@ export default function NewRequest() {
               assignment_id: a.id,
               balance: Number(bal?.available_balance ?? 0),
               approver_id: a.approver_id,
+              verifier_id: a.verifier_id,
             };
           })
         );
@@ -214,6 +216,7 @@ export default function NewRequest() {
     if (!particulars.trim()) { toast.error("Enter the purpose of this request"); return; }
     const amount = parseFloat(requestAmount);
     if (!amount || amount <= 0) { toast.error("Enter a valid request amount"); return; }
+    const verifierId = normalizeVerifierId(selectedProjectData?.verifier_id);
 
     setSubmitting(true);
     try {
@@ -226,13 +229,14 @@ export default function NewRequest() {
           particulars: particulars.trim(),
           request_amount: amount,
           approver_id: selectedProjectData?.approver_id ?? null,
-          status: "pending_approval",
+          verifier_id: verifierId,
+          status: verifierId ? "pending_verification" : "pending_approval",
           created_by: empId,
         })
         .select("request_number")
         .single();
       if (error) throw error;
-      toast.success(`Request ${data.request_number} submitted for approval`);
+      toast.success(`Request ${data.request_number} submitted ${verifierId ? "for verification" : "for approval"}`);
       navigate("/petty-cash");
     } catch (err: any) {
       toast.error(err?.message || "Failed to save request");
