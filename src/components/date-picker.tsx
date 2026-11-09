@@ -27,6 +27,7 @@ type DatePickerProps =
       placeholder?: string
       className?: string
       disabled?: boolean
+      maxDate?: Date
       style?: React.CSSProperties
     }
   | {
@@ -36,6 +37,7 @@ type DatePickerProps =
       placeholder?: string
       className?: string
       disabled?: boolean
+      maxDate?: Date
       style?: React.CSSProperties
     }
 
@@ -102,6 +104,7 @@ export function DatePicker(props: DatePickerProps) {
               onChange(date ? format(date, "yyyy-MM-dd") : "")
               setOpen(false)
             }}
+            disabled={props.maxDate ? { after: props.maxDate } : undefined}
           />
         </DialogContent>
       </Dialog>
