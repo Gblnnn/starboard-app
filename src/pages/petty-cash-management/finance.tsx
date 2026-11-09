@@ -18,6 +18,7 @@ interface ReimbursementDue {
   petty_cash_approval_date: string;
   project_code: string;
   emp_id: string;
+  custodian_name?: string;
   approved_reimbursement_amount: number;
   reimbursement_paid: number;
   outstanding_reimbursement: number;
@@ -51,6 +52,19 @@ const PILL = (color: string, children: React.ReactNode) => (
     {children}
   </span>
 );
+
+async function loadCustodianNames(empIds: string[]): Promise<Record<string, string>> {
+  const uniqueIds = [...new Set(empIds)];
+  if (uniqueIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("employees")
+    .select("emp_id, name")
+    .in("emp_id", uniqueIds);
+  if (error) throw error;
+
+  return Object.fromEntries((data || []).map((employee) => [employee.emp_id, employee.name || ""]));
+}
 
 export default function Finance() {
   const { userData } = useAuth();
@@ -94,8 +108,10 @@ export default function Finance() {
         .in("status", ["approved", "partially_paid"])
         .order("request_date", { ascending: true });
       if (error) throw error;
+      const custodianNames = await loadCustodianNames((data || []).map((request) => request.emp_id));
       const rows = (data || []).map((r: any) => ({
         ...r,
+        custodian_name: custodianNames[r.emp_id] || "",
         total_paid: (r.petty_cash_request_payment || []).reduce((s: number, p: any) => s + Number(p.payment_amount), 0),
       }));
       setApprovedRequests(rows);
@@ -113,7 +129,12 @@ export default function Finance() {
         .gt("outstanding_reimbursement", 0)
         .order("petty_cash_approval_date", { ascending: true });
       if (error) throw error;
-      setApprovedSubmissions((data || []) as ReimbursementDue[]);
+      const submissions = (data || []) as ReimbursementDue[];
+      const custodianNames = await loadCustodianNames(submissions.map((submission) => submission.emp_id));
+      setApprovedSubmissions(submissions.map((submission) => ({
+        ...submission,
+        custodian_name: custodianNames[submission.emp_id] || "",
+      })));
     } catch (err: any) {
       toast.error(err?.message || "Failed to load reimbursements");
     }
@@ -237,7 +258,7 @@ export default function Finance() {
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
                         <div>
                           <p style={{ fontWeight: 700 }}>{req.request_number}</p>
-                          <p style={{ fontSize: "0.72rem", color: "#64748b" }}>{req.project_code} · {req.emp_id} · {moment(req.request_date).format("DD MMM YYYY")}</p>
+                          <p style={{ fontSize: "0.72rem", color: "#64748b" }}>{req.project_code} · {req.emp_id}{req.custodian_name ? ` · ${req.custodian_name}` : ""} · {moment(req.request_date).format("DD MMM YYYY")}</p>
                         </div>
                         {PILL(statusColor[req.status] || "#64748b", statusLabel[req.status])}
                       </div>
@@ -310,7 +331,7 @@ export default function Finance() {
       {payDialog && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100 }}>
           <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-            style={{ background: "var(--background, #fff)", borderRadius: "1.25rem 1.25rem 0 0", padding: "1.5rem", width: "100%", maxWidth: 520 }}>
+            style={{ background: "#fff", borderRadius: "1.25rem 1.25rem 0 0", padding: "1.5rem", width: "100%", maxWidth: 520 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
               <h3 style={{ fontWeight: 700 }}>Record Payment — {payDialog.label}</h3>
               <button onClick={() => setPayDialog(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><X width="1.25rem" /></button>
@@ -403,7 +424,7 @@ function ReimbursementCard({ reimbursement, onPay }: { reimbursement: Reimbursem
           <div>
             <p style={{ fontWeight: 700 }}>{reimbursement.submission_number}</p>
             <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
-              {reimbursement.project_code} · {reimbursement.emp_id} · {moment(reimbursement.petty_cash_approval_date).format("DD MMM YYYY")}
+              {reimbursement.project_code} · {reimbursement.emp_id}{reimbursement.custodian_name ? ` · ${reimbursement.custodian_name}` : ""} · {moment(reimbursement.petty_cash_approval_date).format("DD MMM YYYY")}
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 700, color: "#dc2626", whiteSpace: "nowrap" }}>
