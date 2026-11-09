@@ -4282,6 +4282,7 @@ export default function TimesheetFinalizer({
               <DatePicker
                 value={date}
                 onChange={setDate as any}
+                maxDate={new Date()}
                 disabled={loading || saving}
                 className="h-8 text-sm font-medium bg-white border border-slate-300 w-[160px] p-4"
               />
