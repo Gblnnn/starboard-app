@@ -204,7 +204,7 @@ export default function Categories() {
       {dialog && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 100 }}>
           <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-            style={{ background: "var(--background, #fff)", borderRadius: "1.25rem 1.25rem 0 0", padding: "1.5rem", width: "100%", maxWidth: 480 }}>
+            style={{ background: "#fff", borderRadius: "1.25rem 1.25rem 0 0", padding: "1.5rem", width: "100%", maxWidth: 480 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.25rem" }}>
               <h3 style={{ fontWeight: 700 }}>{dialog.mode === "create" ? "New Category" : "Edit Category"}</h3>
               <button onClick={() => setDialog(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><X width="1.25rem" /></button>
