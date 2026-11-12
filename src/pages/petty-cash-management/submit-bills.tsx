@@ -70,6 +70,12 @@ const INPUT_STYLE: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+const SELECT_STYLE: React.CSSProperties = {
+  ...INPUT_STYLE,
+  backgroundColor: "#fff",
+  color: "#111",
+};
+
 const LABEL_STYLE: React.CSSProperties = {
   fontSize: "0.75rem",
   fontWeight: 600,
@@ -466,10 +472,10 @@ export default function SubmitBills() {
               <Loader2 className="animate-spin" width="0.9rem" /> Loading...
             </div>
           ) : (
-            <select id="pc-sub-project" value={selectedProject} onChange={(e) => { setSelectedProject(e.target.value); setBills([]); setSelectedFuelIds(new Set()); }} style={INPUT_STYLE}>
-              <option value="">— Select Project —</option>
+            <select id="pc-sub-project" value={selectedProject} onChange={(e) => { setSelectedProject(e.target.value); setBills([]); setSelectedFuelIds(new Set()); }} style={SELECT_STYLE}>
+              <option value="" style={{ backgroundColor: "#fff", color: "#111" }}>— Select Project —</option>
               {assignments.map((a) => (
-                <option key={a.project_code} value={a.project_code}>
+                <option key={a.project_code} value={a.project_code} style={{ backgroundColor: "#fff", color: "#111" }}>
                   {a.project_code} · Balance: {formatOMR(a.available_balance)}
                 </option>
               ))}
@@ -523,10 +529,10 @@ export default function SubmitBills() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
             <div style={{ gridColumn: "1/-1" }}>
               <label style={LABEL_STYLE}>Category *</label>
-              <select id="pc-new-category" value={newCategoryId} onChange={(e) => setNewCategoryId(e.target.value ? Number(e.target.value) : "")} style={INPUT_STYLE}>
-                <option value="">— Select —</option>
+              <select id="pc-new-category" value={newCategoryId} onChange={(e) => setNewCategoryId(e.target.value ? Number(e.target.value) : "")} style={SELECT_STYLE}>
+                <option value="" style={{ backgroundColor: "#fff", color: "#111" }}>— Select —</option>
                 {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.category_name}</option>
+                  <option key={c.id} value={c.id} style={{ backgroundColor: "#fff", color: "#111" }}>{c.category_name}</option>
                 ))}
               </select>
             </div>
@@ -536,15 +542,15 @@ export default function SubmitBills() {
                 id="pc-new-exp-project"
                 value={newExpenseProjectCode}
                 onChange={(event) => setNewExpenseProjectCode(event.target.value)}
-                style={INPUT_STYLE}
+                style={SELECT_STYLE}
                 disabled={!selectedProject}
               >
-                {!newExpenseProjectCode && <option value="">— Select Expense Project —</option>}
+                {!newExpenseProjectCode && <option value="" style={{ backgroundColor: "#fff", color: "#111" }}>— Select Expense Project —</option>}
                 {newExpenseProjectCode && !projects.some((project) => project.project_code === newExpenseProjectCode) && (
-                  <option value={newExpenseProjectCode}>{newExpenseProjectCode}</option>
+                  <option value={newExpenseProjectCode} style={{ backgroundColor: "#fff", color: "#111" }}>{newExpenseProjectCode}</option>
                 )}
                 {projects.map((project) => (
-                  <option key={project.project_code} value={project.project_code}>
+                  <option key={project.project_code} value={project.project_code} style={{ backgroundColor: "#fff", color: "#111" }}>
                     {project.project_code} — {project.project_name}
                   </option>
                 ))}
