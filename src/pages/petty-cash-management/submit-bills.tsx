@@ -99,6 +99,7 @@ export default function SubmitBills() {
 
   // New bill line form
   const [newCategoryId, setNewCategoryId] = useState<number | "">("");
+  const [newExpenseProjectCode, setNewExpenseProjectCode] = useState("");
   const [newDate, setNewDate] = useState(moment().format("YYYY-MM-DD"));
   const [newParticulars, setNewParticulars] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -215,6 +216,7 @@ export default function SubmitBills() {
       const { data, error } = await supabase
         .from("projects")
         .select("project_code, project_name")
+        .eq("Active_YN", "Yes")
         .order("project_code");
       if (error) {
         toast.error(error.message || "Failed to load projects");
@@ -224,6 +226,10 @@ export default function SubmitBills() {
     };
     void loadProjects();
   }, []);
+
+  useEffect(() => {
+    setNewExpenseProjectCode(selectedProject);
+  }, [selectedProject]);
 
   // Load assignments
   useEffect(() => {
@@ -323,7 +329,7 @@ export default function SubmitBills() {
         id: `bill-${Date.now()}`,
         expense_category_id: newCategoryId as number,
         category_name: cat?.category_name || "",
-        exp_project_code: selectedProject,
+        exp_project_code: newExpenseProjectCode,
         trans_date: newDate,
         particulars: newParticulars.trim(),
         exp_amount: String(amount),
@@ -524,6 +530,26 @@ export default function SubmitBills() {
                 ))}
               </select>
             </div>
+            <div style={{ gridColumn: "1/-1" }}>
+              <label style={LABEL_STYLE}>Expense Project *</label>
+              <select
+                id="pc-new-exp-project"
+                value={newExpenseProjectCode}
+                onChange={(event) => setNewExpenseProjectCode(event.target.value)}
+                style={INPUT_STYLE}
+                disabled={!selectedProject}
+              >
+                {!newExpenseProjectCode && <option value="">— Select Expense Project —</option>}
+                {newExpenseProjectCode && !projects.some((project) => project.project_code === newExpenseProjectCode) && (
+                  <option value={newExpenseProjectCode}>{newExpenseProjectCode}</option>
+                )}
+                {projects.map((project) => (
+                  <option key={project.project_code} value={project.project_code}>
+                    {project.project_code} — {project.project_name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label style={LABEL_STYLE}>Bill Date *</label>
               <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} style={INPUT_STYLE} max={moment().format("YYYY-MM-DD")} />
@@ -625,26 +651,10 @@ export default function SubmitBills() {
                     <p style={{ fontSize: "0.72rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {moment(bill.trans_date).format("DD MMM")} · {bill.particulars}
                     </p>
-                    <label style={{ ...LABEL_STYLE, marginTop: "0.4rem" }}>
-                      Expense Project
-                      <select
-                        aria-label={`Expense project for ${bill.category_name} bill`}
-                        value={bill.exp_project_code}
-                        onChange={(event) => setBills((previous) => previous.map((line) => (
-                          line.id === bill.id ? { ...line, exp_project_code: event.target.value } : line
-                        )))}
-                        style={{ ...INPUT_STYLE, padding: "0.4rem 0.5rem", fontSize: "0.75rem" }}
-                      >
-                        {!projects.some((project) => project.project_code === bill.exp_project_code) && (
-                          <option value={bill.exp_project_code}>{bill.exp_project_code}</option>
-                        )}
-                        {projects.map((project) => (
-                          <option key={project.project_code} value={project.project_code}>
-                            {project.project_code} — {project.project_name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                      Expense project: {bill.exp_project_code}
+                      {projectNameByCode.get(bill.exp_project_code) ? ` — ${projectNameByCode.get(bill.exp_project_code)}` : ""}
+                    </p>
                   </div>
                   <p style={{ fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
                     {formatOMR(parseFloat(bill.exp_amount))}
