@@ -17,6 +17,8 @@ const INPUT_STYLE: React.CSSProperties = {
   fontSize: "0.875rem",
   fontFamily: "inherit",
   boxSizing: "border-box",
+  backgroundColor: "#fff",
+  color: "#111",
 };
 
 export default function Categories() {
