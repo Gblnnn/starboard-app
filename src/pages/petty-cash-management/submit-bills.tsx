@@ -23,6 +23,7 @@ interface BillLine {
   id: string; // client-side temp id
   expense_category_id: number;
   category_name: string;
+  exp_project_code: string;
   trans_date: string;
   particulars: string;
   exp_amount: string;
@@ -49,6 +50,7 @@ interface BillReportRow {
   petty_cash_approver_id: string | null;
   approver_name: string;
   bills: {
+    exp_project_code: string | null;
     trans_date: string;
     particulars: string;
     approved_amount: number;
@@ -86,6 +88,7 @@ export default function SubmitBills() {
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
   const [selectedProject, setSelectedProject] = useState("");
   const [loadingAssignments, setLoadingAssignments] = useState(true);
+  const [projects, setProjects] = useState<{ project_code: string; project_name: string }[]>([]);
 
   // Categories
   const [categories, setCategories] = useState<PettyCashExpenseCategory[]>([]);
@@ -123,6 +126,7 @@ export default function SubmitBills() {
       submission.petty_cash_approver_id!,
       `${submission.approver_name || "Unknown"} (${submission.petty_cash_approver_id})`,
     ])).values()];
+  const projectNameByCode = new Map(projects.map((project) => [project.project_code, project.project_name]));
 
   const loadApprovedSubmissions = async () => {
     if (!reportFrom || !reportTo || reportFrom > reportTo) {
@@ -135,7 +139,7 @@ export default function SubmitBills() {
     try {
       const { data, error } = await supabase
         .from("petty_cash_submission")
-        .select("id,submission_number,submission_date,project_code,emp_id,petty_cash_approver_id,petty_cash_transaction(trans_date,particulars,exp_amount,approved_amount,fin_approved_amount),petty_cash_reimbursement_payment(payment_amount)")
+        .select("id,submission_number,submission_date,project_code,emp_id,petty_cash_approver_id,petty_cash_transaction(exp_project_code,trans_date,particulars,exp_amount,approved_amount,fin_approved_amount),petty_cash_reimbursement_payment(payment_amount)")
         .eq("status", "approved")
         .gte("submission_date", reportFrom)
         .lte("submission_date", reportTo)
@@ -171,6 +175,7 @@ export default function SubmitBills() {
           petty_cash_approver_id: submission.petty_cash_approver_id,
           approver_name: submission.petty_cash_approver_id ? employeeNames.get(submission.petty_cash_approver_id) || "" : "",
           bills: transactions.map((transaction) => ({
+            exp_project_code: transaction.exp_project_code,
             trans_date: transaction.trans_date,
             particulars: transaction.particulars,
             approved_amount: Number(
@@ -203,6 +208,21 @@ export default function SubmitBills() {
       window.removeEventListener("afterprint", clearPrintMode);
       clearPrintMode();
     };
+  }, []);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("project_code, project_name")
+        .order("project_code");
+      if (error) {
+        toast.error(error.message || "Failed to load projects");
+        return;
+      }
+      setProjects(data || []);
+    };
+    void loadProjects();
   }, []);
 
   // Load assignments
@@ -290,6 +310,7 @@ export default function SubmitBills() {
   }, [selectedProject, empId]);
 
   const addBillLine = () => {
+    if (!selectedProject) { toast.error("Select a petty cash project first"); return; }
     if (!newCategoryId) { toast.error("Select an expense category"); return; }
     if (!newParticulars.trim()) { toast.error("Enter a description"); return; }
     const amount = parseFloat(newAmount);
@@ -302,6 +323,7 @@ export default function SubmitBills() {
         id: `bill-${Date.now()}`,
         expense_category_id: newCategoryId as number,
         category_name: cat?.category_name || "",
+        exp_project_code: selectedProject,
         trans_date: newDate,
         particulars: newParticulars.trim(),
         exp_amount: String(amount),
@@ -342,6 +364,7 @@ export default function SubmitBills() {
           id: `fuel-${fuel.id}`,
           expense_category_id: fuelCat?.id ?? 0,
           category_name: "Fuel",
+          exp_project_code: selectedProject,
           trans_date: fuel.date,
           particulars: `Fuel – ${fuel.vehicle_number || ""} – ${fuel.odometer_reading ? fuel.odometer_reading + " km" : ""}`.trim().replace(/–\s*$/, ""),
           exp_amount: String(fuel.amount_spent),
@@ -384,6 +407,7 @@ export default function SubmitBills() {
         submission_id: subData.id,
         trans_date: b.trans_date,
         project_code: selectedProject,
+        exp_project_code: b.exp_project_code,
         emp_id: empId,
         expense_category_id: b.expense_category_id,
         particulars: b.particulars,
@@ -601,6 +625,26 @@ export default function SubmitBills() {
                     <p style={{ fontSize: "0.72rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {moment(bill.trans_date).format("DD MMM")} · {bill.particulars}
                     </p>
+                    <label style={{ ...LABEL_STYLE, marginTop: "0.4rem" }}>
+                      Expense Project
+                      <select
+                        aria-label={`Expense project for ${bill.category_name} bill`}
+                        value={bill.exp_project_code}
+                        onChange={(event) => setBills((previous) => previous.map((line) => (
+                          line.id === bill.id ? { ...line, exp_project_code: event.target.value } : line
+                        )))}
+                        style={{ ...INPUT_STYLE, padding: "0.4rem 0.5rem", fontSize: "0.75rem" }}
+                      >
+                        {!projects.some((project) => project.project_code === bill.exp_project_code) && (
+                          <option value={bill.exp_project_code}>{bill.exp_project_code}</option>
+                        )}
+                        {projects.map((project) => (
+                          <option key={project.project_code} value={project.project_code}>
+                            {project.project_code} — {project.project_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                   <p style={{ fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
                     {formatOMR(parseFloat(bill.exp_amount))}
@@ -684,12 +728,12 @@ export default function SubmitBills() {
               ) : (
                 <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
                   <colgroup>
-                    <col style={{ width: "4%" }} /><col style={{ width: "10%" }} /><col style={{ width: "12%" }} />
-                    <col style={{ width: "9%" }} /><col style={{ width: "31%" }} /><col style={{ width: "11%" }} />
-                    <col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
+                    <col style={{ width: "4%" }} /><col style={{ width: "9%" }} /><col style={{ width: "11%" }} />
+                    <col style={{ width: "8%" }} /><col style={{ width: "24%" }} /><col style={{ width: "10%" }} />
+                    <col style={{ width: "11%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
                   </colgroup>
                   <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["S/N", "Submission Date", "Submission No.", "Bill Date", "Bill Details", "Bill Approved", "Reimbursed", "Outstanding"].map((heading) => (
+                    {["S/N", "Submission Date", "Submission No.", "Bill Date", "Bill Details", "Expense Project", "Bill Approved", "Reimbursed", "Outstanding"].map((heading) => (
                       <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Bill Approved", "Reimbursed", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
                     ))}
                   </tr></thead>
@@ -698,7 +742,7 @@ export default function SubmitBills() {
                       <Fragment key={submission.id}>
                         {(submission.bills.length > 0
                           ? submission.bills
-                          : [{ trans_date: "", particulars: "No bill details", approved_amount: 0 }]
+                          : [{ exp_project_code: null, trans_date: "", particulars: "No bill details", approved_amount: 0 }]
                         ).map((bill, billIndex) => (
                           <tr key={`${submission.id}-${billIndex}`}>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? index + 1 : ""}</td>
@@ -706,13 +750,18 @@ export default function SubmitBills() {
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? submission.submission_number : ""}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.trans_date ? moment(bill.trans_date).format("DD MMM YYYY") : "—"}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.particulars}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>
+                              {bill.exp_project_code
+                                ? `${bill.exp_project_code}${projectNameByCode.get(bill.exp_project_code) ? ` — ${projectNameByCode.get(bill.exp_project_code)}` : ""}`
+                                : "—"}
+                            </td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(bill.approved_amount)}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>—</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>—</td>
                           </tr>
                         ))}
                         <tr>
-                          <td colSpan={5} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
+                          <td colSpan={6} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
                             Submission Total — {submission.submission_number}
                           </td>
                           <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(submission.approved_amount)}</td>
@@ -721,7 +770,7 @@ export default function SubmitBills() {
                         </tr>
                       </Fragment>
                     ))}
-                    <tr><td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
+                    <tr><td colSpan={8} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
                       <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(billReportRows.reduce((total, submission) => total + submission.outstanding, 0))}</td>
                     </tr>
                   </tbody>
