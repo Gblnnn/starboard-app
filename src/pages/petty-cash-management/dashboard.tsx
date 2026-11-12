@@ -23,6 +23,7 @@ interface LedgerRow {
   date: string;
   reference: string;
   project_code: string;
+  exp_project_code?: string | null;
   emp_id: string;
   details: string;
   receipts: number;
@@ -161,7 +162,7 @@ export default function Dashboard() {
         .order("payment_date");
       let transactionsQuery = supabase
         .from("petty_cash_transaction")
-        .select("id,submission_id,project_code,emp_id,expense_category_id,trans_date,particulars,fin_approved_amount,approved_amount,exp_amount")
+        .select("id,submission_id,project_code,exp_project_code,emp_id,expense_category_id,trans_date,particulars,fin_approved_amount,approved_amount,exp_amount")
         .in("project_code", projectCodes)
         .lte("trans_date", toDate)
         .order("trans_date");
@@ -238,6 +239,7 @@ export default function Dashboard() {
           date: bill.trans_date,
           reference: submission.submission_number,
           project_code: bill.project_code,
+          exp_project_code: bill.exp_project_code,
           emp_id: bill.emp_id,
           details: `${categoriesById.get(bill.expense_category_id) || "Expense"} — ${bill.particulars}${reimbursements.length ? `\nFinance reimbursement: ${reimbursements.join("; ")}` : "\nPaid from petty cash balance"}`,
           receipts: 0,
@@ -486,7 +488,7 @@ export default function Dashboard() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                     <thead>
                       <tr style={{ background: "#1e3a5f", color: "white" }}>
-                        {["Sl. No.", "Date", "Reference", "Project", "Custodian", "Details", "Cash Received", "Payments (Approved Bills)", "Running Balance"].map((h) => (
+                        {["Sl. No.", "Date", "Reference", "Project", "Expense Project", "Custodian", "Details", "Cash Received", "Payments (Approved Bills)", "Running Balance"].map((h) => (
                           <th key={h} style={{ padding: "0.6rem 0.75rem", textAlign: ["Cash Received", "Payments (Approved Bills)", "Running Balance"].includes(h) ? "right" : "left", fontWeight: 600, fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -498,6 +500,7 @@ export default function Dashboard() {
                           <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.isOpeningBalance ? "—" : moment(row.date).format("DD MMM YYYY")}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.reference}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.project_code}</td>
+                          <td style={{ padding: "0.5rem 0.75rem" }}>{row.exp_project_code || "—"}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{row.emp_id}</td>
                           <td style={{ padding: "0.5rem 0.75rem", minWidth: 280, whiteSpace: "pre-line" }}>{row.details}</td>
                           <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", color: "#16a34a", fontWeight: row.receipts > 0 ? 600 : undefined }}>
@@ -512,7 +515,7 @@ export default function Dashboard() {
                         </tr>
                       ))}
                       <tr style={{ borderTop: "2px solid #1e3a5f", fontWeight: 700 }}>
-                        <td colSpan={6} style={{ padding: "0.6rem 0.75rem" }}>Total</td>
+                        <td colSpan={7} style={{ padding: "0.6rem 0.75rem" }}>Total</td>
                         <td style={{ padding: "0.6rem 0.75rem", textAlign: "right", color: "#16a34a" }}>
                           {formatOMR(ledgerRows.reduce((s, r) => s + r.receipts, 0))}
                         </td>
