@@ -4,7 +4,7 @@ import { auth } from "@/firebase";
 import emailjs from "@emailjs/browser";
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu";
 import { motion } from "framer-motion";
-import { Bug, List, LoaderCircle, LogOut, RefreshCcw, UserX, KeyRound } from "lucide-react";
+import { Bug, Download, List, LoaderCircle, LogOut, RefreshCcw, UserX, KeyRound } from "lucide-react";
 import moment from "moment";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -22,6 +22,11 @@ interface Props {
   onLogout: () => void;
   onProfile: () => void;
   onBug?: () => void;
+}
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
 const CHANGELOGS = [
@@ -65,6 +70,9 @@ export default function IndexDropDown(props: Props) {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [issue, setIssue] = useState("");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installHelpOpen, setInstallHelpOpen] = useState(false);
+  const [appInstalled, setAppInstalled] = useState(() => window.matchMedia("(display-mode: standalone)").matches);
 
 
   const serviceId = "service_fixajl8";
@@ -74,9 +82,19 @@ export default function IndexDropDown(props: Props) {
     // Track online/offline status
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const handleAppInstalled = () => {
+      setAppInstalled(true);
+      setDeferredInstallPrompt(null);
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     // Periodically check online status (every 2 seconds)
     const checkInterval = setInterval(() => {
@@ -86,9 +104,43 @@ export default function IndexDropDown(props: Props) {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
       clearInterval(checkInterval);
     };
   }, []);
+
+  const handleInstallApp = async () => {
+    if (appInstalled) {
+      toast.info("StarBoard is already installed on this device.");
+      return;
+    }
+
+    if (!deferredInstallPrompt) {
+      setInstallHelpOpen(true);
+      return;
+    }
+
+    const installPrompt = deferredInstallPrompt;
+    setDeferredInstallPrompt(null);
+    try {
+      await installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") {
+        setAppInstalled(true);
+        toast.success("StarBoard was installed successfully.");
+      }
+    } catch (error) {
+      console.error("App installation failed:", error);
+      toast.error("Unable to start the app installation. Please try again from your browser menu.");
+    }
+  };
+
+  const installInstructions = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    ? "On iPhone or iPad, open this page in Safari, tap Share, then choose Add to Home Screen."
+    : /android/i.test(navigator.userAgent)
+      ? "On Android, open your browser menu and choose Install app or Add to Home screen."
+      : "On a computer, use the install icon in the address bar, or open the Chrome/Edge menu and choose Install StarBoard.";
 
   const handleBugReport = async () => {
     if (!issue.trim()) return;
@@ -298,6 +350,15 @@ export default function IndexDropDown(props: Props) {
             </DropdownMenuItem>
 
             <DropdownMenuItem
+              onClick={() => void handleInstallApp()}
+              className="cursor-pointer"
+              style={{ display: "flex", justifyContent: "flex-start", alignItems: "center" }}
+            >
+              <Download className="mr-2 h-4 w-4 text-indigo-500" />
+              <span>Download / Install App</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
               onClick={props.onLogout}
               className="cursor-pointer"
               disabled={loading}
@@ -373,6 +434,20 @@ export default function IndexDropDown(props: Props) {
               </div>
             ))}
           </div>
+        </div>
+      </ResponsiveModal>
+
+      <ResponsiveModal
+        open={installHelpOpen}
+        onOpenChange={setInstallHelpOpen}
+        title="Install StarBoard"
+        description="Add the web application to your device for app-like access."
+      >
+        <div className="p-4 space-y-3 text-sm text-gray-700">
+          <p>{installInstructions}</p>
+          <p className="text-xs text-gray-500">
+            StarBoard installs as a web app; a separate APK or desktop installer is not available.
+          </p>
         </div>
       </ResponsiveModal>
     </>
