@@ -31,6 +31,7 @@ interface Project {
   id: number;
   project_code: string;
   project_name: string;
+  Active_YN: string | null;
   project_location: string | null;
   project_in_time: string | null;
   project_out_time: string | null;
@@ -52,6 +53,7 @@ interface Device {
 interface ProjectForm {
   project_code: string;
   project_name: string;
+  Active_YN: 'Yes' | 'No';
   project_location: string;
   project_in_time: string;
   project_out_time: string;
@@ -70,6 +72,7 @@ interface ProjectForm {
 const defaultForm: ProjectForm = {
   project_code: '',
   project_name: '',
+  Active_YN: 'Yes',
   project_location: '',
   project_in_time: '08:00',
   project_out_time: '17:00',
@@ -451,6 +454,7 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
         .insert({
           project_code: form.project_code.trim(),
           project_name: form.project_name.trim(),
+          Active_YN: 'Yes',
           project_location: finalLocation || null,
           project_in_time: inTimeISO,
           project_out_time: outTimeISO,
@@ -480,6 +484,7 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
     setForm({
       project_code: project.project_code,
       project_name: project.project_name,
+      Active_YN: project.Active_YN === 'No' ? 'No' : 'Yes',
       project_location: displayName,
       project_in_time: formatISOToTime(project.project_in_time) || '08:00',
       project_out_time: formatISOToTime(project.project_out_time) || '17:00',
@@ -546,6 +551,7 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
         .from('projects')
         .update({
           project_name: form.project_name.trim(),
+          Active_YN: form.Active_YN,
           project_location: finalLocation || null,
           project_in_time: inTimeISO,
           project_out_time: outTimeISO,
@@ -708,6 +714,7 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
     setForm({
       project_code: project.project_code,
       project_name: project.project_name,
+      Active_YN: project.Active_YN === 'No' ? 'No' : 'Yes',
       project_location: displayName || '',
       project_in_time: project.project_in_time || '',
       project_out_time: project.project_out_time || '',
@@ -1615,7 +1622,7 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
         title=""
         description=""
         hideHeader
-        contentStyle={{ padding: 0 }}
+        contentStyle={{ padding: 0, backgroundColor: '#fff' }}
       >
         {editingProject && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }} className="overflow-hidden">
@@ -1664,6 +1671,21 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
                   placeholder="e.g. Vale Jetty Port Site"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5" htmlFor="project-active-yn">
+                  Active
+                </label>
+                <select
+                  id="project-active-yn"
+                  value={form.Active_YN}
+                  onChange={(e) => setForm(f => ({ ...f, Active_YN: e.target.value as 'Yes' | 'No' }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors bg-white"
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
               </div>
 
               <div>
