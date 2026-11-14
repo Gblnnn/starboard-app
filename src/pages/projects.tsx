@@ -1625,7 +1625,7 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
         contentStyle={{ padding: 0, backgroundColor: '#fff' }}
       >
         {editingProject && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }} className="overflow-hidden">
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }} className="overflow-hidden">
             <div style={{ justifyContent: "space-between" }} className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -1641,7 +1641,7 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
               </button>
             </div>
 
-            <div className="px-4 py-4 space-y-3">
+            <div className="px-4 py-4 space-y-3 overflow-y-auto">
               {formError && (
                 <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                   {formError}
@@ -1661,6 +1661,22 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
               </div>
 
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5" htmlFor="project-active-yn">
+                  Active
+                </label>
+                <select
+                  id="project-active-yn"
+                  value={form.Active_YN}
+                  onChange={(e) => setForm(f => ({ ...f, Active_YN: e.target.value as 'Yes' | 'No' }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors bg-white"
+                  style={{ color: '#111827', colorScheme: 'light' }}
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
                   Project Name <span className="text-red-400">*</span>
                 </label>
@@ -1671,21 +1687,6 @@ export default function Projects({ refreshTrigger, onLoadingChange, employeeSumm
                   placeholder="e.g. Vale Jetty Port Site"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5" htmlFor="project-active-yn">
-                  Active
-                </label>
-                <select
-                  id="project-active-yn"
-                  value={form.Active_YN}
-                  onChange={(e) => setForm(f => ({ ...f, Active_YN: e.target.value as 'Yes' | 'No' }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-gray-400 transition-colors bg-white"
-                >
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
               </div>
 
               <div>
