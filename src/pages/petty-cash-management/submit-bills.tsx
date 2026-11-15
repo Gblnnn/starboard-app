@@ -302,7 +302,7 @@ export default function SubmitBills() {
         // Eligible: employee_code matches empId, project matches, not claimed
         const { data, error } = await supabase
           .from("fuel_log")
-          .select("id, date, employee_code, employee_name, project, vehicle_number, odometer_reading, amount_spent, litres, petty_cash_submission_id")
+          .select("id, date, bill_date, employee_code, employee_name, project, vehicle_number, odometer_reading, amount_spent, litres, petty_cash_submission_id")
           .eq("employee_code", empId)
           .eq("project", selectedProject)
           .is("petty_cash_submission_id", null)
@@ -378,7 +378,7 @@ export default function SubmitBills() {
           category_name: "Fuel",
           exp_project_code: selectedProject,
           trans_date: fuel.date,
-          particulars: `Fuel – ${fuel.vehicle_number || ""} – ${fuel.odometer_reading ? fuel.odometer_reading + " km" : ""}`.trim().replace(/–\s*$/, ""),
+          particulars: `Fuel – ${fuel.vehicle_number || ""} – ${fuel.odometer_reading ? fuel.odometer_reading + " km" : ""} – Bill Date: ${moment(fuel.bill_date || fuel.date).format("DD MMM YYYY")}`.trim().replace(/–\s*$/, ""),
           exp_amount: String(fuel.amount_spent),
           fuel_log_id: fuel.id,
           is_fuel: true,
@@ -616,6 +616,9 @@ export default function SubmitBills() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: 600, fontSize: "0.82rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {moment(fuel.date).format("DD MMM YYYY")} · {fuel.vehicle_number || "—"}
+                    </p>
+                    <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                      Fuel Bill Date: {moment(fuel.bill_date || fuel.date).format("DD MMM YYYY")}
                     </p>
                     <p style={{ fontSize: "0.72rem", color: "#64748b" }}>
                       {fuel.odometer_reading ? `${fuel.odometer_reading} km` : ""} {fuel.litres ? `· ${fuel.litres}L` : ""}
