@@ -36,6 +36,7 @@ interface FuelReportEmployee {
 interface FuelReportRow {
   id: string | number;
   date: string;
+  bill_date: string | null;
   employee_code: string | null;
   employee_name: string | null;
   project: string | null;
@@ -84,7 +85,7 @@ const FuelLogPrintableReport = ({
       </div>
       <table className="fuel-report-table">
         <thead><tr>
-          <th>S.No.</th><th>Date</th><th>Employee ID / Name</th><th>Project</th>
+          <th>S.No.</th><th>Date</th><th>Fuel Bill Date</th><th>Employee ID / Name</th><th>Project</th>
           <th>Vehicle #</th><th>Qty in L</th><th>Odometer Reading</th><th>Amount (OMR)</th>
         </tr></thead>
         <tbody>
@@ -93,6 +94,7 @@ const FuelLogPrintableReport = ({
             return <tr key={`${empId}-${row.date}-${index}`}>
               <td>{index + 1}</td>
               <td>{moment(row.date).format("DD-MMM-YY")}</td>
+              <td>{moment(row.bill_date || row.date).format("DD-MMM-YY")}</td>
               <td>{[empId, employeeNames.get(empId) || row.employee_name || ""].filter(Boolean).join(" ")}</td>
               <td>{String(row.project || "").trim()}</td>
               <td>{row.vehicle_number || ""}</td>
@@ -101,9 +103,9 @@ const FuelLogPrintableReport = ({
               <td>{Number(row.amount_spent || 0).toFixed(3)}</td>
             </tr>;
           })}
-          {Array.from({ length: blankRows }, (_, index) => <tr key={`blank-${index}`} className="fuel-report-blank-row">{Array.from({ length: 8 }, (_, column) => <td key={column}>&nbsp;</td>)}</tr>)}
+          {Array.from({ length: blankRows }, (_, index) => <tr key={`blank-${index}`} className="fuel-report-blank-row">{Array.from({ length: 9 }, (_, column) => <td key={column}>&nbsp;</td>)}</tr>)}
           <tr className="fuel-report-total-row">
-            <td colSpan={5}>Total</td><td>{totalLitres.toFixed(3)}</td><td></td><td>OMR {totalAmount.toFixed(3)}</td>
+            <td colSpan={6}>Total</td><td>{totalLitres.toFixed(3)}</td><td></td><td>OMR {totalAmount.toFixed(3)}</td>
           </tr>
         </tbody>
       </table>
@@ -118,6 +120,8 @@ const FuelLogPrintableReport = ({
 // Shared Fuel Log Form Component
 interface FuelLogFormContentProps {
   date: string;
+  billDate: string;
+  setBillDate: (date: string) => void;
   vehicleNumber: string | undefined;
   isPrivateVehicle: boolean;
   vehicleCount: number;
@@ -143,6 +147,8 @@ interface FuelLogFormContentProps {
 
 const FuelLogFormContent: React.FC<FuelLogFormContentProps> = ({
   date,
+  billDate,
+  setBillDate,
   vehicleNumber,
   isPrivateVehicle,
   vehicleCount,
@@ -312,6 +318,22 @@ const FuelLogFormContent: React.FC<FuelLogFormContentProps> = ({
                 </motion.div>
               </div>
             </motion.div>
+
+            <div style={{ padding: "1rem", borderRadius: "1rem", background: "rgba(100, 100, 100, 0.05)" }}>
+              <label htmlFor="fuel-bill-date" style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.75rem" }}>Fuel Bill Date</label>
+              <input
+                id="fuel-bill-date"
+                type="date"
+                value={billDate}
+                max={moment().format("YYYY-MM-DD")}
+                onChange={(event) => {
+                  const selectedDate = event.target.value;
+                  if (selectedDate && selectedDate > moment().format("YYYY-MM-DD")) return;
+                  setBillDate(selectedDate);
+                }}
+                style={{ width: "100%", padding: "0.875rem 1rem", borderRadius: "0.75rem", fontSize: "1rem", background: "rgba(100, 100, 100, 0.08)" }}
+              />
+            </div>
 
             <div style={{ padding: "1rem", borderRadius: "1rem", background: "rgba(100, 100, 100, 0.05)" }}>
               <label htmlFor="fuel-project" style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.75rem" }}>Project</label>
@@ -807,6 +829,7 @@ const FuelLogDetailContent: React.FC<FuelLogDetailContentProps> = ({
 export default function FuelLog() {
   const { userData } = useAuth();
   const [date, setDate] = useState(moment().format("YYYY-MM-DD"));
+  const [billDate, setBillDate] = useState(moment().format("YYYY-MM-DD"));
   const [odometerReading, setOdometerReading] = useState("");
   const [amountSpent, setAmountSpent] = useState("");
   const [litres, setLitres] = useState("");
@@ -1137,6 +1160,7 @@ export default function FuelLog() {
       const pendingAsFuelLogs: FuelLogType[] = pendingLogs.map(log => ({
         id: log.id,
         date: log.data.date,
+        bill_date: log.data.bill_date || log.data.date,
         odometer_reading: log.data.odometer_reading,
         amount_spent: log.data.amount_spent,
         employee_name: log.data.employee_name,
@@ -1165,6 +1189,7 @@ export default function FuelLog() {
       const pendingAsFuelLogs: FuelLogType[] = pendingLogs.map(log => ({
         id: log.id,
         date: log.data.date,
+        bill_date: log.data.bill_date || log.data.date,
         odometer_reading: log.data.odometer_reading,
         amount_spent: log.data.amount_spent,
         employee_name: log.data.employee_name,
@@ -1290,6 +1315,7 @@ export default function FuelLog() {
 
         const fuelLogData = {
           date: date,
+          bill_date: billDate || date,
           odometer_reading: odometerReading ? parseFloat(odometerReading) : 0,
           amount_spent: parseFloat(amountSpent),
           litres: litres ? parseFloat(litres) : undefined,
@@ -1312,6 +1338,7 @@ export default function FuelLog() {
         // Create new log
         const fuelLogData = {
           date: date,
+          bill_date: billDate || date,
           odometer_reading: odometerReading ? parseFloat(odometerReading) : 0,
           amount_spent: parseFloat(amountSpent),
           litres: litres ? parseFloat(litres) : undefined,
@@ -1364,6 +1391,7 @@ export default function FuelLog() {
 
       // Reset form
       setDate(moment().format("YYYY-MM-DD"));
+      setBillDate(moment().format("YYYY-MM-DD"));
       setOdometerReading("");
       setAmountSpent("");
       setLitres("");
@@ -1404,7 +1432,7 @@ export default function FuelLog() {
       do {
         let query = supabase
           .from("fuel_log")
-          .select("id, date, employee_code, employee_name, project, vehicle_number, litres, odometer_reading, amount_spent")
+          .select("id, date, bill_date, employee_code, employee_name, project, vehicle_number, litres, odometer_reading, amount_spent")
           .gte("date", fuelReportFromDate)
           .lt("date", moment(fuelReportToDate).add(1, "day").format("YYYY-MM-DD"))
           .order("date", { ascending: true })
@@ -1470,6 +1498,7 @@ export default function FuelLog() {
 
     // Populate form with selected log data
     setDate(selectedLog.date);
+    setBillDate(selectedLog.bill_date || selectedLog.date);
     setOdometerReading(selectedLog.odometer_reading ? String(selectedLog.odometer_reading) : "");
     setAmountSpent(String(selectedLog.amount_spent));
     setLitres(selectedLog.litres ? String(selectedLog.litres) : "");
@@ -1505,13 +1534,14 @@ export default function FuelLog() {
         .fuel-report-table tbody tr { height: 19px; }
         .fuel-report-table tbody tr:nth-child(even) { background: #c3e8f2; }
         .fuel-report-table th:nth-child(1), .fuel-report-table td:nth-child(1) { width: 7%; }
-        .fuel-report-table th:nth-child(2), .fuel-report-table td:nth-child(2) { width: 11%; }
-        .fuel-report-table th:nth-child(3), .fuel-report-table td:nth-child(3) { width: 22%; }
-        .fuel-report-table th:nth-child(4), .fuel-report-table td:nth-child(4) { width: 15%; }
-        .fuel-report-table th:nth-child(5), .fuel-report-table td:nth-child(5) { width: 11%; }
-        .fuel-report-table th:nth-child(6), .fuel-report-table td:nth-child(6) { width: 8%; }
-        .fuel-report-table th:nth-child(7), .fuel-report-table td:nth-child(7) { width: 12%; }
-        .fuel-report-table th:nth-child(8), .fuel-report-table td:nth-child(8) { width: 14%; }
+        .fuel-report-table th:nth-child(2), .fuel-report-table td:nth-child(2) { width: 10%; }
+        .fuel-report-table th:nth-child(3), .fuel-report-table td:nth-child(3) { width: 10%; }
+        .fuel-report-table th:nth-child(4), .fuel-report-table td:nth-child(4) { width: 19%; }
+        .fuel-report-table th:nth-child(5), .fuel-report-table td:nth-child(5) { width: 13%; }
+        .fuel-report-table th:nth-child(6), .fuel-report-table td:nth-child(6) { width: 10%; }
+        .fuel-report-table th:nth-child(7), .fuel-report-table td:nth-child(7) { width: 8%; }
+        .fuel-report-table th:nth-child(8), .fuel-report-table td:nth-child(8) { width: 12%; }
+        .fuel-report-table th:nth-child(9), .fuel-report-table td:nth-child(9) { width: 11%; }
         .fuel-report-total-row { font-weight: 700; }
         .fuel-report-signatures { display: flex; justify-content: space-between; margin-top: 38px; font-size: 10px; }
         .fuel-report-signatures > div { display: flex; min-width: 40%; flex-direction: column; justify-content: space-between; min-height: 95px; }
@@ -1834,7 +1864,9 @@ export default function FuelLog() {
               return;
             }
             setEditingLog(null);
-            setDate(moment().format("YYYY-MM-DD"));
+            const today = moment().format("YYYY-MM-DD");
+            setDate(today);
+            setBillDate(today);
             setOdometerReading("");
             setAmountSpent("");
             setDrawerOpen(true);
@@ -1948,6 +1980,8 @@ export default function FuelLog() {
       >
         <FuelLogFormContent
           date={date}
+          billDate={billDate}
+          setBillDate={setBillDate}
           vehicleNumber={vehicleNumber}
           odometerReading={odometerReading}
           setOdometerReading={setOdometerReading}
@@ -2132,6 +2166,7 @@ export default function FuelLog() {
                       whileTap={{ scale: isFuture ? 1 : 0.9 }}
                       onClick={() => {
                         if (!isFuture) {
+                          if (billDate === date) setBillDate(dateString);
                           setDate(dateString);
                           setShowDatePicker(false);
                         }
