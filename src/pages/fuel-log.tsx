@@ -1556,11 +1556,20 @@ export default function FuelLog() {
         .fuel-report-filters .fuel-report-print-button { background: #0f766e; }
         .fuel-report-empty { padding: 1.5rem 0; color: #64748b; font-size: 0.875rem; text-align: center; }
         @media print {
-          @page { size: A4 portrait; margin: 8mm; }
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+            @bottom-right {
+              content: "Page " counter(page) " of " counter(pages);
+              font: 8px Arial, sans-serif;
+            }
+          }
+          body.fuel-log-report-print *:not(.fuel-report-print-only):not(.fuel-report-print-only *):not(:has(.fuel-report-print-only)) { display: none !important; }
+          body.fuel-log-report-print *:has(.fuel-report-print-only):not(.fuel-report-print-only) { display: contents !important; }
           body.fuel-log-report-print * { visibility: hidden !important; }
           body.fuel-log-report-print .fuel-report-print-only,
           body.fuel-log-report-print .fuel-report-print-only * { visibility: visible !important; }
-          body.fuel-log-report-print .fuel-report-print-only { display: block !important; position: fixed; inset: 0; width: 100%; padding: 0; }
+          body.fuel-log-report-print .fuel-report-print-only { display: block !important; position: static; width: 100%; padding: 0; }
           body.fuel-log-report-print .fuel-report-heading h1 { font-size: 14px; }
           body.fuel-log-report-print .fuel-report-heading p { margin-bottom: 8px; font-size: 11px; }
           body.fuel-log-report-print .fuel-report-heading h2 { margin-bottom: 7px; font-size: 12px; }
@@ -1569,6 +1578,8 @@ export default function FuelLog() {
           body.fuel-log-report-print .fuel-report-table { font-size: 9px; }
           body.fuel-log-report-print .fuel-report-table th, body.fuel-log-report-print .fuel-report-table td { padding: 2px; }
           body.fuel-log-report-print .fuel-report-table th { height: 25px; }
+          body.fuel-log-report-print .fuel-report-table thead { display: table-header-group; }
+          body.fuel-log-report-print .fuel-report-table tr { break-inside: avoid; page-break-inside: avoid; }
           body.fuel-log-report-print .fuel-report-table tbody tr { height: 17px; }
           body.fuel-log-report-print .fuel-report-signatures { margin-top: 30px; font-size: 10px; }
           body.fuel-log-report-print .fuel-report-signatures > div { min-height: 75px; }
