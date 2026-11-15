@@ -164,6 +164,7 @@ export interface PettyCashBalance {
 export interface FuelLogEntry {
   id: string;
   date: string;
+  bill_date: string | null;
   employee_code: string | null;
   employee_name: string | null;
   project: string | null;
