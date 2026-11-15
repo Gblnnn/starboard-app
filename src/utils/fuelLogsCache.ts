@@ -8,6 +8,7 @@ const CACHE_EXPIRY_HOURS = 24; // Cache valid for 24 hours
 export interface FuelLog {
   id: string;
   date: string;
+  bill_date?: string | null;
   odometer_reading: number;
   amount_spent: number;
   litres?: number;
@@ -107,6 +108,7 @@ export const fetchAndCacheFuelLogs = async (userEmail: string): Promise<FuelLog[
     const logs: FuelLog[] = (data || []).map(d => ({
       id: d.id,
       date: d.date,
+      bill_date: d.bill_date || d.date,
       odometer_reading: Number(d.odometer_reading) || 0,
       amount_spent: Number(d.amount_spent) || 0,
       litres: d.litres ? Number(d.litres) : undefined,
