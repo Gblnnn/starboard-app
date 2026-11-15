@@ -73,6 +73,9 @@ export default function NewRequest() {
   const [requestReportRows, setRequestReportRows] = useState<RequestReportRow[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
+  const [pendingRequestRows, setPendingRequestRows] = useState<RequestReportRow[]>([]);
+  const [loadingPendingRequests, setLoadingPendingRequests] = useState(false);
+  const [pendingRequestsLoaded, setPendingRequestsLoaded] = useState(false);
 
   useEffect(() => {
     if (!empId) return;
@@ -197,12 +200,58 @@ export default function NewRequest() {
   };
 
   const printRequestReport = () => {
+    document.body.classList.remove("pc-pending-print-mode");
     document.body.classList.add("pc-print-mode");
     window.print();
   };
 
+  const loadPendingRequests = async () => {
+    if (!empId) {
+      toast.error("Employee ID not found");
+      return;
+    }
+
+    setLoadingPendingRequests(true);
+    setPendingRequestsLoaded(false);
+    try {
+      const { data, error } = await supabase
+        .from("petty_cash_request")
+        .select("id,request_number,request_date,project_code,emp_id,particulars,request_amount")
+        .eq("emp_id", empId)
+        .in("status", ["pending_verification", "pending_approval"])
+        .order("request_date", { ascending: true });
+      if (error) throw error;
+
+      setPendingRequestRows((data || []).map((request) => ({
+        id: request.id,
+        request_number: request.request_number,
+        request_date: request.request_date,
+        project_code: request.project_code,
+        emp_id: request.emp_id,
+        custodian_name: userData?.name || "",
+        approver_id: null,
+        approver_name: "",
+        particulars: request.particulars,
+        request_amount: Number(request.request_amount),
+        approved_amount: 0,
+        total_paid: 0,
+        outstanding: 0,
+      })));
+      setPendingRequestsLoaded(true);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to load pending cash requests");
+    } finally {
+      setLoadingPendingRequests(false);
+    }
+  };
+
+  const printPendingRequests = () => {
+    document.body.classList.add("pc-pending-print-mode", "pc-print-mode");
+    window.print();
+  };
+
   useEffect(() => {
-    const clearPrintMode = () => document.body.classList.remove("pc-print-mode");
+    const clearPrintMode = () => document.body.classList.remove("pc-print-mode", "pc-pending-print-mode");
     window.addEventListener("afterprint", clearPrintMode);
     return () => {
       window.removeEventListener("afterprint", clearPrintMode);
@@ -386,7 +435,7 @@ export default function NewRequest() {
             )}
           </div>
           {reportLoaded && (
-            <div className="pc-print-report" style={{ overflowX: "auto" }}>
+            <div className="pc-print-report pc-approved-report" style={{ overflowX: "auto" }}>
               <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
                 <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
                 <p>Petty Cash Request Report</p>
@@ -444,6 +493,57 @@ export default function NewRequest() {
             </div>
           )}
         </section>
+
+        <section style={{ marginTop: "1rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
+          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Pending Cash Requests</h3>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Print all your requests awaiting verification or approval.</p>
+          <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <button type="button" onClick={loadPendingRequests} disabled={loadingPendingRequests} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+              {loadingPendingRequests ? "Loading..." : "Load Pending Requests"}
+            </button>
+            {pendingRequestsLoaded && pendingRequestRows.length > 0 && (
+              <button type="button" onClick={printPendingRequests} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <Printer width="0.9rem" /> Print
+              </button>
+            )}
+          </div>
+          {pendingRequestsLoaded && (
+            <div className="pc-print-report pc-pending-report" style={{ overflowX: "auto" }}>
+              <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
+                <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
+                <p>Petty Cash Requests (pending for approval)</p>
+                <p>{userData?.name || "—"} ({empId})</p>
+              </header>
+              {pendingRequestRows.length === 0 ? (
+                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No pending cash requests.</p>
+              ) : (
+                <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
+                  <colgroup>
+                    <col style={{ width: "6%" }} /><col style={{ width: "14%" }} /><col style={{ width: "15%" }} />
+                    <col style={{ width: "12%" }} /><col style={{ width: "35%" }} /><col style={{ width: "18%" }} />
+                  </colgroup>
+                  <thead><tr style={{ background: "#e5e7eb" }}>
+                    {["S/N", "Request Date", "Request No.", "Project", "Purpose", "Requested (OMR)"].map((heading) => (
+                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: heading === "Requested (OMR)" ? "right" : "left" }}>{heading}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {pendingRequestRows.map((request, index) => (
+                      <tr key={request.id}>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(request.request_date).format("DD MMM YYYY")}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.request_number}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.project_code}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.particulars}</td>
+                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.request_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </section>
       </div>
       <style>{`@media print {
         @page { size: A4 portrait; margin: 8mm; }
@@ -460,6 +560,8 @@ export default function NewRequest() {
         body.pc-print-mode .pc-report-table thead { display: table-header-group; }
         body.pc-print-mode .pc-report-table tr, body.pc-print-mode .pc-report-signatures { break-inside: avoid; }
         body.pc-print-mode .pc-report-signatures { font-size: 10px; }
+        body.pc-pending-print-mode .pc-approved-report { display: none !important; }
+        body.pc-print-mode:not(.pc-pending-print-mode) .pc-pending-report { display: none !important; }
       }`}</style>
     </motion.div>
   );
