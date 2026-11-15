@@ -4,6 +4,7 @@ export interface PendingFuelLog {
   id: string;
   data: {
     date: string;
+    bill_date?: string;
     odometer_reading: number;
     amount_spent: number;
     litres?: number;
@@ -122,6 +123,7 @@ export async function syncPendingFuelLog(log: PendingFuelLog): Promise<void> {
       .from("fuel_log")
       .insert({
         ...log.data,
+        bill_date: log.data.bill_date || log.data.date,
         created_at: new Date().toISOString(),
       });
     if (error) throw error;
