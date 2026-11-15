@@ -1792,7 +1792,7 @@ export default function FuelLog() {
                 fuelLogs.map((log) => (
                   <Directive
                     subtext={`${log.project ? `Project - ${String(log.project).trim()} · ` : ""}Vehicle - ${log.vehicle_number}`}
-                    id_subtitle={moment(log.created_at.todayISO).format("LL")}
+                    id_subtitle={moment(log.bill_date || log.date).format("LL")}
                     noArrow
                     tag={log.amount_spent.toFixed(3)}
                     key={log.id}
