@@ -60,20 +60,6 @@ interface BillReportRow {
   outstanding: number;
 }
 
-interface PendingBillSubmission {
-  id: number;
-  submission_number: string;
-  submission_date: string;
-  project_code: string;
-  bills: {
-    exp_project_code: string | null;
-    trans_date: string;
-    particulars: string;
-    exp_amount: number;
-    expense_category_id: number | null;
-  }[];
-}
-
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "0.75rem 0.875rem",
@@ -135,9 +121,6 @@ export default function SubmitBills() {
   const [billReportRows, setBillReportRows] = useState<BillReportRow[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
-  const [pendingSubmissions, setPendingSubmissions] = useState<PendingBillSubmission[]>([]);
-  const [loadingPendingSubmissions, setLoadingPendingSubmissions] = useState(false);
-  const [pendingSubmissionsLoaded, setPendingSubmissionsLoaded] = useState(false);
 
   const selectedAssignment = assignments.find((a) => a.project_code === selectedProject);
   const reportCustodians = [...new Set(billReportRows.map(
@@ -221,56 +204,12 @@ export default function SubmitBills() {
   };
 
   const printBillReport = () => {
-    document.body.classList.remove("pc-pending-print-mode");
     document.body.classList.add("pc-print-mode");
     window.print();
   };
 
-  const loadPendingSubmissions = async () => {
-    if (!empId) {
-      toast.error("Employee ID not found");
-      return;
-    }
-
-    setLoadingPendingSubmissions(true);
-    setPendingSubmissionsLoaded(false);
-    try {
-      const { data, error } = await supabase
-        .from("petty_cash_submission")
-        .select("id,submission_number,submission_date,project_code,petty_cash_transaction(exp_project_code,trans_date,particulars,exp_amount,expense_category_id)")
-        .eq("emp_id", empId)
-        .in("status", ["pending_verification", "pending_petty_cash_approval"])
-        .order("submission_date", { ascending: true });
-      if (error) throw error;
-
-      setPendingSubmissions((data || []).map((submission) => ({
-        id: submission.id,
-        submission_number: submission.submission_number,
-        submission_date: submission.submission_date,
-        project_code: submission.project_code,
-        bills: (submission.petty_cash_transaction || []).map((bill) => ({
-          exp_project_code: bill.exp_project_code,
-          trans_date: bill.trans_date,
-          particulars: bill.particulars,
-          exp_amount: Number(bill.exp_amount),
-          expense_category_id: bill.expense_category_id,
-        })),
-      })));
-      setPendingSubmissionsLoaded(true);
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to load pending bill submissions");
-    } finally {
-      setLoadingPendingSubmissions(false);
-    }
-  };
-
-  const printPendingSubmissions = () => {
-    document.body.classList.add("pc-pending-print-mode", "pc-print-mode");
-    window.print();
-  };
-
   useEffect(() => {
-    const clearPrintMode = () => document.body.classList.remove("pc-print-mode", "pc-pending-print-mode");
+    const clearPrintMode = () => document.body.classList.remove("pc-print-mode");
     window.addEventListener("afterprint", clearPrintMode);
     return () => {
       window.removeEventListener("afterprint", clearPrintMode);
@@ -430,12 +369,16 @@ export default function SubmitBills() {
     } else {
       // Select — find fuel category
       const fuelCat = categories.find((c) => c.category_name.toLowerCase() === "fuel");
+      if (!fuelCat) {
+        toast.error("Fuel expense category is unavailable. Please try again.");
+        return;
+      }
       setSelectedFuelIds((prev) => new Set([...prev, fuel.id]));
       setBills((prev) => [
         ...prev,
         {
           id: `fuel-${fuel.id}`,
-          expense_category_id: fuelCat?.id ?? 0,
+          expense_category_id: fuelCat.id,
           category_name: "Fuel",
           exp_project_code: selectedProject,
           trans_date: fuel.date,
@@ -793,7 +736,7 @@ export default function SubmitBills() {
             )}
           </div>
           {reportLoaded && (
-            <div className="pc-print-report pc-approved-report" style={{ overflowX: "auto" }}>
+            <div className="pc-print-report" style={{ overflowX: "auto" }}>
               <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
                 <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
                 <p>Petty Cash Bill Submission Report</p>
@@ -863,77 +806,6 @@ export default function SubmitBills() {
             </div>
           )}
         </section>
-
-        <section style={{ marginTop: "1rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
-          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Pending Bill Submissions</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Print all bills in your submissions awaiting verification or approval.</p>
-          <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadPendingSubmissions} disabled={loadingPendingSubmissions} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
-              {loadingPendingSubmissions ? "Loading..." : "Load Pending Submissions"}
-            </button>
-            {pendingSubmissionsLoaded && pendingSubmissions.length > 0 && (
-              <button type="button" onClick={printPendingSubmissions} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <Printer width="0.9rem" /> Print
-              </button>
-            )}
-          </div>
-          {pendingSubmissionsLoaded && (
-            <div className="pc-print-report pc-pending-report" style={{ overflowX: "auto" }}>
-              <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
-                <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
-                <p>Petty Cash Bill Submissions (pending for approval)</p>
-                <p>{userData?.name || "—"} ({empId})</p>
-              </header>
-              {pendingSubmissions.length === 0 ? (
-                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No pending bill submissions.</p>
-              ) : (
-                <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
-                  <colgroup>
-                    <col style={{ width: "5%" }} /><col style={{ width: "11%" }} /><col style={{ width: "14%" }} />
-                    <col style={{ width: "11%" }} /><col style={{ width: "14%" }} /><col style={{ width: "25%" }} />
-                    <col style={{ width: "12%" }} /><col style={{ width: "8%" }} />
-                  </colgroup>
-                  <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["S/N", "Submission Date", "Submission No.", "Bill Date", "Category", "Bill Details", "Expense Project", "Amount (OMR)"].map((heading) => (
-                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: heading === "Amount (OMR)" ? "right" : "left" }}>{heading}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {pendingSubmissions.flatMap((submission, submissionIndex) => (
-                      submission.bills.length > 0
-                        ? submission.bills.map((bill, billIndex) => (
-                          <tr key={`${submission.id}-${billIndex}`}>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? submissionIndex + 1 : ""}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? moment(submission.submission_date).format("DD MMM YYYY") : ""}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? submission.submission_number : ""}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(bill.trans_date).format("DD MMM YYYY")}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{categories.find((category) => category.id === bill.expense_category_id)?.category_name || "—"}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.particulars}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.exp_project_code || submission.project_code}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(bill.exp_amount)}</td>
-                          </tr>
-                        ))
-                        : [(
-                          <tr key={`${submission.id}-empty`}>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submissionIndex + 1}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(submission.submission_date).format("DD MMM YYYY")}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{submission.submission_number}</td>
-                            <td colSpan={5} style={{ border: "1px solid #111", padding: "0.4rem" }}>No bills</td>
-                          </tr>
-                        )]
-                    ))}
-                    <tr>
-                      <td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total</td>
-                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
-                        {formatOMR(pendingSubmissions.reduce((total, submission) => total + submission.bills.reduce((sum, bill) => sum + bill.exp_amount, 0), 0))}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-        </section>
       </div>
       <style>{`@media print {
         @page { size: A4 portrait; margin: 8mm; }
@@ -950,8 +822,6 @@ export default function SubmitBills() {
         body.pc-print-mode .pc-report-table thead { display: table-header-group; }
         body.pc-print-mode .pc-report-table tr, body.pc-print-mode .pc-report-signatures { break-inside: avoid; }
         body.pc-print-mode .pc-report-signatures { font-size: 10px; }
-        body.pc-pending-print-mode .pc-approved-report { display: none !important; }
-        body.pc-print-mode:not(.pc-pending-print-mode) .pc-pending-report { display: none !important; }
       }`}</style>
     </motion.div>
   );
