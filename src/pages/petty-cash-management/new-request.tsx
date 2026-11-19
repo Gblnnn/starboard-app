@@ -426,7 +426,6 @@ export default function NewRequest() {
               </header>
               <div className="pc-report-details">
                 <p><strong>Custodian(s):</strong> {reportCustodians.join(", ") || "—"}</p>
-                <p><strong>Project(s):</strong> {reportProjects.join(", ") || "—"}</p>
               </div>
               {reportRowsForDisplay.length === 0 ? (
                 <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No cash requests in this date range.</p>
