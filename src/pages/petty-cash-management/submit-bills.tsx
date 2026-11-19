@@ -15,6 +15,7 @@ import {
   type FuelLogEntry,
   formatOMR,
   normalizeVerifierId,
+  statusLabel,
 } from "./types";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
@@ -44,6 +45,7 @@ interface BillReportRow {
   id: number;
   submission_number: string;
   submission_date: string;
+  status: string;
   project_code: string;
   emp_id: string;
   custodian_name: string;
@@ -135,7 +137,7 @@ export default function SubmitBills() {
     ])).values()];
   const projectNameByCode = new Map(projects.map((project) => [project.project_code, project.project_name]));
 
-  const loadApprovedSubmissions = async () => {
+  const loadBillSubmissions = async () => {
     if (!reportFrom || !reportTo || reportFrom > reportTo) {
       toast.error("Select a valid date range");
       return;
@@ -144,16 +146,32 @@ export default function SubmitBills() {
     setLoadingReport(true);
     setReportLoaded(false);
     try {
-      const { data, error } = await supabase
-        .from("petty_cash_submission")
-        .select("id,submission_number,submission_date,project_code,emp_id,petty_cash_approver_id,petty_cash_transaction(exp_project_code,trans_date,particulars,exp_amount,approved_amount,fin_approved_amount),petty_cash_reimbursement_payment(payment_amount)")
-        .eq("status", "approved")
-        .gte("submission_date", reportFrom)
-        .lte("submission_date", reportTo)
-        .order("submission_date", { ascending: true });
-      if (error) throw error;
+      const reportSelect = "id,submission_number,submission_date,status,project_code,emp_id,petty_cash_approver_id,petty_cash_transaction(exp_project_code,trans_date,particulars,exp_amount,approved_amount,fin_approved_amount),petty_cash_reimbursement_payment(payment_amount)";
+      const [approvedResult, pendingResult] = await Promise.all([
+        supabase
+          .from("petty_cash_submission")
+          .select(reportSelect)
+          .eq("status", "approved")
+          .gte("submission_date", reportFrom)
+          .lte("submission_date", reportTo)
+          .order("submission_date", { ascending: true }),
+        supabase
+          .from("petty_cash_submission")
+          .select(reportSelect)
+          .eq("emp_id", empId)
+          .in("status", ["pending_verification", "pending_petty_cash_approval"])
+          .gte("submission_date", reportFrom)
+          .lte("submission_date", reportTo)
+          .order("submission_date", { ascending: true }),
+      ]);
+      if (approvedResult.error) throw approvedResult.error;
+      if (pendingResult.error) throw pendingResult.error;
+      const submissions = [
+        ...(approvedResult.data || []),
+        ...(pendingResult.data || []),
+      ].sort((a, b) => a.submission_date.localeCompare(b.submission_date));
 
-      const employeeIds = [...new Set((data || []).flatMap((submission) => [
+      const employeeIds = [...new Set(submissions.flatMap((submission) => [
         submission.emp_id,
         ...(submission.petty_cash_approver_id ? [submission.petty_cash_approver_id] : []),
       ]))];
@@ -162,20 +180,23 @@ export default function SubmitBills() {
         : { data: [], error: null };
       if (employeesError) throw employeesError;
       const employeeNames = new Map((employees || []).map((employee) => [employee.emp_id, employee.name]));
-      const rows: BillReportRow[] = (data || []).map((submission) => {
+      const rows: BillReportRow[] = submissions.map((submission) => {
         const transactions = submission.petty_cash_transaction || [];
         const approvedAmount = transactions.reduce(
           (total, transaction) => total + Number(transaction.fin_approved_amount ?? transaction.approved_amount ?? transaction.exp_amount),
           0
         );
-        const reimbursedAmount = (submission.petty_cash_reimbursement_payment || []).reduce(
-          (total, payment) => total + Number(payment.payment_amount || 0),
-          0
-        );
+        const reimbursedAmount = submission.status === "approved"
+          ? (submission.petty_cash_reimbursement_payment || []).reduce(
+            (total, payment) => total + Number(payment.payment_amount || 0),
+            0
+          )
+          : 0;
         return {
           id: submission.id,
           submission_number: submission.submission_number,
           submission_date: submission.submission_date,
+          status: submission.status,
           project_code: submission.project_code,
           emp_id: submission.emp_id,
           custodian_name: employeeNames.get(submission.emp_id) || (submission.emp_id === empId ? userData?.name || "" : ""),
@@ -191,13 +212,15 @@ export default function SubmitBills() {
           })),
           approved_amount: approvedAmount,
           reimbursed_amount: reimbursedAmount,
-          outstanding: Math.max(0, approvedAmount - reimbursedAmount),
+          outstanding: submission.status === "approved"
+            ? Math.max(0, approvedAmount - reimbursedAmount)
+            : 0,
         };
       });
       setBillReportRows(rows);
       setReportLoaded(true);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load approved bill submissions");
+      toast.error(err instanceof Error ? err.message : "Failed to load bill submissions");
     } finally {
       setLoadingReport(false);
     }
@@ -717,17 +740,17 @@ export default function SubmitBills() {
           </motion.button>
         </div>
 
-        {/* Approved bill submission report */}
+        {/* Bill submission report */}
         <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
-          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Approved Bill Submissions</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>All approver-approved submissions in the selected submission-date range are included.</p>
+          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Bill Submission Report</h3>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Approved submissions for all custodians and your pending submissions in the selected date range are included.</p>
           <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
             <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
           </div>
           <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadApprovedSubmissions} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
-              {loadingReport ? "Loading..." : "Load Approved Submissions"}
+            <button type="button" onClick={loadBillSubmissions} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+              {loadingReport ? "Loading..." : "Load Pending & Approved Submissions"}
             </button>
             {reportLoaded && billReportRows.length > 0 && (
               <button type="button" onClick={printBillReport} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
@@ -747,17 +770,18 @@ export default function SubmitBills() {
                 <p><strong>Project(s):</strong> {reportProjects.join(", ") || "—"}</p>
               </div>
               {billReportRows.length === 0 ? (
-                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No approved bill submissions in this date range.</p>
+                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No bill submissions in this date range.</p>
               ) : (
                 <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
                   <colgroup>
-                    <col style={{ width: "4%" }} /><col style={{ width: "9%" }} /><col style={{ width: "11%" }} />
-                    <col style={{ width: "8%" }} /><col style={{ width: "24%" }} /><col style={{ width: "10%" }} />
-                    <col style={{ width: "11%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
+                    <col style={{ width: "4%" }} /><col style={{ width: "9%" }} /><col style={{ width: "10%" }} />
+                    <col style={{ width: "12%" }} /><col style={{ width: "8%" }} /><col style={{ width: "19%" }} />
+                    <col style={{ width: "10%" }} /><col style={{ width: "10%" }} /><col style={{ width: "9%" }} />
+                    <col style={{ width: "9%" }} />
                   </colgroup>
                   <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["S/N", "Submission Date", "Submission No.", "Bill Date", "Bill Details", "Expense Project", "Bill Approved", "Reimbursed", "Outstanding"].map((heading) => (
-                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Bill Approved", "Reimbursed", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
+                    {["S/N", "Submission Date", "Submission No.", "Status", "Bill Date", "Bill Details", "Expense Project", "Bill Amount", "Reimbursed", "Outstanding"].map((heading) => (
+                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Bill Amount", "Reimbursed", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
                     ))}
                   </tr></thead>
                   <tbody>
@@ -771,6 +795,7 @@ export default function SubmitBills() {
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? index + 1 : ""}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? moment(submission.submission_date).format("DD MMM YYYY") : ""}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? submission.submission_number : ""}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{billIndex === 0 ? statusLabel[submission.status] || submission.status : ""}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.trans_date ? moment(bill.trans_date).format("DD MMM YYYY") : "—"}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.particulars}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>
@@ -784,7 +809,7 @@ export default function SubmitBills() {
                           </tr>
                         ))}
                         <tr>
-                          <td colSpan={6} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
+                          <td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
                             Submission Total — {submission.submission_number}
                           </td>
                           <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(submission.approved_amount)}</td>
@@ -793,7 +818,7 @@ export default function SubmitBills() {
                         </tr>
                       </Fragment>
                     ))}
-                    <tr><td colSpan={8} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
+                    <tr><td colSpan={9} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
                       <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(billReportRows.reduce((total, submission) => total + submission.outstanding, 0))}</td>
                     </tr>
                   </tbody>
@@ -801,7 +826,7 @@ export default function SubmitBills() {
               )}
               <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", gap: "1rem", marginTop: "1.25rem" }}>
                 <div><div>Prepared By (Custodian)</div>{reportCustodians.map((custodian) => <div key={custodian}>{custodian}</div>)}</div>
-                <div><div>Approved By (Approver)</div>{reportApprovers.map((approver) => <div key={approver}>{approver}</div>)}</div>
+                <div><div>Approver(s)</div>{reportApprovers.map((approver) => <div key={approver}>{approver}</div>)}</div>
               </div>
             </div>
           )}
