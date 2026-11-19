@@ -37,6 +37,11 @@ interface RequestReportRow {
   outstanding: number;
 }
 
+type RequestPrintStatus = "pending" | "approved";
+
+const PENDING_REQUEST_STATUSES = ["pending_verification", "pending_approval"];
+const APPROVED_REQUEST_STATUSES = ["approved", "partially_paid", "fully_paid"];
+
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "0.875rem 1rem",
@@ -74,6 +79,7 @@ export default function NewRequest() {
   const [requestReportRows, setRequestReportRows] = useState<RequestReportRow[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
+  const [printStatus, setPrintStatus] = useState<RequestPrintStatus | null>(null);
 
   useEffect(() => {
     if (!empId) return;
@@ -118,15 +124,21 @@ export default function NewRequest() {
   }, [empId]);
 
   const selectedProjectData = projects.find((p) => p.project_code === selectedProject);
-  const reportCustodians = [...new Set(requestReportRows.map(
+  const statusesForPrint = printStatus === "pending"
+    ? PENDING_REQUEST_STATUSES
+    : APPROVED_REQUEST_STATUSES;
+  const reportRowsForDisplay = printStatus
+    ? requestReportRows.filter((request) => statusesForPrint.includes(request.status))
+    : requestReportRows;
+  const reportCustodians = [...new Set(reportRowsForDisplay.map(
     (request) => `${request.custodian_name || "Unknown"} (${request.emp_id})`
   ))];
-  const reportProjects = [...new Set(requestReportRows.map((request) => request.project_code))];
+  const reportProjects = [...new Set(reportRowsForDisplay.map((request) => request.project_code))];
   const requestRowsByProject = reportProjects.map((projectCode) => ({
     projectCode,
-    requests: requestReportRows.filter((request) => request.project_code === projectCode),
+    requests: reportRowsForDisplay.filter((request) => request.project_code === projectCode),
   }));
-  const reportApprovers = [...new Map(requestReportRows
+  const reportApprovers = [...new Map(reportRowsForDisplay
     .filter((request) => request.approver_id)
     .map((request) => [
       request.approver_id!,
@@ -136,6 +148,10 @@ export default function NewRequest() {
   const loadCashRequests = async () => {
     if (!empId) {
       toast.error("Employee ID not found");
+      return;
+    }
+    if (!selectedProject) {
+      toast.error("Select a project");
       return;
     }
     if (!reportFrom || !reportTo || reportFrom > reportTo) {
@@ -150,6 +166,7 @@ export default function NewRequest() {
         .from("petty_cash_request")
         .select("id,request_number,request_date,status,project_code,emp_id,approver_id,particulars,request_amount,approved_amount,petty_cash_request_payment(payment_amount)")
         .eq("emp_id", empId)
+        .eq("project_code", selectedProject)
         .in("status", ["pending_verification", "pending_approval", "approved", "partially_paid", "fully_paid"])
         .gte("request_date", reportFrom)
         .lte("request_date", reportTo)
@@ -198,17 +215,21 @@ export default function NewRequest() {
     }
   };
 
-  const printRequestReport = () => {
+  useEffect(() => {
+    if (!printStatus) return;
     document.body.classList.add("pc-print-mode");
     window.print();
-  };
+  }, [printStatus]);
 
   useEffect(() => {
-    const clearPrintMode = () => document.body.classList.remove("pc-print-mode");
+    const clearPrintMode = () => {
+      document.body.classList.remove("pc-print-mode");
+      setPrintStatus(null);
+    };
     window.addEventListener("afterprint", clearPrintMode);
     return () => {
       window.removeEventListener("afterprint", clearPrintMode);
-      clearPrintMode();
+      document.body.classList.remove("pc-print-mode");
     };
   }, []);
 
@@ -275,7 +296,11 @@ export default function NewRequest() {
             <select
               id="pc-req-project"
               value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
+              onChange={(e) => {
+                setSelectedProject(e.target.value);
+                setReportLoaded(false);
+                setRequestReportRows([]);
+              }}
               style={INPUT_STYLE}
             >
               <option value="">— Select Project —</option>
@@ -372,18 +397,23 @@ export default function NewRequest() {
         {/* Cash request report */}
         <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
           <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Cash Request Report</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Your pending and approved requests in the selected request-date range are grouped by project.</p>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Your pending and approved requests for the selected project in the selected request-date range.</p>
           <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
             <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
           </div>
-          <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadCashRequests} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+          <div className="pc-report-controls" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <button type="button" onClick={loadCashRequests} disabled={loadingReport} style={{ flex: "1 1 100%", padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
               {loadingReport ? "Loading..." : "Load Pending & Approved Requests"}
             </button>
-            {reportLoaded && requestReportRows.length > 0 && (
-              <button type="button" onClick={printRequestReport} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <Printer width="0.9rem" /> Print
+            {reportLoaded && PENDING_REQUEST_STATUSES.some((status) => requestReportRows.some((request) => request.status === status)) && (
+              <button type="button" onClick={() => setPrintStatus("pending")} style={{ flex: "1 1 0", padding: "0.7rem 0.5rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "0.4rem", whiteSpace: "nowrap" }}>
+                <Printer width="0.9rem" /> Print Pending
+              </button>
+            )}
+            {reportLoaded && APPROVED_REQUEST_STATUSES.some((status) => requestReportRows.some((request) => request.status === status)) && (
+              <button type="button" onClick={() => setPrintStatus("approved")} style={{ flex: "1 1 0", padding: "0.7rem 0.5rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "0.4rem", whiteSpace: "nowrap" }}>
+                <Printer width="0.9rem" /> Print Approved
               </button>
             )}
           </div>
@@ -391,14 +421,14 @@ export default function NewRequest() {
             <div className="pc-print-report" style={{ overflowX: "auto" }}>
               <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
                 <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
-                <p>Petty Cash Request Report</p>
+                <p>Petty Cash {printStatus ? `${printStatus === "pending" ? "Pending" : "Approved"} Request` : "Request"} Report</p>
                 <p>{moment(reportFrom).format("DD MMM YYYY")} – {moment(reportTo).format("DD MMM YYYY")}</p>
               </header>
               <div className="pc-report-details">
                 <p><strong>Custodian(s):</strong> {reportCustodians.join(", ") || "—"}</p>
                 <p><strong>Project(s):</strong> {reportProjects.join(", ") || "—"}</p>
               </div>
-              {requestReportRows.length === 0 ? (
+              {reportRowsForDisplay.length === 0 ? (
                 <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No cash requests in this date range.</p>
               ) : (
                 requestRowsByProject.map(({ projectCode, requests }) => (
