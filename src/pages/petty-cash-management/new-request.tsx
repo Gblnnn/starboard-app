@@ -7,7 +7,7 @@ import moment from "moment";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { formatOMR, normalizeVerifierId } from "./types";
+import { formatOMR, normalizeVerifierId, statusLabel } from "./types";
 import { usePettyCashAccess } from "./usePettyCashAccess";
 import AccessDenied from "./AccessDenied";
 
@@ -24,6 +24,7 @@ interface RequestReportRow {
   id: number;
   request_number: string;
   request_date: string;
+  status: string;
   project_code: string;
   emp_id: string;
   custodian_name: string;
@@ -31,7 +32,7 @@ interface RequestReportRow {
   approver_name: string;
   particulars: string;
   request_amount: number;
-  approved_amount: number;
+  approved_amount: number | null;
   total_paid: number;
   outstanding: number;
 }
@@ -73,9 +74,6 @@ export default function NewRequest() {
   const [requestReportRows, setRequestReportRows] = useState<RequestReportRow[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
-  const [pendingRequestRows, setPendingRequestRows] = useState<RequestReportRow[]>([]);
-  const [loadingPendingRequests, setLoadingPendingRequests] = useState(false);
-  const [pendingRequestsLoaded, setPendingRequestsLoaded] = useState(false);
 
   useEffect(() => {
     if (!empId) return;
@@ -135,7 +133,7 @@ export default function NewRequest() {
       `${request.approver_name || "Unknown"} (${request.approver_id})`,
     ])).values()];
 
-  const loadApprovedRequests = async () => {
+  const loadCashRequests = async () => {
     if (!empId) {
       toast.error("Employee ID not found");
       return;
@@ -150,9 +148,9 @@ export default function NewRequest() {
     try {
       const { data, error } = await supabase
         .from("petty_cash_request")
-        .select("id,request_number,request_date,project_code,emp_id,approver_id,particulars,request_amount,approved_amount,petty_cash_request_payment(payment_amount)")
+        .select("id,request_number,request_date,status,project_code,emp_id,approver_id,particulars,request_amount,approved_amount,petty_cash_request_payment(payment_amount)")
         .eq("emp_id", empId)
-        .in("status", ["approved", "partially_paid", "fully_paid"])
+        .in("status", ["pending_verification", "pending_approval", "approved", "partially_paid", "fully_paid"])
         .gte("request_date", reportFrom)
         .lte("request_date", reportTo)
         .order("request_date", { ascending: true });
@@ -177,6 +175,7 @@ export default function NewRequest() {
           id: request.id,
           request_number: request.request_number,
           request_date: request.request_date,
+          status: request.status,
           project_code: request.project_code,
           emp_id: request.emp_id,
           custodian_name: employeeNames.get(request.emp_id) || (request.emp_id === empId ? userData?.name || "" : ""),
@@ -184,7 +183,7 @@ export default function NewRequest() {
           approver_name: request.approver_id ? employeeNames.get(request.approver_id) || "" : "",
           particulars: request.particulars,
           request_amount: Number(request.request_amount),
-          approved_amount: approvedAmount,
+          approved_amount: request.approved_amount === null ? null : approvedAmount,
           total_paid: totalPaid,
           outstanding: Math.max(0, approvedAmount - totalPaid),
         };
@@ -193,65 +192,19 @@ export default function NewRequest() {
       setRequestReportRows(rows);
       setReportLoaded(true);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load approved cash requests");
+      toast.error(err instanceof Error ? err.message : "Failed to load cash requests");
     } finally {
       setLoadingReport(false);
     }
   };
 
   const printRequestReport = () => {
-    document.body.classList.remove("pc-pending-print-mode");
     document.body.classList.add("pc-print-mode");
     window.print();
   };
 
-  const loadPendingRequests = async () => {
-    if (!empId) {
-      toast.error("Employee ID not found");
-      return;
-    }
-
-    setLoadingPendingRequests(true);
-    setPendingRequestsLoaded(false);
-    try {
-      const { data, error } = await supabase
-        .from("petty_cash_request")
-        .select("id,request_number,request_date,project_code,emp_id,particulars,request_amount")
-        .eq("emp_id", empId)
-        .in("status", ["pending_verification", "pending_approval"])
-        .order("request_date", { ascending: true });
-      if (error) throw error;
-
-      setPendingRequestRows((data || []).map((request) => ({
-        id: request.id,
-        request_number: request.request_number,
-        request_date: request.request_date,
-        project_code: request.project_code,
-        emp_id: request.emp_id,
-        custodian_name: userData?.name || "",
-        approver_id: null,
-        approver_name: "",
-        particulars: request.particulars,
-        request_amount: Number(request.request_amount),
-        approved_amount: 0,
-        total_paid: 0,
-        outstanding: 0,
-      })));
-      setPendingRequestsLoaded(true);
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to load pending cash requests");
-    } finally {
-      setLoadingPendingRequests(false);
-    }
-  };
-
-  const printPendingRequests = () => {
-    document.body.classList.add("pc-pending-print-mode", "pc-print-mode");
-    window.print();
-  };
-
   useEffect(() => {
-    const clearPrintMode = () => document.body.classList.remove("pc-print-mode", "pc-pending-print-mode");
+    const clearPrintMode = () => document.body.classList.remove("pc-print-mode");
     window.addEventListener("afterprint", clearPrintMode);
     return () => {
       window.removeEventListener("afterprint", clearPrintMode);
@@ -416,17 +369,17 @@ export default function NewRequest() {
           </motion.button>
         </div>
 
-        {/* Approved cash request report */}
+        {/* Cash request report */}
         <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
-          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Approved Cash Requests</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Your approved requests in the selected request-date range are grouped by project.</p>
+          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Cash Request Report</h3>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Your pending and approved requests in the selected request-date range are grouped by project.</p>
           <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
             <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
           </div>
           <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadApprovedRequests} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
-              {loadingReport ? "Loading..." : "Load Approved Requests"}
+            <button type="button" onClick={loadCashRequests} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+              {loadingReport ? "Loading..." : "Load Pending & Approved Requests"}
             </button>
             {reportLoaded && requestReportRows.length > 0 && (
               <button type="button" onClick={printRequestReport} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
@@ -435,7 +388,7 @@ export default function NewRequest() {
             )}
           </div>
           {reportLoaded && (
-            <div className="pc-print-report pc-approved-report" style={{ overflowX: "auto" }}>
+            <div className="pc-print-report" style={{ overflowX: "auto" }}>
               <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
                 <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
                 <p>Petty Cash Request Report</p>
@@ -446,19 +399,19 @@ export default function NewRequest() {
                 <p><strong>Project(s):</strong> {reportProjects.join(", ") || "—"}</p>
               </div>
               {requestReportRows.length === 0 ? (
-                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No approved cash requests in this date range.</p>
+                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No cash requests in this date range.</p>
               ) : (
                 requestRowsByProject.map(({ projectCode, requests }) => (
                   <section key={projectCode} style={{ marginBottom: "1rem" }}>
                     <h3 style={{ fontWeight: 700, margin: "0.75rem 0 0.35rem" }}>Project: {projectCode}</h3>
                     <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
                       <colgroup>
-                        <col style={{ width: "5%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} />
-                        <col style={{ width: "33%" }} /><col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
-                        <col style={{ width: "9.75%" }} /><col style={{ width: "9.75%" }} />
+                        <col style={{ width: "4%" }} /><col style={{ width: "9%" }} /><col style={{ width: "11%" }} />
+                        <col style={{ width: "13%" }} /><col style={{ width: "23%" }} /><col style={{ width: "10%" }} />
+                        <col style={{ width: "10%" }} /><col style={{ width: "10%" }} /><col style={{ width: "10%" }} />
                       </colgroup>
                       <thead><tr style={{ background: "#e5e7eb" }}>
-                        {["S/N", "Date", "Request No.", "Particulars", "Requested", "Approved", "Paid", "Outstanding"].map((heading) => (
+                        {["S/N", "Date", "Request No.", "Status", "Particulars", "Requested", "Approved", "Paid", "Outstanding"].map((heading) => (
                           <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: ["Requested", "Approved", "Paid", "Outstanding"].includes(heading) ? "right" : "left" }}>{heading}</th>
                         ))}
                       </tr></thead>
@@ -468,15 +421,16 @@ export default function NewRequest() {
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(request.request_date).format("DD MMM YYYY")}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.request_number}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{statusLabel[request.status] || request.status}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.particulars}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.request_amount)}</td>
-                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.approved_amount)}</td>
+                            <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{request.approved_amount === null ? "—" : formatOMR(request.approved_amount)}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.total_paid)}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.outstanding)}</td>
                           </tr>
                         ))}
                         <tr>
-                          <td colSpan={7} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Project Total Outstanding</td>
+                          <td colSpan={8} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Project Total Outstanding</td>
                           <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>
                             {formatOMR(requests.reduce((total, request) => total + request.outstanding, 0))}
                           </td>
@@ -488,59 +442,8 @@ export default function NewRequest() {
               )}
               <div className="pc-report-signatures" style={{ display: "flex", justifyContent: "space-between", gap: "1rem", marginTop: "1.25rem" }}>
                 <div><div>Prepared By (Custodian)</div>{reportCustodians.map((custodian) => <div key={custodian}>{custodian}</div>)}</div>
-                <div><div>Approved By (Approver)</div>{reportApprovers.map((approver) => <div key={approver}>{approver}</div>)}</div>
+                <div><div>Approver(s)</div>{reportApprovers.map((approver) => <div key={approver}>{approver}</div>)}</div>
               </div>
-            </div>
-          )}
-        </section>
-
-        <section style={{ marginTop: "1rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
-          <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Pending Cash Requests</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Print all your requests awaiting verification or approval.</p>
-          <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadPendingRequests} disabled={loadingPendingRequests} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
-              {loadingPendingRequests ? "Loading..." : "Load Pending Requests"}
-            </button>
-            {pendingRequestsLoaded && pendingRequestRows.length > 0 && (
-              <button type="button" onClick={printPendingRequests} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <Printer width="0.9rem" /> Print
-              </button>
-            )}
-          </div>
-          {pendingRequestsLoaded && (
-            <div className="pc-print-report pc-pending-report" style={{ overflowX: "auto" }}>
-              <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
-                <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
-                <p>Petty Cash Requests (pending for approval)</p>
-                <p>{userData?.name || "—"} ({empId})</p>
-              </header>
-              {pendingRequestRows.length === 0 ? (
-                <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No pending cash requests.</p>
-              ) : (
-                <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
-                  <colgroup>
-                    <col style={{ width: "6%" }} /><col style={{ width: "14%" }} /><col style={{ width: "15%" }} />
-                    <col style={{ width: "12%" }} /><col style={{ width: "35%" }} /><col style={{ width: "18%" }} />
-                  </colgroup>
-                  <thead><tr style={{ background: "#e5e7eb" }}>
-                    {["S/N", "Request Date", "Request No.", "Project", "Purpose", "Requested (OMR)"].map((heading) => (
-                      <th key={heading} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: heading === "Requested (OMR)" ? "right" : "left" }}>{heading}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {pendingRequestRows.map((request, index) => (
-                      <tr key={request.id}>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{index + 1}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{moment(request.request_date).format("DD MMM YYYY")}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.request_number}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.project_code}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{request.particulars}</td>
-                        <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(request.request_amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
             </div>
           )}
         </section>
@@ -560,8 +463,6 @@ export default function NewRequest() {
         body.pc-print-mode .pc-report-table thead { display: table-header-group; }
         body.pc-print-mode .pc-report-table tr, body.pc-print-mode .pc-report-signatures { break-inside: avoid; }
         body.pc-print-mode .pc-report-signatures { font-size: 10px; }
-        body.pc-pending-print-mode .pc-approved-report { display: none !important; }
-        body.pc-print-mode:not(.pc-pending-print-mode) .pc-pending-report { display: none !important; }
       }`}</style>
     </motion.div>
   );
