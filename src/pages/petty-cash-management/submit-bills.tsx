@@ -62,6 +62,11 @@ interface BillReportRow {
   outstanding: number;
 }
 
+type BillReportPrintStatus = "pending" | "approved";
+
+const PENDING_BILL_STATUSES = ["pending_verification", "pending_petty_cash_approval"];
+const APPROVED_BILL_STATUSES = ["approved"];
+
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "0.75rem 0.875rem",
@@ -123,13 +128,19 @@ export default function SubmitBills() {
   const [billReportRows, setBillReportRows] = useState<BillReportRow[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
+  const [printStatus, setPrintStatus] = useState<BillReportPrintStatus | null>(null);
 
   const selectedAssignment = assignments.find((a) => a.project_code === selectedProject);
-  const reportCustodians = [...new Set(billReportRows.map(
+  const statusesForPrint = printStatus === "pending"
+    ? PENDING_BILL_STATUSES
+    : APPROVED_BILL_STATUSES;
+  const reportRowsForDisplay = printStatus
+    ? billReportRows.filter((submission) => statusesForPrint.includes(submission.status))
+    : billReportRows;
+  const reportCustodians = [...new Set(reportRowsForDisplay.map(
     (submission) => `${submission.custodian_name || "Unknown"} (${submission.emp_id})`
   ))];
-  const reportProjects = [...new Set(billReportRows.map((submission) => submission.project_code))];
-  const reportApprovers = [...new Map(billReportRows
+  const reportApprovers = [...new Map(reportRowsForDisplay
     .filter((submission) => submission.petty_cash_approver_id)
     .map((submission) => [
       submission.petty_cash_approver_id!,
@@ -138,6 +149,14 @@ export default function SubmitBills() {
   const projectNameByCode = new Map(projects.map((project) => [project.project_code, project.project_name]));
 
   const loadBillSubmissions = async () => {
+    if (!empId) {
+      toast.error("Employee ID not found");
+      return;
+    }
+    if (!selectedProject) {
+      toast.error("Select a project");
+      return;
+    }
     if (!reportFrom || !reportTo || reportFrom > reportTo) {
       toast.error("Select a valid date range");
       return;
@@ -151,6 +170,7 @@ export default function SubmitBills() {
         supabase
           .from("petty_cash_submission")
           .select(reportSelect)
+          .eq("project_code", selectedProject)
           .eq("status", "approved")
           .gte("submission_date", reportFrom)
           .lte("submission_date", reportTo)
@@ -158,6 +178,7 @@ export default function SubmitBills() {
         supabase
           .from("petty_cash_submission")
           .select(reportSelect)
+          .eq("project_code", selectedProject)
           .eq("emp_id", empId)
           .in("status", ["pending_verification", "pending_petty_cash_approval"])
           .gte("submission_date", reportFrom)
@@ -226,17 +247,21 @@ export default function SubmitBills() {
     }
   };
 
-  const printBillReport = () => {
+  useEffect(() => {
+    if (!printStatus) return;
     document.body.classList.add("pc-print-mode");
     window.print();
-  };
+  }, [printStatus]);
 
   useEffect(() => {
-    const clearPrintMode = () => document.body.classList.remove("pc-print-mode");
+    const clearPrintMode = () => {
+      document.body.classList.remove("pc-print-mode");
+      setPrintStatus(null);
+    };
     window.addEventListener("afterprint", clearPrintMode);
     return () => {
       window.removeEventListener("afterprint", clearPrintMode);
-      clearPrintMode();
+      document.body.classList.remove("pc-print-mode");
     };
   }, []);
 
@@ -499,7 +524,7 @@ export default function SubmitBills() {
               <Loader2 className="animate-spin" width="0.9rem" /> Loading...
             </div>
           ) : (
-            <select id="pc-sub-project" value={selectedProject} onChange={(e) => { setSelectedProject(e.target.value); setBills([]); setSelectedFuelIds(new Set()); }} style={SELECT_STYLE}>
+            <select id="pc-sub-project" value={selectedProject} onChange={(e) => { setSelectedProject(e.target.value); setBills([]); setSelectedFuelIds(new Set()); setReportLoaded(false); setBillReportRows([]); }} style={SELECT_STYLE}>
               <option value="" style={{ backgroundColor: "#fff", color: "#111" }}>— Select Project —</option>
               {assignments.map((a) => (
                 <option key={a.project_code} value={a.project_code} style={{ backgroundColor: "#fff", color: "#111" }}>
@@ -743,18 +768,23 @@ export default function SubmitBills() {
         {/* Bill submission report */}
         <section style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid rgba(100,100,100,0.15)", borderRadius: "0.875rem" }}>
           <h3 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.25rem" }}>Bill Submission Report</h3>
-          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Approved submissions for all custodians and your pending submissions in the selected date range are included.</p>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.875rem" }}>Approved submissions for the selected project and your pending submissions for that project in the selected date range are included.</p>
           <div className="pc-report-controls" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <label style={LABEL_STYLE}>From<input type="date" value={reportFrom} onChange={(e) => { setReportFrom(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
             <label style={LABEL_STYLE}>To<input type="date" value={reportTo} onChange={(e) => { setReportTo(e.target.value); setReportLoaded(false); }} style={{ ...INPUT_STYLE, marginTop: "0.3rem" }} /></label>
           </div>
-          <div className="pc-report-controls" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <button type="button" onClick={loadBillSubmissions} disabled={loadingReport} style={{ flex: 1, padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
+          <div className="pc-report-controls" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <button type="button" onClick={loadBillSubmissions} disabled={loadingReport} style={{ flex: "1 1 100%", padding: "0.7rem", borderRadius: "0.6rem", border: "none", background: "#1e3a5f", color: "white", fontWeight: 600, cursor: "pointer" }}>
               {loadingReport ? "Loading..." : "Load Pending & Approved Submissions"}
             </button>
-            {reportLoaded && billReportRows.length > 0 && (
-              <button type="button" onClick={printBillReport} style={{ padding: "0.7rem 1rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <Printer width="0.9rem" /> Print
+            {reportLoaded && PENDING_BILL_STATUSES.some((status) => billReportRows.some((submission) => submission.status === status)) && (
+              <button type="button" onClick={() => setPrintStatus("pending")} style={{ flex: "1 1 0", padding: "0.7rem 0.5rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "0.4rem", whiteSpace: "nowrap" }}>
+                <Printer width="0.9rem" /> Print Pending
+              </button>
+            )}
+            {reportLoaded && APPROVED_BILL_STATUSES.some((status) => billReportRows.some((submission) => submission.status === status)) && (
+              <button type="button" onClick={() => setPrintStatus("approved")} style={{ flex: "1 1 0", padding: "0.7rem 0.5rem", borderRadius: "0.6rem", border: "1px solid rgba(100,100,100,0.2)", background: "transparent", fontWeight: 600, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "0.4rem", whiteSpace: "nowrap" }}>
+                <Printer width="0.9rem" /> Print Approved
               </button>
             )}
           </div>
@@ -762,14 +792,13 @@ export default function SubmitBills() {
             <div className="pc-print-report" style={{ overflowX: "auto" }}>
               <header className="pc-report-heading" style={{ textAlign: "center", marginBottom: "1rem" }}>
                 <h2 style={{ fontWeight: 700 }}>Sohar Star United LLC</h2>
-                <p>Petty Cash Bill Submission Report</p>
+                <p>Petty Cash {printStatus ? `${printStatus === "pending" ? "Pending" : "Approved"} Bill Submission` : "Bill Submission"} Report</p>
                 <p>{moment(reportFrom).format("DD MMM YYYY")} – {moment(reportTo).format("DD MMM YYYY")}</p>
               </header>
               <div className="pc-report-details">
                 <p><strong>Custodian(s):</strong> {reportCustodians.join(", ") || "—"}</p>
-                <p><strong>Project(s):</strong> {reportProjects.join(", ") || "—"}</p>
               </div>
-              {billReportRows.length === 0 ? (
+              {reportRowsForDisplay.length === 0 ? (
                 <p style={{ textAlign: "center", color: "#64748b", padding: "1rem" }}>No bill submissions in this date range.</p>
               ) : (
                 <table className="pc-report-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", fontSize: "0.63rem" }}>
@@ -785,7 +814,7 @@ export default function SubmitBills() {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {billReportRows.map((submission, index) => (
+                    {reportRowsForDisplay.map((submission, index) => (
                       <Fragment key={submission.id}>
                         {(submission.bills.length > 0
                           ? submission.bills
@@ -819,7 +848,7 @@ export default function SubmitBills() {
                       </Fragment>
                     ))}
                     <tr><td colSpan={9} style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>Total Outstanding</td>
-                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(billReportRows.reduce((total, submission) => total + submission.outstanding, 0))}</td>
+                      <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right", fontWeight: 700 }}>{formatOMR(reportRowsForDisplay.reduce((total, submission) => total + submission.outstanding, 0))}</td>
                     </tr>
                   </tbody>
                 </table>
