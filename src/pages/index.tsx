@@ -1,6 +1,7 @@
 import { useAuth } from "@/components/AuthProvider";
 import Back from "@/components/back";
 import BackgroundProcessDropdown from "@/components/background-process-dropdown";
+import ContactCardShare from "@/components/contact-card-share";
 import GridTile from "@/components/grid-tile";
 import IndexDropDown from "@/components/index-dropdown";
 import InputDialog from "@/components/input-dialog";
@@ -567,6 +568,10 @@ export default function Index() {
               </button>
             </div>
           </div> */}
+
+          <div style={{ marginBottom: "0.75rem" }}>
+            <ContactCardShare />
+          </div>
 
           {loading ? (
             <div
