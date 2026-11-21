@@ -829,7 +829,9 @@ export default function SubmitBills() {
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>{bill.particulars}</td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem" }}>
                               {bill.exp_project_code
-                                ? `${bill.exp_project_code}${projectNameByCode.get(bill.exp_project_code) ? ` — ${projectNameByCode.get(bill.exp_project_code)}` : ""}`
+                                ? printStatus === "pending"
+                                  ? bill.exp_project_code
+                                  : `${bill.exp_project_code}${projectNameByCode.get(bill.exp_project_code) ? ` — ${projectNameByCode.get(bill.exp_project_code)}` : ""}`
                                 : "—"}
                             </td>
                             <td style={{ border: "1px solid #111", padding: "0.4rem", textAlign: "right" }}>{formatOMR(bill.approved_amount)}</td>
