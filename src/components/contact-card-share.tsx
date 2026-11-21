@@ -15,8 +15,15 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 const COMPANY_NAME = "SOHAR STAR UNITED LLC";
-const COMPANY_ADDRESS = "PO Box: 153, PC: 322, Falaj Al Qabail Sohar, Sultanate of Oman";
-const COMPANY_PHONES = ["26844289", "26842701"];
+const COMPANY_ADDRESS = {
+  postBox: "153",
+  street: "Falaj Al Qabail",
+  city: "Sohar",
+  postcode: "322",
+  state: "Al Batinah North Governorate",
+  country: "Sultanate of Oman",
+};
+const COMPANY_PHONES = ["+96826844289", "+96826842701"];
 
 interface EmployeeContact {
   name: string;
@@ -41,7 +48,7 @@ function createVCard(employee: EmployeeContact): string {
     `FN:${escapeVCardText(employee.name)}`,
     `N:${escapeVCardText(employee.name)};;;;`,
     `ORG:${escapeVCardText(COMPANY_NAME)}`,
-    `ADR;TYPE=WORK:;;${escapeVCardText(COMPANY_ADDRESS)};;;;`,
+    `ADR;TYPE=WORK:${escapeVCardText(COMPANY_ADDRESS.postBox)};;${escapeVCardText(COMPANY_ADDRESS.street)};${escapeVCardText(COMPANY_ADDRESS.city)};${escapeVCardText(COMPANY_ADDRESS.state)};${escapeVCardText(COMPANY_ADDRESS.postcode)};${escapeVCardText(COMPANY_ADDRESS.country)}`,
   ];
 
   if (employee.designation) {
@@ -203,8 +210,13 @@ export default function ContactCardShare() {
                   <Building2 className="h-4 w-4" />
                   {COMPANY_NAME}
                 </p>
-                <p className="mt-1 text-slate-600">{COMPANY_ADDRESS}</p>
-                <p className="mt-1 text-slate-600">26844289 and 26842701</p>
+                <p className="mt-1 text-slate-600">Post Box: {COMPANY_ADDRESS.postBox}</p>
+                <p className="text-slate-600">Street: {COMPANY_ADDRESS.street}</p>
+                <p className="text-slate-600">City: {COMPANY_ADDRESS.city}</p>
+                <p className="text-slate-600">Postcode: {COMPANY_ADDRESS.postcode}</p>
+                <p className="text-slate-600">State: {COMPANY_ADDRESS.state}</p>
+                <p className="text-slate-600">Country: {COMPANY_ADDRESS.country}</p>
+                <p className="mt-1 text-slate-600">Company Phone: {COMPANY_PHONES.join(" and ")}</p>
               </div>
             </div>
           ) : (
